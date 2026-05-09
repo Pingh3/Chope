@@ -141,12 +141,76 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 #filterBar{
   background:var(--hdr);
   border-bottom:1px solid var(--border);
-  padding:8px 20px;
-  display:flex;align-items:center;gap:16px;
-  flex-wrap:wrap;
+  padding:0 20px;
+  display:flex;flex-direction:column;
 }
-.fb-group{display:flex;align-items:center;gap:6px}
-.fb-label{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;white-space:nowrap}
+.fb-row{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border)}
+.fb-row:last-child{border-bottom:none}
+.fb-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.fb-label{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;white-space:nowrap;min-width:72px}
+
+/* ── Verb chips ──────────────────────────────────────────── */
+.verb-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.verb-chip{
+  font-size:10px;padding:2px 9px;
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:20px;cursor:pointer;color:var(--t2);
+  transition:all .12s;font-family:inherit;
+}
+.verb-chip:hover{background:var(--t1);color:#fff;border-color:var(--t1)}
+
+/* ── Chatbot ─────────────────────────────────────────────── */
+#chatbotOverlay{
+  position:fixed;inset:0;z-index:500;
+  display:flex;align-items:flex-end;justify-content:flex-end;
+  padding:20px;pointer-events:none;
+}
+#chatbotOverlay.open{pointer-events:all}
+.chat-modal{
+  width:340px;max-height:520px;
+  background:var(--card);border:1px solid var(--border);
+  border-radius:16px;box-shadow:var(--sh-lg);
+  display:flex;flex-direction:column;
+  transform:translateY(20px) scale(.96);opacity:0;
+  transition:all .2s ease;pointer-events:none;
+}
+#chatbotOverlay.open .chat-modal{transform:translateY(0) scale(1);opacity:1;pointer-events:all}
+.chat-hd{
+  padding:12px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;
+}
+.chat-avatar{width:30px;height:30px;border-radius:50%;background:var(--t1);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.chat-hd-info{flex:1}
+.chat-hd-name{font-size:13px;font-weight:700}
+.chat-hd-sub{font-size:10px;color:var(--t3)}
+.chat-body{flex:1;overflow-y:auto;padding:14px 14px 6px;display:flex;flex-direction:column;gap:10px}
+.chat-msg-bot{display:flex;align-items:flex-end;gap:8px}
+.chat-bot-bubble{
+  background:var(--col);border-radius:14px 14px 14px 2px;
+  padding:9px 13px;font-size:12px;color:var(--t1);line-height:1.5;
+  max-width:80%;
+}
+.chat-msg-user{display:flex;justify-content:flex-end}
+.chat-user-bubble{
+  background:var(--t1);color:#fff;
+  border-radius:14px 14px 2px 14px;
+  padding:7px 12px;font-size:12px;
+  max-width:80%;
+}
+.chat-options{display:flex;flex-direction:column;gap:5px;padding:6px 14px 10px;padding-left:50px}
+.chat-opt{
+  font-size:11px;padding:7px 12px;text-align:left;
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:20px;cursor:pointer;font-family:inherit;
+  color:var(--t2);transition:all .12s;
+}
+.chat-opt:hover{background:var(--col-ip);color:#fff;border-color:var(--col-ip)}
+.chat-footer{padding:10px 14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.chat-typing{display:flex;align-items:center;gap:4px;height:16px}
+.chat-typing span{width:5px;height:5px;background:var(--t3);border-radius:50%;animation:typingDot 1.2s infinite}
+.chat-typing span:nth-child(2){animation-delay:.2s}
+.chat-typing span:nth-child(3){animation-delay:.4s}
+@keyframes typingDot{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-4px)}}
 .fpill{
   padding:3px 10px;
   border-radius:20px;
@@ -730,6 +794,23 @@ textarea.fi{resize:vertical;min-height:72px}
       <div class="mf">
         <label>Task Name *</label>
         <input class="fi" id="fName" placeholder="e.g. Review LP subscription docs" oninput="onDescInput()">
+        <div class="verb-chips">
+          <span class="verb-chip" onclick="useVerb('Review')">Review</span>
+          <span class="verb-chip" onclick="useVerb('Draft')">Draft</span>
+          <span class="verb-chip" onclick="useVerb('Prepare')">Prepare</span>
+          <span class="verb-chip" onclick="useVerb('Analyse')">Analyse</span>
+          <span class="verb-chip" onclick="useVerb('Research')">Research</span>
+          <span class="verb-chip" onclick="useVerb('Coordinate')">Coordinate</span>
+          <span class="verb-chip" onclick="useVerb('Audit')">Audit</span>
+          <span class="verb-chip" onclick="useVerb('Build')">Build</span>
+          <span class="verb-chip" onclick="useVerb('Design')">Design</span>
+          <span class="verb-chip" onclick="useVerb('Outline')">Outline</span>
+          <span class="verb-chip" onclick="useVerb('Implement')">Implement</span>
+          <span class="verb-chip" onclick="useVerb('Submit')">Submit</span>
+          <span class="verb-chip" onclick="useVerb('Follow up on')">Follow up on</span>
+          <span class="verb-chip" onclick="useVerb('Send')">Send</span>
+          <span class="verb-chip" onclick="useVerb('Schedule')">Schedule</span>
+        </div>
       </div>
       <div class="mf">
         <label>Description</label>
@@ -744,7 +825,7 @@ textarea.fi{resize:vertical;min-height:72px}
           <label>Category *</label>
           <div class="sel-wrap">
             <div class="sel-dot" id="dot-cat"></div>
-            <select class="fi" id="fCat" onchange="updateSelDots()">
+            <select class="fi" id="fCat" onchange="this.dataset.userSet='1';updateSelDots()">
               <option value="">Select category…</option>
               <option value="portfolio">Portfolio</option>
               <option value="asset">Asset Management</option>
@@ -765,7 +846,7 @@ textarea.fi{resize:vertical;min-height:72px}
         <label>Fund</label>
         <div class="sel-wrap">
           <div class="sel-dot" id="dot-fund"></div>
-          <select class="fi" id="fFund" onchange="updateSelDots()">
+          <select class="fi" id="fFund" onchange="this.dataset.userSet='1';updateSelDots()">
             <option value="none">No Fund</option>
             <option value="WHPMT">WHPMT</option>
             <option value="Fund II">Fund II</option>
@@ -950,6 +1031,28 @@ textarea.fi{resize:vertical;min-height:72px}
   </div>
 </div>
 
+<!-- Chatbot -->
+<div id="chatbotOverlay">
+  <div class="chat-modal">
+    <div class="chat-hd">
+      <div class="chat-avatar">🤖</div>
+      <div class="chat-hd-info">
+        <div class="chat-hd-name">Chope Assistant</div>
+        <div class="chat-hd-sub">Helping you set up your task</div>
+      </div>
+      <button class="mclose" onclick="closeChatbot()">×</button>
+    </div>
+    <div class="chat-body" id="chatBody"></div>
+    <div id="chatOptions" class="chat-options"></div>
+    <div class="chat-footer">
+      <div class="chat-typing" id="chatTyping" style="display:none">
+        <span></span><span></span><span></span>
+      </div>
+      <button class="btn-ghost" style="font-size:11px;padding:4px 10px;margin-left:auto" onclick="closeChatbot()">Skip for now</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toasts -->
 <div id="toasts"></div>
 
@@ -1105,10 +1208,45 @@ function updateSelDots() {
   set('dot-assignee', aName ? avatarColor(aName) : '#D1D5DB');
 }
 
+function estimateCatAndFund(text) {
+  const t = text.toLowerCase();
+  let cat = '', fund = '';
+  if (/\blp\b|investor|ir\b|rfi|subscription|kyc|hulic|temasek/.test(t))           cat = 'ir';
+  else if (/acquire|acqui|term sheet|due diligence|data room|450 park/.test(t))     cat = 'acq';
+  else if (/debt|loan|bridge|refi|covenant|lender|broadway/.test(t))                cat = 'debt';
+  else if (/trustee|resolution|escrow|litigation|certif|compliance|filing/.test(t)) cat = 'compliance';
+  else if (/close|raise|commit|fund admin|ic memo/.test(t))                         cat = 'fund';
+  else if (/asset|property|lease|tenant|mgmt|rent|hudson|park ave/.test(t))         cat = 'asset';
+  else if (/portfolio|review meeting/.test(t))                                       cat = 'portfolio';
+  else if (/performance|attribution|return|irr|q2|q1|q3|q4/.test(t))               cat = 'perf';
+  else if (/corp|secretary|entity|restructure|holdco/.test(t))                      cat = 'corp';
+  else if (/schedule|coordinate|onboard|admin|meeting/.test(t))                     cat = 'admin';
+  else if (/project|build|implement|design/.test(t))                                cat = 'projects';
+
+  if (/whpmt|westhill/.test(t))          fund = 'WHPMT';
+  else if (/fund\s*ii\b|fund\s*2\b/.test(t))  fund = 'Fund II';
+  else if (/fund\s*iii\b|fund\s*3\b/.test(t)) fund = 'Fund III';
+  else if (/fund\s*iv\b|fund\s*4\b/.test(t))  fund = 'Fund IV';
+
+  return { cat, fund };
+}
+
+function useVerb(verb) {
+  const el = document.getElementById('fName');
+  if (!el.value) el.value = verb + ' ';
+  else if (!el.value.trim()) el.value = verb + ' ';
+  else el.value = verb + ' ' + el.value.replace(/^(review|draft|prepare|analyse|research|coordinate|audit|build|design|outline|implement|submit|follow up on|send|schedule)\s*/i, '');
+  el.focus();
+  el.setSelectionRange(el.value.length, el.value.length);
+  onDescInput();
+}
+
 function onDescInput() {
   const name = document.getElementById('fName').value;
   const desc = document.getElementById('fDesc').value;
   if (!name && !desc) { document.getElementById('prioHint').style.display = 'none'; return; }
+
+  // Auto-estimate priority
   suggestedPrio = estimatePriority(name, desc);
   const labels = { high: '🔴 High', med: '🟡 Medium', low: '⚪ Low' };
   const colors = { high: '#FEF2F2', med: '#FFFBEB', low: '#F9FAFB' };
@@ -1118,7 +1256,18 @@ function onDescInput() {
   sp.style.background = colors[suggestedPrio];
   sp.style.color = tcols[suggestedPrio];
   document.getElementById('prioHint').style.display = 'flex';
+
+  // Auto-estimate category and fund (only if not already set by user)
+  if (name.length > 4) {
+    const est = estimateCatAndFund(name);
+    const catEl  = document.getElementById('fCat');
+    const fundEl = document.getElementById('fFund');
+    if (est.cat  && !catEl.dataset.userSet)  { catEl.value  = est.cat;  updateSelDots(); }
+    if (est.fund && !fundEl.dataset.userSet) { fundEl.value = est.fund; updateSelDots(); }
+  }
 }
+
+// Track when user manually changes cat/fund so we don't override it
 
 function applyPrioSugg() {
   document.getElementById('fPriority').value = suggestedPrio;
@@ -1252,29 +1401,33 @@ function renderFilterBar() {
   ).join('');
 
   document.getElementById('filterBar').innerHTML = `
-    <div class="fb-group">
+    <div class="fb-row">
       <span class="fb-label">Priority</span>
-      ${p('all','All','priority',state.priority==='all')}
-      ${p('high','● High','priority',state.priority==='high')}
-      ${p('med','● Medium','priority',state.priority==='med')}
-      ${p('low','● Low','priority',state.priority==='low')}
+      <div class="fb-group">
+        ${p('all','All','priority',state.priority==='all')}
+        ${p('high','● High','priority',state.priority==='high')}
+        ${p('med','● Medium','priority',state.priority==='med')}
+        ${p('low','● Low','priority',state.priority==='low')}
+      </div>
     </div>
-    <div class="fb-group">
+    <div class="fb-row">
       <span class="fb-label">Fund</span>
-      ${p('all','All','fund',state.fund==='all')}
-      ${p('WHPMT','WHPMT','fund',state.fund==='WHPMT')}
-      ${p('Fund II','Fund II','fund',state.fund==='Fund II')}
-      ${p('Fund III','Fund III','fund',state.fund==='Fund III')}
-      ${p('Fund IV','Fund IV','fund',state.fund==='Fund IV')}
-      ${p('none','No Fund','fund',state.fund==='none')}
+      <div class="fb-group">
+        ${p('all','All','fund',state.fund==='all')}
+        ${p('WHPMT','WHPMT','fund',state.fund==='WHPMT')}
+        ${p('Fund II','Fund II','fund',state.fund==='Fund II')}
+        ${p('Fund III','Fund III','fund',state.fund==='Fund III')}
+        ${p('Fund IV','Fund IV','fund',state.fund==='Fund IV')}
+        ${p('none','No Fund','fund',state.fund==='none')}
+      </div>
     </div>
-    <div class="fb-group">
+    <div class="fb-row">
       <span class="fb-label">Assignee</span>
-      ${p('all','All','assignee',state.assignee==='all')}
-      ${teamPills}
-    </div>
-    <div class="fb-group">
-      <span class="fb-label">Workstream</span>
+      <div class="fb-group">
+        ${p('all','All','assignee',state.assignee==='all')}
+        ${teamPills}
+      </div>
+      <span class="fb-label" style="margin-left:16px">Workstream</span>
       <select class="fb-ws-select" onchange="setFilter('ws',this.value)">
         <option value="all" ${state.ws==='all'?'selected':''}>All</option>
         <option value="" ${state.ws===''?'selected':''}>No Workstream</option>
@@ -1886,6 +2039,9 @@ function openTaskModal(id) {
     document.getElementById('fWs').value       = state.ws !== 'all' ? (state.ws||'') : '';
     del.style.display = 'none';
   }
+  // Reset auto-estimate flags so new task gets fresh suggestions
+  delete document.getElementById('fCat').dataset.userSet;
+  delete document.getElementById('fFund').dataset.userSet;
   document.getElementById('prioHint').style.display = 'none';
   updateSelDots();
   document.getElementById('taskOverlay').classList.add('open');
@@ -1941,6 +2097,7 @@ function saveTask() {
     toast('Task created');
   }
   persist(); renderAll(); closeTaskModal();
+  if (!editTaskId) openChatbot(tasks[0]); // show chatbot for newly created task
 }
 
 function deleteTask() {
@@ -2149,6 +2306,150 @@ document.addEventListener('keydown', e => {
 
   if ((e.metaKey||e.ctrlKey) && e.key === 'k') { e.preventDefault(); openTaskModal(); }
 });
+
+/* ══════════════════════════════════════════════════════════
+   CHATBOT
+══════════════════════════════════════════════════════════ */
+
+const CHATBOT_QUESTIONS = [
+  {
+    key: 'importance',
+    text: "How important is this task?",
+    hint: "This helps set the right priority.",
+    options: [
+      { label: "🔥 Very — it's time-sensitive",   value: 'high' },
+      { label: "📌 Quite important, but no rush",  value: 'med'  },
+      { label: "🌱 It can wait for now",           value: 'low'  },
+    ]
+  },
+  {
+    key: 'start',
+    text: "When are you looking to start?",
+    hint: "We'll use this to calculate a due date.",
+    options: [
+      { label: "Today",      value: 0  },
+      { label: "Tomorrow",   value: 1  },
+      { label: "This week",  value: 3  },
+      { label: "Next week",  value: 7  },
+      { label: "Not sure",   value: null },
+    ]
+  },
+  {
+    key: 'duration',
+    text: "How long do you think this will take?",
+    hint: "Even a rough guess helps.",
+    options: [
+      { label: "A few hours",     value: 0  },
+      { label: "1–2 days",        value: 2  },
+      { label: "3–5 days",        value: 5  },
+      { label: "About a week",    value: 7  },
+      { label: "More than a week",value: 14 },
+    ]
+  }
+];
+
+let chatbotTask = null;
+let chatbotStep = 0;
+let chatbotAnswers = {};
+
+function openChatbot(task) {
+  chatbotTask    = task;
+  chatbotStep    = 0;
+  chatbotAnswers = {};
+  document.getElementById('chatBody').innerHTML    = '';
+  document.getElementById('chatOptions').innerHTML = '';
+  document.getElementById('chatbotOverlay').classList.add('open');
+  setTimeout(() => chatbotAsk(0), 400);
+}
+
+function closeChatbot() {
+  document.getElementById('chatbotOverlay').classList.remove('open');
+  chatbotTask = null;
+}
+
+function chatbotAsk(step) {
+  if (step >= CHATBOT_QUESTIONS.length) { chatbotFinish(); return; }
+  const q = CHATBOT_QUESTIONS[step];
+  const body = document.getElementById('chatBody');
+  const opts = document.getElementById('chatOptions');
+
+  // Show typing indicator
+  const typing = document.getElementById('chatTyping');
+  typing.style.display = 'flex';
+  opts.innerHTML = '';
+
+  setTimeout(() => {
+    typing.style.display = 'none';
+    // Add bot bubble
+    body.innerHTML += `
+      <div class="chat-msg-bot">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--t1);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">🤖</div>
+        <div>
+          <div class="chat-bot-bubble">${esc(q.text)}</div>
+          ${q.hint ? `<div style="font-size:10px;color:var(--t3);margin-top:3px;padding-left:4px">${esc(q.hint)}</div>` : ''}
+        </div>
+      </div>`;
+    body.scrollTop = body.scrollHeight;
+
+    // Show options
+    opts.innerHTML = q.options.map(o =>
+      `<button class="chat-opt" onclick="chatbotAnswer('${q.key}',${JSON.stringify(o.value)},'${esc(o.label)}')">${esc(o.label)}</button>`
+    ).join('');
+  }, 700);
+}
+
+function chatbotAnswer(key, value, label) {
+  chatbotAnswers[key] = value;
+  const body = document.getElementById('chatBody');
+  const opts = document.getElementById('chatOptions');
+  opts.innerHTML = '';
+
+  // Show user reply bubble
+  body.innerHTML += `<div class="chat-msg-user"><div class="chat-user-bubble">${esc(label)}</div></div>`;
+  body.scrollTop = body.scrollHeight;
+
+  chatbotStep++;
+  setTimeout(() => chatbotAsk(chatbotStep), 300);
+}
+
+function chatbotFinish() {
+  if (!chatbotTask) { closeChatbot(); return; }
+  const body = document.getElementById('chatBody');
+  const opts = document.getElementById('chatOptions');
+  opts.innerHTML = '';
+
+  // Apply answers to task
+  const t = tasks.find(x => x.id === chatbotTask.id);
+  if (t) {
+    if (chatbotAnswers.importance) t.priority = chatbotAnswers.importance;
+
+    const startOffset    = chatbotAnswers.start    ?? 0;
+    const durationOffset = chatbotAnswers.duration ?? 7;
+    if (startOffset !== null) {
+      const due = new Date();
+      due.setDate(due.getDate() + (startOffset || 0) + (durationOffset || 7));
+      t.deadline = due.toISOString().slice(0, 10);
+    }
+    persist(); renderAll();
+  }
+
+  const typing = document.getElementById('chatTyping');
+  typing.style.display = 'flex';
+  setTimeout(() => {
+    typing.style.display = 'none';
+    const pLabel = { high: '🔴 High', med: '🟡 Medium', low: '⚪ Low' }[chatbotAnswers.importance] || '';
+    body.innerHTML += `
+      <div class="chat-msg-bot">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--t1);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">🤖</div>
+        <div class="chat-bot-bubble">
+          Got it! I've set the priority to <strong>${pLabel}</strong> and updated the due date. You can always edit the task to fine-tune. Good luck! 💪
+        </div>
+      </div>`;
+    body.scrollTop = body.scrollHeight;
+    document.getElementById('chatOptions').innerHTML =
+      `<button class="chat-opt" style="background:var(--t1);color:#fff;border-color:var(--t1)" onclick="closeChatbot()">Done ✓</button>`;
+  }, 800);
+}
 
 /* ══════════════════════════════════════════════════════════
    GMAIL PANEL
