@@ -245,19 +245,30 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 }
 .card-name{font-size:13px;font-weight:600;color:var(--t1);line-height:1.4;margin-bottom:8px}
 .card-notes{font-size:11px;color:var(--t2);margin-bottom:8px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.card-footer{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.prio-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.card-rows{display:flex;flex-direction:column;gap:5px;margin-top:4px}
+.card-row{display:flex;align-items:center;gap:5px}
+.prio-pill{
+  display:inline-flex;align-items:center;gap:4px;
+  border-radius:20px;padding:2px 8px;
+  font-size:10px;font-weight:700;
+  border:1px solid transparent;
+}
+.prio-pill.high{background:#FEF2F2;color:#EF4444;border-color:#FECACA}
+.prio-pill.med{background:#FFFBEB;color:#D97706;border-color:#FDE68A}
+.prio-pill.low{background:#F0FDF4;color:#16A34A;border-color:#BBF7D0}
+.prio-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;display:inline-block}
 .fund-chip{
   background:var(--bg);border:1px solid var(--border);
   border-radius:4px;padding:2px 6px;
   font-size:10px;font-weight:600;color:var(--t2);
 }
 .card-avatar{
-  width:22px;height:22px;border-radius:50%;
+  width:20px;height:20px;border-radius:50%;
   font-size:8px;font-weight:700;color:#fff;
   display:flex;align-items:center;justify-content:center;
-  flex-shrink:0;margin-left:auto;
+  flex-shrink:0;
 }
+.card-assignee-name{font-size:10px;color:var(--t2);font-weight:500}
 .card-dl{
   font-size:10px;color:var(--t3);
   display:flex;align-items:center;gap:3px;
@@ -269,6 +280,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   border-radius:4px;padding:2px 6px;
   font-size:9px;font-weight:600;
 }
+/* ── Board banner (quote + progress) ───────────────────── */
+#boardBanner{
+  padding:10px 20px 0;
+  display:flex;align-items:stretch;gap:12px;
+}
+.board-progress-bar{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  padding:10px 16px;display:flex;align-items:center;gap:12px;flex:0 0 auto;
+  box-shadow:var(--sh);
+}
+.board-progress-nums{font-size:13px;font-weight:700;white-space:nowrap}
+.board-progress-sub{font-size:11px;color:var(--t3);white-space:nowrap}
+.board-progress-track{width:120px;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.board-progress-fill{height:100%;border-radius:3px;transition:width .6s ease}
+.board-quote{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  padding:10px 16px;flex:1;box-shadow:var(--sh);
+  display:flex;align-items:center;gap:10px;
+}
+.board-quote-icon{font-size:18px;flex-shrink:0}
+.board-quote-text{font-size:12px;color:var(--t2);font-style:italic;line-height:1.5}
+.board-quote-author{font-size:10px;color:var(--t3);margin-top:2px;font-style:normal;font-weight:600}
 
 /* ── Daily View ──────────────────────────────────────────── */
 #dailyView{max-width:900px;margin:0 auto}
@@ -566,7 +599,7 @@ textarea.fi{resize:vertical;min-height:72px}
   <div class="hdr-views" id="hdrViews">
     <button class="vbtn active" data-view="board" onclick="switchView('board',this)">Board</button>
     <button class="vbtn" data-view="daily" onclick="switchView('daily',this)">My Day</button>
-    <button class="vbtn" data-view="week" onclick="switchView('week',this)">My Week</button>
+    <button class="vbtn" data-view="week" onclick="switchView('week',this)">Our Week</button>
     <button class="vbtn" data-view="ws" onclick="switchView('ws',this)">Workstreams</button>
   </div>
   <div class="live-dot-wrap"><div class="ldot"></div>Live</div>
@@ -585,6 +618,7 @@ textarea.fi{resize:vertical;min-height:72px}
 
 <!-- Board View -->
 <div class="view active" id="boardView">
+  <div id="boardBanner"></div>
   <div class="board" id="board"></div>
 </div>
 
@@ -804,10 +838,13 @@ textarea.fi{resize:vertical;min-height:72px}
             <label>Role</label>
             <select class="fi" id="newMemberRole">
               <option value="VP">VP</option>
+              <option value="AVP">AVP</option>
+              <option value="Senior Associate">Senior Associate</option>
               <option value="Associate" selected>Associate</option>
+              <option value="Senior Analyst">Senior Analyst</option>
               <option value="Analyst">Analyst</option>
-              <option value="Director">Director</option>
-              <option value="MD">MD</option>
+              <option value="Intern">Intern</option>
+              <option value="Others">Others</option>
             </select>
           </div>
           <div class="mf">
@@ -839,7 +876,7 @@ textarea.fi{resize:vertical;min-height:72px}
         <div class="sc-group-label">Navigation</div>
         <div class="sc-row"><kbd>1</kbd><span>Board view</span></div>
         <div class="sc-row"><kbd>2</kbd><span>My Day view</span></div>
-        <div class="sc-row"><kbd>3</kbd><span>My Week view</span></div>
+        <div class="sc-row"><kbd>3</kbd><span>Our Week view</span></div>
         <div class="sc-row"><kbd>4</kbd><span>Workstreams view</span></div>
       </div>
       <div class="sc-group">
@@ -923,7 +960,11 @@ function load() {
     if (d) { tasks = d.tasks || []; workstreams = d.workstreams || []; team = d.team || DEFAULT_TEAM; }
     else   { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; persist(); }
   } catch { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; }
-  state.currentUser = team[0]?.name || '';
+  // Restore last-used identity (persists across sessions on same device)
+  const savedUser = localStorage.getItem('chope_user');
+  state.currentUser = (savedUser && team.find(m => m.name === savedUser))
+    ? savedUser
+    : (team[0]?.name || '');
 }
 
 function persist() {
@@ -1105,9 +1146,8 @@ function renderHeader() {
     `<div class="stat-chip ${s.over?'red':''}">Overdue: <span>${s.over}</span></div>`;
 
   const sel = document.getElementById('currentUserSel');
-  const prev = sel.value || state.currentUser;
   sel.innerHTML = team.map(m => `<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('');
-  sel.value = prev || team[0]?.name || '';
+  sel.value = state.currentUser || team[0]?.name || '';
   state.currentUser = sel.value;
 }
 
@@ -1190,7 +1230,87 @@ function renderFilterBar() {
    RENDER — BOARD
 ══════════════════════════════════════════════════════════ */
 
+const QUOTES = [
+  { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
+  { text: "Real estate cannot be lost or stolen, nor can it be carried away.", author: "Franklin D. Roosevelt" },
+  { text: "Don't watch the clock; do what it does. Keep going.", author: "Sam Levenson" },
+  { text: "Coming together is a beginning, staying together is progress, working together is success.", author: "Henry Ford" },
+  { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+  { text: "It always seems impossible until it's done.", author: "Nelson Mandela" },
+  { text: "Ninety percent of all millionaires become so through owning real estate.", author: "Andrew Carnegie" },
+  { text: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
+  { text: "The best investment on earth is earth.", author: "Louis Glickman" },
+  { text: "Alone we can do so little; together we can do so much.", author: "Helen Keller" },
+  { text: "You miss 100% of the shots you don't take.", author: "Wayne Gretzky" },
+  { text: "In the middle of every difficulty lies opportunity.", author: "Albert Einstein" },
+  { text: "Buy land, they're not making it anymore.", author: "Mark Twain" },
+  { text: "Your work is going to fill a large part of your life, and the only way to be truly satisfied is to do great work.", author: "Steve Jobs" },
+  { text: "The harder I work, the luckier I get.", author: "Samuel Goldwyn" },
+  { text: "Opportunities don't happen, you create them.", author: "Chris Grosser" },
+  { text: "Teamwork makes the dream work.", author: "John C. Maxwell" },
+  { text: "Don't be afraid to give up the good to go for the great.", author: "John D. Rockefeller" },
+  { text: "A person who never made a mistake never tried anything new.", author: "Albert Einstein" },
+  { text: "The man who moves a mountain begins by carrying away small stones.", author: "Confucius" },
+  { text: "Success usually comes to those who are too busy to be looking for it.", author: "Henry David Thoreau" },
+  { text: "What we fear doing most is usually what we most need to do.", author: "Tim Ferriss" },
+  { text: "Small progress is still progress.", author: "Unknown" },
+  { text: "Every deal is a lesson. Every loss is a tuition.", author: "Unknown" },
+  { text: "Discipline is the bridge between goals and accomplishment.", author: "Jim Rohn" },
+  { text: "The goal is not to be perfect by the end. The goal is to be better today.", author: "Simon Sinek" },
+  { text: "Excellence is not a destination but a continuous journey.", author: "Brian Tracy" },
+  { text: "Persistence. Perfection. Patience. Power. Prioritise your passion.", author: "Criss Jami" },
+  { text: "Real estate is the purest form of entrepreneurship.", author: "Unknown" },
+  { text: "Work hard in silence, let success make the noise.", author: "Frank Ocean" },
+];
+
+function todayQuote() {
+  const d = new Date();
+  const idx = (d.getDate() + d.getMonth() * 31) % QUOTES.length;
+  return QUOTES[idx];
+}
+
+function renderBoardBanner() {
+  const total = tasks.length;
+  const done  = tasks.filter(t => t.status === 'done').length;
+  const pct   = total ? Math.round(done / total * 100) : 0;
+  const barColor = pct >= 75 ? '#22C55E' : pct >= 40 ? '#3B82F6' : '#F59E0B';
+
+  let motivator = '';
+  if (pct === 100) motivator = '🏆 Everything done — outstanding!';
+  else if (pct >= 80) motivator = '🚀 Almost there — incredible pace!';
+  else if (pct >= 60) motivator = '💪 Strong progress — keep going!';
+  else if (pct >= 40) motivator = '⚡ Good momentum — push through!';
+  else if (pct >= 20) motivator = '🌱 Building up — every task counts!';
+  else motivator = '🎯 Day is young — let\'s get moving!';
+
+  const q = todayQuote();
+  document.getElementById('boardBanner').innerHTML = `
+    <div class="board-progress-bar">
+      <div>
+        <div class="board-progress-nums">${done} <span style="font-weight:400;color:var(--t3)">of</span> ${total} <span style="font-weight:400;color:var(--t3)">done</span></div>
+        <div class="board-progress-sub">${motivator}</div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-size:10px;color:var(--t3)">Team completion</span>
+          <span style="font-size:11px;font-weight:700;color:${barColor}">${pct}%</span>
+        </div>
+        <div class="board-progress-track">
+          <div class="board-progress-fill" style="width:${pct}%;background:${barColor}"></div>
+        </div>
+      </div>
+    </div>
+    <div class="board-quote">
+      <div class="board-quote-icon">💬</div>
+      <div>
+        <div class="board-quote-text">"${esc(q.text)}"</div>
+        <div class="board-quote-author">— ${esc(q.author)}</div>
+      </div>
+    </div>`;
+}
+
 function renderBoard() {
+  renderBoardBanner();
   const ft = filteredTasks();
   let html = '';
   Object.entries(COLS).forEach(([key, col]) => {
@@ -1214,14 +1334,15 @@ function renderBoard() {
 }
 
 function cardHTML(t) {
-  const cat   = CATEGORIES[t.cat] || { label: t.cat, color: '#999', bg: '#F9F9F9' };
+  const cat    = CATEGORIES[t.cat] || { label: t.cat, color: '#999', bg: '#F9F9F9' };
   const urgent = isUrgent(t);
   const over   = isOverdue(t);
   const dl     = fmtDate(t.deadline);
   const dlCls  = over ? 'overdue' : urgent ? 'urgent' : '';
-  const pCol   = { high: '#EF4444', med: '#F59E0B', low: '#94A3B8' }[t.priority] || '#999';
   const aCol   = avatarColor(t.assignee);
   const wsObj  = t.ws ? getWs(t.ws) : null;
+  const prioCls = t.priority || 'med';
+  const prioLabel = { high: 'High', med: 'Medium', low: 'Low' }[t.priority] || t.priority;
 
   return `
     <div class="card ${urgent||over?'urgent-card':''}"
@@ -1233,12 +1354,22 @@ function cardHTML(t) {
       <div class="cat-badge" style="background:${cat.bg};color:${cat.color}">${esc(cat.label)}</div>
       <div class="card-name">${esc(t.name)}</div>
       ${t.desc ? `<div class="card-notes">${esc(t.desc)}</div>` : ''}
-      <div class="card-footer">
-        <div class="prio-dot" style="background:${pCol}" title="${t.priority} priority"></div>
-        ${t.fund && t.fund !== 'none' ? `<div class="fund-chip">${esc(t.fund)}</div>` : ''}
-        ${dl ? `<div class="card-dl ${dlCls}">📅 ${dl}</div>` : ''}
-        ${wsObj ? `<div class="ws-chip">${esc(wsObj.name)}</div>` : ''}
-        <div class="card-avatar" style="background:${aCol}" title="${esc(t.assignee)}">${esc(initials(t.assignee))}</div>
+      <div class="card-rows">
+        <div class="card-row">
+          <span class="prio-pill ${prioCls}">
+            <span class="prio-dot" style="background:${PRIO_COLORS[t.priority]}"></span>
+            ${prioLabel}
+          </span>
+        </div>
+        <div class="card-row">
+          ${t.fund && t.fund !== 'none' ? `<div class="fund-chip">${esc(t.fund)}</div>` : '<span style="font-size:10px;color:var(--t3)">No fund</span>'}
+          ${dl ? `<div class="card-dl ${dlCls}" style="margin-left:auto">📅 ${dl}</div>` : ''}
+          ${wsObj ? `<div class="ws-chip">${esc(wsObj.name)}</div>` : ''}
+        </div>
+        <div class="card-row">
+          <div class="card-avatar" style="background:${aCol}">${esc(initials(t.assignee))}</div>
+          <span class="card-assignee-name">${esc(t.assignee.split(' ')[0])}</span>
+        </div>
       </div>
     </div>`;
 }
@@ -1435,7 +1566,7 @@ function renderMyWeek() {
     <div style="max-width:960px;margin:0 auto">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
         <div>
-          <h1 style="font-size:20px;font-weight:700">Team Week Ahead</h1>
+          <h1 style="font-size:20px;font-weight:700">Our Week Ahead</h1>
           <p style="font-size:13px;color:var(--t2);margin-top:3px">${now.toLocaleDateString('en-US',{month:'long',day:'numeric'})} — ${new Date(week[6]+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</p>
         </div>
         <div style="display:flex;gap:10px">
@@ -1614,7 +1745,9 @@ function switchView(v, btn) {
 
 function onUserChange() {
   state.currentUser = document.getElementById('currentUserSel').value;
+  localStorage.setItem('chope_user', state.currentUser);
   if (state.view === 'daily') renderDaily();
+  if (state.view === 'week')  renderMyWeek();
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -1848,7 +1981,7 @@ function renderTeamMemberList() {
       </div>
       <select class="fi" style="width:110px;padding:4px 8px;height:28px"
         onchange="updateMemberField('${esc(m.name)}','role',this.value)">
-        ${['VP','Associate','Analyst','Director','MD'].map(r =>
+        ${['VP','AVP','Senior Associate','Associate','Senior Analyst','Analyst','Intern','Others'].map(r =>
           `<option ${m.role===r?'selected':''}>${r}</option>`).join('')}
       </select>
       ${team.length > 1
@@ -2004,16 +2137,36 @@ function gmailSignIn() {
   location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params;
 }
 
-function gmailHandleCallback() {
+async function gmailHandleCallback() {
   const hash = new URLSearchParams(location.hash.slice(1));
   const token = hash.get('access_token');
   if (!token) return;
   gmailToken = token;
   history.replaceState(null, '', location.pathname);
+
+  // Auto-identify the user from Google profile
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const info = await res.json();
+    const googleName = info.given_name || info.name || '';
+    // Try exact match first, then first-name match
+    const matched = team.find(m => m.name === googleName)
+      || team.find(m => m.name.toLowerCase().startsWith(googleName.toLowerCase()))
+      || team.find(m => googleName.toLowerCase().startsWith(m.name.split(' ')[0].toLowerCase()));
+    if (matched) {
+      state.currentUser = matched.name;
+      localStorage.setItem('chope_user', matched.name);
+      renderHeader();
+      toast(`Welcome back, ${matched.name.split(' ')[0]}! Identity set automatically.`);
+    }
+  } catch {}
+
   document.getElementById('gmailBody').innerHTML = `
     <div style="text-align:center;padding:20px 0">
       <div style="font-size:20px;margin-bottom:6px">✅</div>
-      <div style="font-size:13px;font-weight:600">Connected!</div>
+      <div style="font-size:13px;font-weight:600">Gmail connected!</div>
       <div style="font-size:11px;color:var(--t3);margin-top:4px">Click "Scan Inbox" to find actionable emails.</div>
     </div>`;
   document.getElementById('gmailFooter').style.display = 'flex';
