@@ -366,6 +366,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .member-name{font-size:13px;font-weight:500}
 .member-role{font-size:11px;color:var(--t3)}
 
+/* ── Shortcuts modal ─────────────────────────────────────── */
+.sc-group{border-bottom:1px solid var(--border);padding:12px 20px}
+.sc-group-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);margin-bottom:8px}
+.sc-row{display:flex;align-items:center;gap:12px;padding:5px 0}
+.sc-row kbd{
+  background:var(--bg);border:1px solid var(--border);
+  border-bottom:2px solid #D0D0C8;
+  border-radius:5px;padding:2px 8px;
+  font-size:11px;font-weight:600;color:var(--t1);
+  font-family:inherit;min-width:28px;text-align:center;
+}
+.sc-row span{font-size:13px;color:var(--t2)}
+
+/* ── Select with dot ─────────────────────────────────────── */
+.sel-wrap{position:relative;display:flex;align-items:center}
+.sel-wrap .fi{padding-left:28px}
+.sel-dot{position:absolute;left:10px;width:8px;height:8px;border-radius:50%;pointer-events:none;z-index:1;flex-shrink:0;transition:background .15s}
+
 /* ── Modal ───────────────────────────────────────────────── */
 .overlay{
   position:fixed;inset:0;
@@ -506,6 +524,7 @@ textarea.fi{resize:vertical;min-height:72px}
   <div class="live-dot-wrap"><div class="ldot"></div>Live</div>
   <select class="user-sel" id="currentUserSel" onchange="onUserChange()"></select>
   <button class="btn-ghost" style="font-size:12px;padding:5px 12px" onclick="openTeamModal()">⚙ Team</button>
+  <button class="btn-ghost" style="font-size:12px;padding:5px 10px" onclick="openShortcutsModal()" title="Keyboard shortcuts (?)">?</button>
   <button class="btn-add" onclick="openTaskModal()">+ Add Task</button>
 </header>
 
@@ -557,30 +576,36 @@ textarea.fi{resize:vertical;min-height:72px}
       <div class="mfrow">
         <div class="mf">
           <label>Category *</label>
-          <select class="fi" id="fCat">
-            <option value="">Select category…</option>
-            <option value="portfolio">Portfolio</option>
-            <option value="asset">Asset Management</option>
-            <option value="debt">Debt &amp; Capital</option>
-            <option value="perf">Performance</option>
-            <option value="compliance">Compliance</option>
-            <option value="ir">IR &amp; Reporting</option>
-            <option value="acq">Acquisition</option>
-            <option value="fund">Fund Raising</option>
-            <option value="projects">Projects</option>
-            <option value="corp">Corporate Development</option>
-            <option value="admin">Admin</option>
-          </select>
+          <div class="sel-wrap">
+            <div class="sel-dot" id="dot-cat"></div>
+            <select class="fi" id="fCat" onchange="updateSelDots()">
+              <option value="">Select category…</option>
+              <option value="portfolio">Portfolio</option>
+              <option value="asset">Asset Management</option>
+              <option value="debt">Debt &amp; Capital</option>
+              <option value="perf">Performance</option>
+              <option value="compliance">Compliance</option>
+              <option value="ir">IR &amp; Reporting</option>
+              <option value="acq">Acquisition</option>
+              <option value="fund">Fund Raising</option>
+              <option value="projects">Projects</option>
+              <option value="corp">Corporate Development</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
         </div>
         <div class="mf">
           <label>Fund</label>
-          <select class="fi" id="fFund">
-            <option value="none">No Fund</option>
-            <option value="WHPMT">WHPMT</option>
-            <option value="Fund II">Fund II</option>
-            <option value="Fund III">Fund III</option>
-            <option value="Fund IV">Fund IV</option>
-          </select>
+          <div class="sel-wrap">
+            <div class="sel-dot" id="dot-fund"></div>
+            <select class="fi" id="fFund" onchange="updateSelDots()">
+              <option value="none">No Fund</option>
+              <option value="WHPMT">WHPMT</option>
+              <option value="Fund II">Fund II</option>
+              <option value="Fund III">Fund III</option>
+              <option value="Fund IV">Fund IV</option>
+            </select>
+          </div>
         </div>
       </div>
       <div class="mfrow">
@@ -590,22 +615,28 @@ textarea.fi{resize:vertical;min-height:72px}
         </div>
         <div class="mf">
           <label>Priority</label>
-          <select class="fi" id="fPriority">
-            <option value="high">🔴 High</option>
-            <option value="med" selected>🟡 Medium</option>
-            <option value="low">⚪ Low</option>
-          </select>
+          <div class="sel-wrap">
+            <div class="sel-dot" id="dot-priority"></div>
+            <select class="fi" id="fPriority" onchange="updateSelDots()">
+              <option value="high">High</option>
+              <option value="med" selected>Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
         </div>
       </div>
       <div class="mfrow">
         <div class="mf">
           <label>Status</label>
-          <select class="fi" id="fStatus">
-            <option value="todo">To Do</option>
-            <option value="inprogress">In Progress</option>
-            <option value="review">Under Review</option>
-            <option value="done">Done</option>
-          </select>
+          <div class="sel-wrap">
+            <div class="sel-dot" id="dot-status"></div>
+            <select class="fi" id="fStatus" onchange="updateSelDots()">
+              <option value="todo">To Do</option>
+              <option value="inprogress">In Progress</option>
+              <option value="review">Under Review</option>
+              <option value="done">Done</option>
+            </select>
+          </div>
         </div>
         <div class="mf">
           <label>Deadline</label>
@@ -705,6 +736,40 @@ textarea.fi{resize:vertical;min-height:72px}
           </div>
         </div>
         <button class="btn-primary" style="margin-top:10px;width:100%" onclick="addMember()">+ Add to Team</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Shortcuts Modal -->
+<div class="overlay" id="shortcutsOverlay" onclick="overlayClick(event,'shortcutsOverlay')">
+  <div class="modal" style="width:480px">
+    <div class="modal-hd">
+      <div class="modal-title">⌨ Keyboard Shortcuts</div>
+      <button class="mclose" onclick="closeShortcutsModal()">×</button>
+    </div>
+    <div class="modal-body" style="gap:0;padding:0">
+      <div class="sc-group">
+        <div class="sc-group-label">Tasks</div>
+        <div class="sc-row"><kbd>Q</kbd><span>New task</span></div>
+        <div class="sc-row"><kbd>E</kbd><span>New workstream</span></div>
+        <div class="sc-row"><kbd>T</kbd><span>Manage team</span></div>
+      </div>
+      <div class="sc-group">
+        <div class="sc-group-label">Navigation</div>
+        <div class="sc-row"><kbd>1</kbd><span>Board view</span></div>
+        <div class="sc-row"><kbd>2</kbd><span>My Day view</span></div>
+        <div class="sc-row"><kbd>3</kbd><span>Workstreams view</span></div>
+      </div>
+      <div class="sc-group">
+        <div class="sc-group-label">Filters</div>
+        <div class="sc-row"><kbd>H</kbd><span>Filter High priority</span></div>
+        <div class="sc-row"><kbd>X</kbd><span>Clear all filters</span></div>
+      </div>
+      <div class="sc-group" style="border-bottom:none">
+        <div class="sc-group-label">General</div>
+        <div class="sc-row"><kbd>?</kbd><span>Show / hide shortcuts</span></div>
+        <div class="sc-row"><kbd>Esc</kbd><span>Close any modal</span></div>
       </div>
     </div>
   </div>
@@ -845,6 +910,18 @@ function estimatePriority(name, desc) {
   if (hi >= 1) return 'med';
   if (lo >= 1) return 'low';
   return 'med';
+}
+
+const PRIO_COLORS   = { high:'#EF4444', med:'#F59E0B', low:'#94A3B8' };
+const STATUS_COLORS = { todo:'#6B7280', inprogress:'#3B82F6', review:'#F59E0B', done:'#22C55E' };
+const FUND_COLORS   = { WHPMT:'#4F46E5', 'Fund II':'#0891B2', 'Fund III':'#059669', 'Fund IV':'#D97706', none:'#D1D5DB', '':'#D1D5DB' };
+
+function updateSelDots() {
+  const set = (id, color) => { const el = document.getElementById(id); if (el) el.style.background = color || '#D1D5DB'; };
+  set('dot-priority', PRIO_COLORS[document.getElementById('fPriority')?.value]);
+  set('dot-status',   STATUS_COLORS[document.getElementById('fStatus')?.value]);
+  set('dot-fund',     FUND_COLORS[document.getElementById('fFund')?.value]);
+  set('dot-cat',      CATEGORIES[document.getElementById('fCat')?.value]?.color);
 }
 
 function onDescInput() {
@@ -1421,6 +1498,7 @@ function openTaskModal(id) {
     del.style.display = 'none';
   }
   document.getElementById('prioHint').style.display = 'none';
+  updateSelDots();
   document.getElementById('taskOverlay').classList.add('open');
   setTimeout(() => document.getElementById('fName').focus(), 80);
 }
@@ -1586,7 +1664,8 @@ function overlayClick(e, id) {
   if (e.target === document.getElementById(id)) {
     if (id === 'taskOverlay')  closeTaskModal();
     else if (id === 'wsOverlay')   closeWsModal();
-    else if (id === 'teamOverlay') closeTeamModal();
+    else if (id === 'teamOverlay')      closeTeamModal();
+    else if (id === 'shortcutsOverlay') closeShortcutsModal();
   }
 }
 
@@ -1610,8 +1689,34 @@ function toast(msg) {
   }, 2500);
 }
 
+function openShortcutsModal()  { document.getElementById('shortcutsOverlay').classList.add('open'); }
+function closeShortcutsModal() { document.getElementById('shortcutsOverlay').classList.remove('open'); }
+
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeTaskModal(); closeWsModal(); closeTeamModal(); }
+  const tag = document.activeElement.tagName;
+  const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+  const anyOpen = document.querySelector('.overlay.open');
+
+  if (e.key === 'Escape') { closeTaskModal(); closeWsModal(); closeTeamModal(); closeShortcutsModal(); }
+
+  if (typing || anyOpen) return;
+
+  switch (e.key) {
+    case 'q': case 'Q': openTaskModal(); break;
+    case 'e': case 'E': openWsModal(); break;
+    case 't': case 'T': openTeamModal(); break;
+    case '1': document.querySelector('[data-view="board"]')?.click(); break;
+    case '2': document.querySelector('[data-view="daily"]')?.click(); break;
+    case '3': document.querySelector('[data-view="ws"]')?.click(); break;
+    case 'h': case 'H': setFilter('priority', state.priority === 'high' ? 'all' : 'high'); renderAll(); break;
+    case 'x': case 'X':
+      state.priority = 'all'; state.fund = 'all';
+      state.assignee = 'all'; state.ws = 'all'; state.cat = 'all';
+      renderAll(); toast('Filters cleared');
+      break;
+    case '?': openShortcutsModal(); break;
+  }
+
   if ((e.metaKey||e.ctrlKey) && e.key === 'k') { e.preventDefault(); openTaskModal(); }
 });
 
