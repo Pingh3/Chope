@@ -1270,35 +1270,27 @@ function todayQuote() {
 }
 
 function renderBoardBanner() {
-  const total = tasks.length;
-  const done  = tasks.filter(t => t.status === 'done').length;
-  const pct   = total ? Math.round(done / total * 100) : 0;
-  const barColor = pct >= 75 ? '#22C55E' : pct >= 40 ? '#3B82F6' : '#F59E0B';
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const doneToday = tasks.filter(t =>
+    t.status === 'done' && t.completedAt && t.completedAt.slice(0, 10) === todayStr
+  ).length;
+  const openToday = tasks.filter(t => t.status !== 'done' && t.deadline === todayStr).length;
 
   let motivator = '';
-  if (pct === 100) motivator = '🏆 Everything done — outstanding!';
-  else if (pct >= 80) motivator = '🚀 Almost there — incredible pace!';
-  else if (pct >= 60) motivator = '💪 Strong progress — keep going!';
-  else if (pct >= 40) motivator = '⚡ Good momentum — push through!';
-  else if (pct >= 20) motivator = '🌱 Building up — every task counts!';
-  else motivator = '🎯 Day is young — let\'s get moving!';
+  if (doneToday === 0) motivator = '🎯 Day is young — let\'s get moving!';
+  else if (doneToday === 1) motivator = '✅ First one down — keep the momentum!';
+  else if (doneToday <= 3) motivator = '⚡ Good start — push through!';
+  else if (doneToday <= 6) motivator = '💪 Strong day — team is firing!';
+  else motivator = '🚀 Incredible pace today!';
 
   const q = todayQuote();
   document.getElementById('boardBanner').innerHTML = `
     <div class="board-progress-bar">
       <div>
-        <div class="board-progress-nums">${done} <span style="font-weight:400;color:var(--t3)">of</span> ${total} <span style="font-weight:400;color:var(--t3)">done</span></div>
+        <div class="board-progress-nums">${doneToday} <span style="font-weight:400;color:var(--t3)">done today</span></div>
         <div class="board-progress-sub">${motivator}</div>
       </div>
-      <div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-          <span style="font-size:10px;color:var(--t3)">Team completion</span>
-          <span style="font-size:11px;font-weight:700;color:${barColor}">${pct}%</span>
-        </div>
-        <div class="board-progress-track">
-          <div class="board-progress-fill" style="width:${pct}%;background:${barColor}"></div>
-        </div>
-      </div>
+      ${openToday ? `<div style="font-size:11px;color:var(--t3);padding-left:16px;border-left:1px solid var(--border)">${openToday} task${openToday!==1?'s':''} due today</div>` : ''}
     </div>
     <div class="board-quote">
       <div class="board-quote-icon">💬</div>
@@ -1778,6 +1770,7 @@ function drop(e, col) {
   const t = tasks.find(x => x.id === dragId);
   if (t && t.status !== col) {
     t.status = col;
+    if (col === 'done') t.completedAt = new Date().toISOString();
     persist(); renderAll();
     toast(`Moved to ${COLS[col].label}`);
   }
@@ -1873,7 +1866,12 @@ function saveTask() {
 
   if (editTaskId) {
     const t = tasks.find(x => x.id === editTaskId);
-    if (t) Object.assign(t, { name, desc, cat, fund, assignee, priority, status, deadline, ws });
+    if (t) {
+      const wasDone = t.status === 'done';
+      Object.assign(t, { name, desc, cat, fund, assignee, priority, status, deadline, ws });
+      if (status === 'done' && !wasDone) t.completedAt = new Date().toISOString();
+      if (status !== 'done') t.completedAt = null;
+    }
     toast('Task updated');
   } else {
     tasks.unshift({ id: uid(), name, desc, cat, fund, assignee, priority, status, deadline, ws, createdAt: new Date().toISOString() });
