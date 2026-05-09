@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chope — RE Fund Workstream Tracker</title>
+<title>Chope — Workstream Tracker</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
@@ -24,7 +24,7 @@
 
   --p-high:#EF4444;
   --p-med:#F59E0B;
-  --p-low:#94A3B8;
+  --p-low:#22C55E;
 
   --col-todo:#6B7280;
   --col-ip:#3B82F6;
@@ -350,6 +350,54 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   border-top:1px solid var(--border);width:100%;
 }
 .ws-add-task:hover{background:var(--bg)}
+.ws-existing-row{
+  padding:6px 16px 8px;
+  display:flex;align-items:center;gap:6px;
+  background:var(--col);
+  border-top:1px solid var(--border);
+}
+.ws-existing-sel{
+  flex:1;font-size:11px;padding:4px 8px;
+  border:1px solid var(--border);border-radius:var(--r);
+  background:var(--card);color:var(--t1);
+  outline:none;cursor:pointer;font-family:inherit;
+}
+.ws-existing-btn{
+  font-size:11px;padding:4px 10px;
+  background:var(--t1);color:#fff;
+  border:none;border-radius:var(--r);
+  cursor:pointer;font-family:inherit;white-space:nowrap;
+}
+.ws-existing-btn:hover{background:#333}
+
+/* ── Gmail panel ─────────────────────────────────────────── */
+#gmailPanel{
+  position:fixed;right:0;top:54px;bottom:0;width:360px;
+  background:var(--card);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;z-index:150;
+  transform:translateX(100%);transition:transform .25s ease;
+}
+#gmailPanel.open{transform:translateX(0)}
+.gmail-hd{
+  padding:14px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;
+}
+.gmail-hd-title{font-size:14px;font-weight:700;flex:1}
+.gmail-body{flex:1;overflow-y:auto;padding:12px 16px}
+.gmail-footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px}
+.gmail-auth-area{text-align:center;padding:40px 20px}
+.gmail-suggestion{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
+  padding:10px 12px;margin-bottom:8px;cursor:pointer;
+  transition:border-color .15s;
+}
+.gmail-suggestion:hover{border-color:var(--col-ip)}
+.gmail-suggestion-from{font-size:10px;color:var(--t3);margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gmail-suggestion-subject{font-size:12px;font-weight:500;margin-bottom:4px;line-height:1.3}
+.gmail-suggestion-task{font-size:11px;color:var(--col-ip);margin-bottom:6px}
+.gmail-sugg-actions{display:flex;gap:6px}
+.gmail-pill-add{font-size:10px;padding:3px 10px;background:var(--col-ip);color:#fff;border:none;border-radius:20px;cursor:pointer;font-family:inherit}
+.gmail-pill-skip{font-size:10px;padding:3px 10px;background:transparent;color:var(--t3);border:1px solid var(--border);border-radius:20px;cursor:pointer;font-family:inherit}
 
 /* ── Workstream progress bar ─────────────────────────────── */
 .ws-progress{padding:10px 16px 4px}
@@ -514,16 +562,17 @@ textarea.fi{resize:vertical;min-height:72px}
 <!-- Header -->
 <header id="hdr">
   <div class="logo">Cho<em>pe</em></div>
-  <div class="hdr-team">RE Fund Workstream Tracker</div>
   <div class="hdr-stats" id="hdrStats"></div>
   <div class="hdr-views" id="hdrViews">
     <button class="vbtn active" data-view="board" onclick="switchView('board',this)">Board</button>
     <button class="vbtn" data-view="daily" onclick="switchView('daily',this)">My Day</button>
+    <button class="vbtn" data-view="week" onclick="switchView('week',this)">My Week</button>
     <button class="vbtn" data-view="ws" onclick="switchView('ws',this)">Workstreams</button>
   </div>
   <div class="live-dot-wrap"><div class="ldot"></div>Live</div>
   <select class="user-sel" id="currentUserSel" onchange="onUserChange()"></select>
   <button class="btn-ghost" style="font-size:12px;padding:5px 12px" onclick="openTeamModal()">⚙ Team</button>
+  <button class="btn-ghost" style="font-size:12px;padding:5px 10px" onclick="toggleGmailPanel()" id="gmailHdrBtn" title="Gmail → Tasks">📧</button>
   <button class="btn-ghost" style="font-size:12px;padding:5px 10px" onclick="openShortcutsModal()" title="Keyboard shortcuts (?)">?</button>
   <button class="btn-add" onclick="openTaskModal()">+ Add Task</button>
 </header>
@@ -544,6 +593,11 @@ textarea.fi{resize:vertical;min-height:72px}
   <div id="dailyContent"></div>
 </div>
 
+<!-- My Week View -->
+<div class="view" id="weekView">
+  <div id="weekContent"></div>
+</div>
+
 <!-- Workstreams View -->
 <div class="view" id="wsView">
   <div class="ws-header">
@@ -551,6 +605,27 @@ textarea.fi{resize:vertical;min-height:72px}
     <button class="btn-ws" onclick="openWsModal()">+ New Workstream</button>
   </div>
   <div class="ws-grid" id="wsGrid"></div>
+</div>
+
+<!-- Gmail Side Panel -->
+<div id="gmailPanel">
+  <div class="gmail-hd">
+    <div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:14px">📧</div>
+    <div class="gmail-hd-title">Gmail → Tasks</div>
+    <button class="mclose" onclick="closeGmailPanel()">×</button>
+  </div>
+  <div class="gmail-body" id="gmailBody">
+    <div class="gmail-auth-area">
+      <div style="font-size:32px;margin-bottom:12px">📥</div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px">Connect Gmail</div>
+      <div style="font-size:12px;color:var(--t3);margin-bottom:16px">Sign in to scan your inbox for actionable emails and create tasks automatically.</div>
+      <button class="btn-add" onclick="gmailSignIn()" id="gmailSignInBtn" style="width:100%;justify-content:center">Sign in with Google</button>
+    </div>
+  </div>
+  <div class="gmail-footer" id="gmailFooter" style="display:none">
+    <button class="btn-add" onclick="gmailScanInbox()" id="gmailScanBtn" style="flex:1">Scan Inbox</button>
+    <button class="btn-ghost" onclick="gmailSendBrief()" id="gmailBriefBtn" style="font-size:12px;padding:6px 12px" title="Email today's tasks to yourself">Send Today's Brief</button>
+  </div>
 </div>
 
 <!-- Task Modal -->
@@ -594,35 +669,36 @@ textarea.fi{resize:vertical;min-height:72px}
             </select>
           </div>
         </div>
-        <div class="mf">
-          <label>Fund</label>
-          <div class="sel-wrap">
-            <div class="sel-dot" id="dot-fund"></div>
-            <select class="fi" id="fFund" onchange="updateSelDots()">
-              <option value="none">No Fund</option>
-              <option value="WHPMT">WHPMT</option>
-              <option value="Fund II">Fund II</option>
-              <option value="Fund III">Fund III</option>
-              <option value="Fund IV">Fund IV</option>
-            </select>
-          </div>
+      </div>
+      <div class="mf">
+        <label>Fund</label>
+        <div class="sel-wrap">
+          <div class="sel-dot" id="dot-fund"></div>
+          <select class="fi" id="fFund" onchange="updateSelDots()">
+            <option value="none">No Fund</option>
+            <option value="WHPMT">WHPMT</option>
+            <option value="Fund II">Fund II</option>
+            <option value="Fund III">Fund III</option>
+            <option value="Fund IV">Fund IV</option>
+          </select>
         </div>
       </div>
-      <div class="mfrow">
-        <div class="mf">
-          <label>Assignee *</label>
-          <select class="fi" id="fAssignee"></select>
+      <div class="mf">
+        <label>Assignee *</label>
+        <div class="sel-wrap" id="assignee-wrap">
+          <div class="sel-dot" id="dot-assignee"></div>
+          <select class="fi" id="fAssignee" onchange="updateSelDots()"></select>
         </div>
-        <div class="mf">
-          <label>Priority</label>
-          <div class="sel-wrap">
-            <div class="sel-dot" id="dot-priority"></div>
-            <select class="fi" id="fPriority" onchange="updateSelDots()">
-              <option value="high">High</option>
-              <option value="med" selected>Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
+      </div>
+      <div class="mf">
+        <label>Priority</label>
+        <div class="sel-wrap">
+          <div class="sel-dot" id="dot-priority"></div>
+          <select class="fi" id="fPriority" onchange="updateSelDots()">
+            <option value="high">High</option>
+            <option value="med" selected>Medium</option>
+            <option value="low">Low</option>
+          </select>
         </div>
       </div>
       <div class="mfrow">
@@ -710,7 +786,7 @@ textarea.fi{resize:vertical;min-height:72px}
 
 <!-- Team Modal -->
 <div class="overlay" id="teamOverlay" onclick="overlayClick(event,'teamOverlay')">
-  <div class="modal" style="width:440px">
+  <div class="modal" style="width:480px">
     <div class="modal-hd">
       <div class="modal-title">Manage Team</div>
       <button class="mclose" onclick="closeTeamModal()">×</button>
@@ -719,7 +795,7 @@ textarea.fi{resize:vertical;min-height:72px}
       <div id="teamMemberList"></div>
       <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:6px">
         <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Add Member</div>
-        <div class="mfrow">
+        <div class="mfrow3">
           <div class="mf">
             <label>Name *</label>
             <input class="fi" id="newMemberName" placeholder="Full name" onkeydown="if(event.key==='Enter')addMember()">
@@ -733,6 +809,10 @@ textarea.fi{resize:vertical;min-height:72px}
               <option value="Director">Director</option>
               <option value="MD">MD</option>
             </select>
+          </div>
+          <div class="mf">
+            <label>Avatar Color</label>
+            <input type="color" class="fi" id="newMemberColor" value="#4F46E5" style="padding:4px;height:36px;cursor:pointer">
           </div>
         </div>
         <button class="btn-primary" style="margin-top:10px;width:100%" onclick="addMember()">+ Add to Team</button>
@@ -759,7 +839,8 @@ textarea.fi{resize:vertical;min-height:72px}
         <div class="sc-group-label">Navigation</div>
         <div class="sc-row"><kbd>1</kbd><span>Board view</span></div>
         <div class="sc-row"><kbd>2</kbd><span>My Day view</span></div>
-        <div class="sc-row"><kbd>3</kbd><span>Workstreams view</span></div>
+        <div class="sc-row"><kbd>3</kbd><span>My Week view</span></div>
+        <div class="sc-row"><kbd>4</kbd><span>Workstreams view</span></div>
       </div>
       <div class="sc-group">
         <div class="sc-group-label">Filters</div>
@@ -912,7 +993,7 @@ function estimatePriority(name, desc) {
   return 'med';
 }
 
-const PRIO_COLORS   = { high:'#EF4444', med:'#F59E0B', low:'#94A3B8' };
+const PRIO_COLORS   = { high:'#EF4444', med:'#F59E0B', low:'#22C55E' };
 const STATUS_COLORS = { todo:'#6B7280', inprogress:'#3B82F6', review:'#F59E0B', done:'#22C55E' };
 const FUND_COLORS   = { WHPMT:'#4F46E5', 'Fund II':'#0891B2', 'Fund III':'#059669', 'Fund IV':'#D97706', none:'#D1D5DB', '':'#D1D5DB' };
 
@@ -922,6 +1003,8 @@ function updateSelDots() {
   set('dot-status',   STATUS_COLORS[document.getElementById('fStatus')?.value]);
   set('dot-fund',     FUND_COLORS[document.getElementById('fFund')?.value]);
   set('dot-cat',      CATEGORIES[document.getElementById('fCat')?.value]?.color);
+  const aName = document.getElementById('fAssignee')?.value;
+  set('dot-assignee', aName ? avatarColor(aName) : '#D1D5DB');
 }
 
 function onDescInput() {
@@ -970,6 +1053,8 @@ function fmtDate(iso) {
 }
 function avatarColor(name) {
   if (!name) return '#999';
+  const m = team.find(x => x.name === name);
+  if (m?.color) return m.color;
   return AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length];
 }
 function initials(name) {
@@ -1326,6 +1411,111 @@ function donutSVG(pct, size) {
 }
 
 /* ══════════════════════════════════════════════════════════
+   RENDER — MY WEEK VIEW
+══════════════════════════════════════════════════════════ */
+
+function renderMyWeek() {
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0,10);
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  // Build next 7 days
+  const week = Array.from({length:7}, (_,i) => {
+    const d = new Date(now); d.setDate(d.getDate()+i);
+    return d.toISOString().slice(0,10);
+  });
+
+  const activeTasks = tasks.filter(t => t.status !== 'done' && t.deadline && t.deadline >= todayStr && t.deadline <= week[6]);
+  const overdue = tasks.filter(t => t.status !== 'done' && t.deadline && t.deadline < todayStr);
+
+  const totalThisWeek = activeTasks.length;
+  const highCount = activeTasks.filter(t => t.priority === 'high').length;
+
+  let html = `
+    <div style="max-width:960px;margin:0 auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+        <div>
+          <h1 style="font-size:20px;font-weight:700">Team Week Ahead</h1>
+          <p style="font-size:13px;color:var(--t2);margin-top:3px">${now.toLocaleDateString('en-US',{month:'long',day:'numeric'})} — ${new Date(week[6]+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</p>
+        </div>
+        <div style="display:flex;gap:10px">
+          <div class="stat-card" style="padding:10px 16px;text-align:center">
+            <div class="stat-label">This Week</div>
+            <div class="stat-value" style="font-size:20px">${totalThisWeek}</div>
+          </div>
+          <div class="stat-card" style="padding:10px 16px;text-align:center">
+            <div class="stat-label">High Priority</div>
+            <div class="stat-value" style="font-size:20px;color:${highCount?'#EF4444':'var(--t1)'}">${highCount}</div>
+          </div>
+          <div class="stat-card" style="padding:10px 16px;text-align:center">
+            <div class="stat-label">Overdue</div>
+            <div class="stat-value" style="font-size:20px;color:${overdue.length?'#EF4444':'#22C55E'}">${overdue.length}</div>
+          </div>
+        </div>
+      </div>
+      ${overdue.length ? `
+        <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:var(--r);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:13px;color:#DC2626">
+          ⚠ <strong>${overdue.length} overdue task${overdue.length!==1?'s':''}</strong> — ${overdue.map(t=>`<span onclick="openTaskModal('${t.id}')" style="cursor:pointer;text-decoration:underline">${esc(t.name)}</span>`).join(', ')}
+        </div>` : ''}
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px">
+        ${week.map(dateStr => {
+          const d = new Date(dateStr+'T12:00:00');
+          const dayTasks = activeTasks.filter(t => t.deadline === dateStr).sort((a,b)=>{const po={high:0,med:1,low:2};return po[a.priority]-po[b.priority];});
+          const isToday = dateStr === todayStr;
+          const isWeekend = d.getDay()===0||d.getDay()===6;
+          return `
+            <div style="background:${isToday?'#EFF6FF':isWeekend?'#FAFAF8':'var(--card)'};border:${isToday?'2px solid #3B82F6':'1px solid var(--border)'};border-radius:var(--r);min-height:160px;overflow:hidden">
+              <div style="padding:8px 10px 6px;border-bottom:1px solid var(--border);background:${isToday?'#DBEAFE':'var(--col)'}">
+                <div style="font-size:10px;font-weight:700;color:${isToday?'#1D4ED8':'var(--t3)'};text-transform:uppercase;letter-spacing:.5px">${days[d.getDay()]}</div>
+                <div style="font-size:16px;font-weight:700;color:${isToday?'#1D4ED8':'var(--t1)'}">${d.getDate()}</div>
+                ${dayTasks.length ? `<div style="font-size:9px;color:${isToday?'#3B82F6':'var(--t3)'}">${dayTasks.length} task${dayTasks.length!==1?'s':''}</div>` : ''}
+              </div>
+              <div style="padding:6px">
+                ${dayTasks.length ? dayTasks.map(t => {
+                  const pCol = PRIO_COLORS[t.priority];
+                  const aCol = avatarColor(t.assignee);
+                  return `<div onclick="openTaskModal('${t.id}')" style="background:var(--bg);border-radius:5px;padding:5px 7px;margin-bottom:4px;cursor:pointer;border-left:2px solid ${pCol}">
+                    <div style="font-size:11px;font-weight:500;color:var(--t1);line-height:1.3;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</div>
+                    <div style="display:flex;align-items:center;gap:4px">
+                      <div style="width:14px;height:14px;border-radius:50%;background:${aCol};font-size:7px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center">${esc(initials(t.assignee))}</div>
+                      <span style="font-size:9px;color:var(--t3)">${esc(t.assignee.split(' ')[0])}</span>
+                    </div>
+                  </div>`;
+                }).join('') : `<div style="font-size:11px;color:var(--t3);text-align:center;padding:12px 4px">—</div>`}
+              </div>
+            </div>`;
+        }).join('')}
+      </div>
+
+      <div style="margin-top:20px">
+        <h2 style="font-size:14px;font-weight:700;margin-bottom:12px">By Team Member</h2>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${team.map(m => {
+            const myWeekTasks = activeTasks.filter(t => t.assignee === m.name);
+            const col = avatarColor(m.name);
+            return `
+              <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:12px">
+                <div style="width:32px;height:32px;border-radius:50%;background:${col};font-size:11px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">${esc(initials(m.name))}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:600">${esc(m.name)} <span style="font-size:11px;color:var(--t3);font-weight:400">${esc(m.role)}</span></div>
+                  <div style="font-size:11px;color:var(--t3);margin-top:2px">${myWeekTasks.length} task${myWeekTasks.length!==1?'s':''} this week · ${myWeekTasks.filter(t=>t.priority==='high').length} high priority</div>
+                </div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:60%">
+                  ${myWeekTasks.slice(0,4).map(t=>`
+                    <span onclick="openTaskModal('${t.id}')" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:2px 7px;font-size:10px;cursor:pointer;white-space:nowrap;border-left:2px solid ${PRIO_COLORS[t.priority]}">${esc(t.name.slice(0,28))}${t.name.length>28?'…':''}</span>
+                  `).join('')}
+                  ${myWeekTasks.length>4?`<span style="font-size:10px;color:var(--t3);padding:2px 4px">+${myWeekTasks.length-4} more</span>`:''}
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('weekContent').innerHTML = html;
+}
+
+/* ══════════════════════════════════════════════════════════
    RENDER — WORKSTREAMS VIEW
 ══════════════════════════════════════════════════════════ */
 
@@ -1373,7 +1563,16 @@ function renderWsView() {
             </div>`;
           }).join('') : `<div class="ws-empty">No tasks yet</div>`}
         </div>
-        <button class="ws-add-task" onclick="openTaskModalForWs('${ws.id}')">+ Add task</button>
+        <div class="ws-existing-row">
+          <select class="ws-existing-sel" id="wsExSel-${ws.id}">
+            <option value="">Link existing task…</option>
+            ${tasks.filter(t => t.ws !== ws.id && t.status !== 'done').map(t =>
+              `<option value="${t.id}">${esc(t.name.length>40 ? t.name.slice(0,40)+'…' : t.name)}</option>`
+            ).join('')}
+          </select>
+          <button class="ws-existing-btn" onclick="addExistingTaskToWs('${ws.id}')">Add</button>
+        </div>
+        <button class="ws-add-task" onclick="openTaskModalForWs('${ws.id}')">+ New task</button>
       </div>`;
   }).join('');
 }
@@ -1388,6 +1587,7 @@ function renderAll() {
   renderFilterBar();
   if (state.view === 'board')  renderBoard();
   if (state.view === 'daily')  renderDaily();
+  if (state.view === 'week')   renderMyWeek();
   if (state.view === 'ws')     renderWsView();
 }
 
@@ -1407,7 +1607,7 @@ function switchView(v, btn) {
   document.querySelectorAll('.vbtn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
-  const map = { board: 'boardView', daily: 'dailyView', ws: 'wsView' };
+  const map = { board: 'boardView', daily: 'dailyView', week: 'weekView', ws: 'wsView' };
   document.getElementById(map[v]).classList.add('active');
   renderAll();
 }
@@ -1506,6 +1706,16 @@ function openTaskModal(id) {
 function openTaskModalForWs(wsId) {
   openTaskModal();
   document.getElementById('fWs').value = wsId;
+}
+
+function addExistingTaskToWs(wsId) {
+  const sel = document.getElementById('wsExSel-' + wsId);
+  if (!sel || !sel.value) { toast('Select a task first'); return; }
+  const t = tasks.find(x => x.id === sel.value);
+  if (!t) return;
+  t.ws = wsId;
+  persist(); renderAll();
+  toast(`"${t.name.slice(0,30)}" added to workstream`);
 }
 
 function closeTaskModal() {
@@ -1628,25 +1838,50 @@ function closeTeamModal() {
 function renderTeamMemberList() {
   document.getElementById('teamMemberList').innerHTML = team.map(m => `
     <div class="member-row">
-      <div class="card-avatar" style="background:${avatarColor(m.name)};width:30px;height:30px;font-size:10px;flex-shrink:0">${esc(initials(m.name))}</div>
+      <input type="color" value="${m.color || avatarColor(m.name)}"
+        title="Change color"
+        style="width:30px;height:30px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:0;flex-shrink:0"
+        onchange="updateMemberColor('${esc(m.name)}',this.value)">
       <div class="member-info">
-        <div class="member-name">${esc(m.name)}</div>
-        <div class="member-role">${esc(m.role)}</div>
+        <input class="fi" value="${esc(m.name)}" style="font-weight:500;padding:4px 8px;height:28px"
+          onchange="updateMemberField('${esc(m.name)}','name',this.value)">
       </div>
+      <select class="fi" style="width:110px;padding:4px 8px;height:28px"
+        onchange="updateMemberField('${esc(m.name)}','role',this.value)">
+        ${['VP','Associate','Analyst','Director','MD'].map(r =>
+          `<option ${m.role===r?'selected':''}>${r}</option>`).join('')}
+      </select>
       ${team.length > 1
-        ? `<button class="btn-sm" style="color:#EF4444;border-color:#FECACA" onclick="removeMember('${esc(m.name)}')">Remove</button>`
-        : '<span style="font-size:10px;color:var(--t3)">Last member</span>'}
+        ? `<button class="btn-sm" style="color:#EF4444;border-color:#FECACA;flex-shrink:0" onclick="removeMember('${esc(m.name)}')">✕</button>`
+        : ''}
     </div>`).join('');
 }
 
+function updateMemberColor(name, color) {
+  const m = team.find(x => x.name === name);
+  if (m) { m.color = color; persist(); renderAll(); }
+}
+
+function updateMemberField(oldName, field, value) {
+  const m = team.find(x => x.name === oldName);
+  if (!m) return;
+  if (field === 'name') {
+    tasks.forEach(t => { if (t.assignee === oldName) t.assignee = value; });
+    if (state.currentUser === oldName) state.currentUser = value;
+  }
+  m[field] = value;
+  persist(); renderAll();
+}
+
 function addMember() {
-  const name = document.getElementById('newMemberName').value.trim();
-  const role = document.getElementById('newMemberRole').value;
+  const name  = document.getElementById('newMemberName').value.trim();
+  const role  = document.getElementById('newMemberRole').value;
+  const color = document.getElementById('newMemberColor').value;
   if (!name) { flash('newMemberName'); return; }
   if (team.find(m => m.name.toLowerCase() === name.toLowerCase())) {
     toast('A member with that name already exists'); return;
   }
-  team.push({ name, role, initials: name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() });
+  team.push({ name, role, color, initials: name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() });
   document.getElementById('newMemberName').value = '';
   persist(); renderTeamMemberList(); renderAll();
   toast(`${name} added to team`);
@@ -1707,7 +1942,8 @@ document.addEventListener('keydown', e => {
     case 't': case 'T': openTeamModal(); break;
     case '1': document.querySelector('[data-view="board"]')?.click(); break;
     case '2': document.querySelector('[data-view="daily"]')?.click(); break;
-    case '3': document.querySelector('[data-view="ws"]')?.click(); break;
+    case '3': document.querySelector('[data-view="week"]')?.click(); break;
+    case '4': document.querySelector('[data-view="ws"]')?.click(); break;
     case 'h': case 'H': setFilter('priority', state.priority === 'high' ? 'all' : 'high'); renderAll(); break;
     case 'x': case 'X':
       state.priority = 'all'; state.fund = 'all';
@@ -1721,10 +1957,196 @@ document.addEventListener('keydown', e => {
 });
 
 /* ══════════════════════════════════════════════════════════
+   GMAIL PANEL
+══════════════════════════════════════════════════════════ */
+
+const GMAIL_CLIENT_ID = ''; // paste your OAuth client ID here
+const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send';
+let gmailToken = null;
+let gmailOpen  = false;
+
+function toggleGmailPanel() {
+  gmailOpen = !gmailOpen;
+  document.getElementById('gmailPanel').classList.toggle('open', gmailOpen);
+  document.getElementById('gmailHdrBtn').style.background = gmailOpen ? 'var(--bg)' : '';
+}
+function closeGmailPanel() {
+  gmailOpen = false;
+  document.getElementById('gmailPanel').classList.remove('open');
+  document.getElementById('gmailHdrBtn').style.background = '';
+}
+
+function gmailSignIn() {
+  if (!GMAIL_CLIENT_ID) {
+    document.getElementById('gmailBody').innerHTML = `
+      <div class="gmail-auth-area">
+        <div style="font-size:28px;margin-bottom:10px">🔑</div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">Setup required</div>
+        <div style="font-size:12px;color:var(--t2);line-height:1.6;text-align:left">
+          To enable Gmail, add your <strong>Google OAuth Client ID</strong>:<br><br>
+          1. Go to <a href="https://console.cloud.google.com/" target="_blank" style="color:var(--col-ip)">Google Cloud Console</a><br>
+          2. Create a project → Enable Gmail API<br>
+          3. OAuth 2.0 Credentials → Web app<br>
+          4. Add your GitHub Pages URL as authorised origin<br>
+          5. Copy the Client ID and paste it into<br>
+          &nbsp;&nbsp;<code style="font-size:11px;background:var(--bg);padding:1px 4px;border-radius:3px">const GMAIL_CLIENT_ID</code> at the top of the script
+        </div>
+      </div>`;
+    return;
+  }
+  const params = new URLSearchParams({
+    client_id: GMAIL_CLIENT_ID,
+    redirect_uri: location.origin + location.pathname,
+    response_type: 'token',
+    scope: GMAIL_SCOPES,
+    prompt: 'select_account'
+  });
+  location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params;
+}
+
+function gmailHandleCallback() {
+  const hash = new URLSearchParams(location.hash.slice(1));
+  const token = hash.get('access_token');
+  if (!token) return;
+  gmailToken = token;
+  history.replaceState(null, '', location.pathname);
+  document.getElementById('gmailBody').innerHTML = `
+    <div style="text-align:center;padding:20px 0">
+      <div style="font-size:20px;margin-bottom:6px">✅</div>
+      <div style="font-size:13px;font-weight:600">Connected!</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:4px">Click "Scan Inbox" to find actionable emails.</div>
+    </div>`;
+  document.getElementById('gmailFooter').style.display = 'flex';
+  toggleGmailPanel();
+}
+
+async function gmailScanInbox() {
+  if (!gmailToken) { gmailSignIn(); return; }
+  const btn = document.getElementById('gmailScanBtn');
+  btn.textContent = 'Scanning…'; btn.disabled = true;
+  try {
+    const listRes = await fetch(
+      'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q=is:unread -category:promotions -category:social',
+      { headers: { Authorization: 'Bearer ' + gmailToken } }
+    );
+    if (listRes.status === 401) { gmailToken = null; gmailSignIn(); return; }
+    const listData = await listRes.json();
+    const messages = listData.messages || [];
+    if (!messages.length) {
+      document.getElementById('gmailBody').innerHTML = `<div style="text-align:center;padding:30px;color:var(--t3);font-size:13px">No unread emails found 🎉</div>`;
+      return;
+    }
+    const details = await Promise.all(messages.slice(0,10).map(m =>
+      fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From`,
+        { headers: { Authorization: 'Bearer ' + gmailToken } }).then(r => r.json())
+    ));
+
+    const suggestions = details.map(msg => {
+      const headers = msg.payload?.headers || [];
+      const subject = headers.find(h => h.name === 'Subject')?.value || '(no subject)';
+      const from    = headers.find(h => h.name === 'From')?.value || '';
+      const fromName = from.replace(/<.*>/, '').trim() || from;
+      const taskName = suggestTaskFromSubject(subject);
+      return { id: msg.id, subject, fromName, taskName };
+    }).filter(s => s.taskName);
+
+    if (!suggestions.length) {
+      document.getElementById('gmailBody').innerHTML = `<div style="text-align:center;padding:30px;color:var(--t3);font-size:13px">No actionable emails detected in latest unread.</div>`;
+      return;
+    }
+
+    document.getElementById('gmailBody').innerHTML = `
+      <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">${suggestions.length} suggestions</div>
+      ${suggestions.map(s => `
+        <div class="gmail-suggestion" id="gsugg-${s.id}">
+          <div class="gmail-suggestion-from">${esc(s.fromName)}</div>
+          <div class="gmail-suggestion-subject">${esc(s.subject.length>60?s.subject.slice(0,60)+'…':s.subject)}</div>
+          <div class="gmail-suggestion-task">→ ${esc(s.taskName)}</div>
+          <div class="gmail-sugg-actions">
+            <button class="gmail-pill-add" onclick="gmailAddTask('${s.id}','${esc(s.taskName).replace(/'/g,"\\'")}')">+ Add as task</button>
+            <button class="gmail-pill-skip" onclick="document.getElementById('gsugg-${s.id}').remove()">Skip</button>
+          </div>
+        </div>`).join('')}`;
+  } catch(err) {
+    document.getElementById('gmailBody').innerHTML = `<div style="text-align:center;padding:30px;color:#EF4444;font-size:12px">Error: ${esc(String(err))}</div>`;
+  } finally {
+    btn.textContent = 'Scan Inbox'; btn.disabled = false;
+  }
+}
+
+function suggestTaskFromSubject(subject) {
+  const s = subject.toLowerCase();
+  const actionWords = ['review','sign','approve','respond','reply','follow up','send','submit','confirm','schedule','update','prepare','complete','action required','urgent','asap','deadline','due'];
+  if (actionWords.some(w => s.includes(w))) {
+    return subject.replace(/^(re:|fwd?:|fw:)\s*/i,'').trim().slice(0,80);
+  }
+  return null;
+}
+
+function gmailAddTask(msgId, taskName) {
+  const cu = state.currentUser || (team[0]?.name || '');
+  tasks.unshift({
+    id: uid(), name: taskName, desc: 'From Gmail',
+    cat: 'admin', fund: '', assignee: cu,
+    priority: 'med', status: 'todo',
+    deadline: '', ws: '', createdAt: new Date().toISOString()
+  });
+  persist(); renderAll();
+  const el = document.getElementById('gsugg-' + msgId);
+  if (el) { el.style.opacity = '.4'; el.style.pointerEvents = 'none'; }
+  toast('Task added from Gmail');
+}
+
+async function gmailSendBrief() {
+  if (!gmailToken) { gmailSignIn(); return; }
+  const cu = state.currentUser;
+  const todayStr = new Date().toISOString().slice(0,10);
+  const myTasks = tasks.filter(t => t.status !== 'done' && (!cu || t.assignee === cu));
+  const high   = myTasks.filter(t => t.priority === 'high');
+  const due    = myTasks.filter(t => t.deadline === todayStr);
+  const overdue = myTasks.filter(t => t.deadline && t.deadline < todayStr);
+
+  const lines = [];
+  lines.push(`Hi ${cu || 'Team'},\n\nHere's your Chope daily brief for ${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}:\n`);
+  if (high.length)   lines.push(`🔴 HIGH PRIORITY (${high.length})\n${high.map(t=>`  • ${t.name}`).join('\n')}\n`);
+  if (due.length)    lines.push(`📅 DUE TODAY (${due.length})\n${due.map(t=>`  • ${t.name}`).join('\n')}\n`);
+  if (overdue.length) lines.push(`⚠️ OVERDUE (${overdue.length})\n${overdue.map(t=>`  • ${t.name} (was ${t.deadline})`).join('\n')}\n`);
+  if (!high.length && !due.length && !overdue.length) lines.push('✅ No urgent tasks today — looking good!\n');
+  lines.push(`\nSent from Chope — ${location.href}`);
+
+  const body = lines.join('\n');
+  const subject = `Chope Daily Brief — ${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;
+  const email = [
+    `To: ${cu ? '' : ''}me`,
+    `Subject: ${subject}`,
+    `Content-Type: text/plain; charset=utf-8`,
+    ``,
+    body
+  ].join('\r\n');
+  const encoded = btoa(unescape(encodeURIComponent(email))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+
+  try {
+    document.getElementById('gmailBriefBtn').textContent = 'Sending…';
+    const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + gmailToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ raw: encoded })
+    });
+    if (res.ok) toast('Today\'s brief sent to your Gmail!');
+    else toast('Failed to send brief — check permissions');
+  } catch(e) {
+    toast('Error sending brief');
+  } finally {
+    document.getElementById('gmailBriefBtn').textContent = 'Send Today\'s Brief';
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
    INIT
 ══════════════════════════════════════════════════════════ */
 
 load();
+gmailHandleCallback(); // pick up OAuth token redirect if present
 
 // Wire workstream IDs to seed tasks after workstreams are seeded
 if (workstreams.length && tasks.length) {
