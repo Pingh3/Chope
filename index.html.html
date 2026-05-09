@@ -580,13 +580,70 @@ textarea.fi{resize:vertical;min-height:72px}
   .board{grid-template-columns:repeat(2,1fr)}
   .daily-grid{grid-template-columns:1fr 1fr}
   .chart-wrap{grid-template-columns:1fr}
+  .ws-grid{grid-template-columns:1fr 1fr}
 }
-@media(max-width:600px){
+
+/* ── Tablet / large phone ─────────────────────────────────── */
+@media(max-width:680px){
+  /* Header becomes two rows */
+  #hdr{
+    height:auto;
+    flex-wrap:wrap;
+    padding:8px 12px 0;
+    gap:6px;
+    position:sticky;top:0;
+  }
+  .hdr-stats{display:none}
+  .live-dot-wrap{display:none}
+  /* View tabs become a full-width second row */
+  .hdr-views{
+    order:10;
+    width:calc(100% + 24px);
+    margin:4px -12px -1px;
+    border-radius:0;
+    border:none;
+    border-top:1px solid var(--border);
+    background:transparent;
+    padding:3px 8px 4px;
+    gap:2px;
+  }
+  .vbtn{flex:1;font-size:11px;padding:5px 2px;text-align:center}
+  .btn-add{margin-left:auto}
+  /* catNav/filterBar sticky offset for taller header */
+  #catNav{top:88px}
+  #filterBar{position:sticky;top:calc(88px + 37px);z-index:185}
+  /* Filter bar horizontal scroll */
+  #filterBar{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;padding:6px 12px}
+  #filterBar::-webkit-scrollbar{display:none}
+  .fb-group{flex-shrink:0}
+  /* Board banner stacks */
+  #boardBanner{flex-direction:column;padding:10px 12px 0}
+  .board-progress-bar{flex-direction:column;gap:6px;align-items:flex-start}
+  .board-quote{display:none}
+}
+
+/* ── Phone ────────────────────────────────────────────────── */
+@media(max-width:480px){
   .board{grid-template-columns:1fr}
   .daily-grid{grid-template-columns:1fr}
   .mfrow,.mfrow3{grid-template-columns:1fr}
-  #hdr{padding:0 12px;gap:8px}
-  .hdr-team,.live-dot-wrap{display:none}
+  .ws-grid{grid-template-columns:1fr}
+  .daily-greeting h1{font-size:18px}
+  /* Hide Team/? buttons to save space, keep Gmail */
+  .btn-ghost-team,.btn-ghost-shortcuts{display:none}
+  /* Full-width modal */
+  .modal{width:100vw;max-width:100vw;border-radius:12px 12px 0 0;position:fixed;bottom:0;left:0;top:auto;margin:0;max-height:85vh}
+  .overlay{align-items:flex-end}
+  /* Our Week day grid scrolls horizontally */
+  .week-day-grid{overflow-x:auto;padding-bottom:8px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .week-day-grid::-webkit-scrollbar{display:none}
+  /* Daily view padding */
+  #dailyView{padding:0}
+  .view{padding:12px}
+  /* Gmail panel full screen on phone */
+  #gmailPanel{width:100vw;top:88px}
+  /* Ws header */
+  .ws-header{flex-direction:column;align-items:flex-start;gap:8px}
 }
 </style>
 </head>
@@ -604,9 +661,9 @@ textarea.fi{resize:vertical;min-height:72px}
   </div>
   <div class="live-dot-wrap"><div class="ldot"></div>Live</div>
   <select class="user-sel" id="currentUserSel" onchange="onUserChange()"></select>
-  <button class="btn-ghost" style="font-size:12px;padding:5px 12px" onclick="openTeamModal()">⚙ Team</button>
+  <button class="btn-ghost btn-ghost-team" style="font-size:12px;padding:5px 12px" onclick="openTeamModal()">⚙ Team</button>
   <button class="btn-ghost" style="font-size:12px;padding:5px 10px" onclick="toggleGmailPanel()" id="gmailHdrBtn" title="Gmail → Tasks">📧</button>
-  <button class="btn-ghost" style="font-size:12px;padding:5px 10px" onclick="openShortcutsModal()" title="Keyboard shortcuts (?)">?</button>
+  <button class="btn-ghost btn-ghost-shortcuts" style="font-size:12px;padding:5px 10px" onclick="openShortcutsModal()" title="Keyboard shortcuts (?)">?</button>
   <button class="btn-add" onclick="openTaskModal()">+ Add Task</button>
 </header>
 
@@ -1107,19 +1164,20 @@ function esc(s) {
 function getMember(name) { return team.find(m=>m.name===name); }
 function getWs(id) { return workstreams.find(w=>w.id===id); }
 
-function filteredTasks() {
-  return tasks.filter(t => {
-    if (state.cat !== 'all' && t.cat !== state.cat) return false;
+function applyFilters(list, {ignoreAssignee=false, ignoreWs=false}={}) {
+  return list.filter(t => {
+    if (state.cat      !== 'all' && t.cat !== state.cat) return false;
     if (state.priority !== 'all' && t.priority !== state.priority) return false;
     if (state.fund !== 'all') {
       if (state.fund === 'none' && t.fund && t.fund !== 'none') return false;
       if (state.fund !== 'none' && t.fund !== state.fund) return false;
     }
-    if (state.assignee !== 'all' && t.assignee !== state.assignee) return false;
-    if (state.ws !== 'all' && t.ws !== state.ws) return false;
+    if (!ignoreAssignee && state.assignee !== 'all' && t.assignee !== state.assignee) return false;
+    if (!ignoreWs      && state.ws       !== 'all' && t.ws       !== state.ws)       return false;
     return true;
   });
 }
+function filteredTasks() { return applyFilters(tasks); }
 
 /* ══════════════════════════════════════════════════════════
    STATS
@@ -1372,8 +1430,9 @@ function cardHTML(t) {
 
 function renderDaily() {
   const me = state.currentUser;
-  const myTasks = tasks.filter(t => t.assignee === me && t.status !== 'done');
-  const myDone  = tasks.filter(t => t.assignee === me && t.status === 'done');
+  const base    = applyFilters(tasks, {ignoreAssignee: true, ignoreWs: true});
+  const myTasks = base.filter(t => t.assignee === me && t.status !== 'done');
+  const myDone  = base.filter(t => t.assignee === me && t.status === 'done');
   const myTotal = myTasks.length + myDone.length;
   const myRate  = myTotal ? Math.round(myDone.length / myTotal * 100) : 0;
 
@@ -1548,8 +1607,9 @@ function renderMyWeek() {
     return d.toISOString().slice(0,10);
   });
 
-  const activeTasks = tasks.filter(t => t.status !== 'done' && t.deadline && t.deadline >= todayStr && t.deadline <= week[6]);
-  const overdue = tasks.filter(t => t.status !== 'done' && t.deadline && t.deadline < todayStr);
+  const ft = filteredTasks();
+  const activeTasks = ft.filter(t => t.status !== 'done' && t.deadline && t.deadline >= todayStr && t.deadline <= week[6]);
+  const overdue = ft.filter(t => t.status !== 'done' && t.deadline && t.deadline < todayStr);
 
   const totalThisWeek = activeTasks.length;
   const highCount = activeTasks.filter(t => t.priority === 'high').length;
@@ -1580,14 +1640,15 @@ function renderMyWeek() {
         <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:var(--r);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:13px;color:#DC2626">
           ⚠ <strong>${overdue.length} overdue task${overdue.length!==1?'s':''}</strong> — ${overdue.map(t=>`<span onclick="openTaskModal('${t.id}')" style="cursor:pointer;text-decoration:underline">${esc(t.name)}</span>`).join(', ')}
         </div>` : ''}
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px">
+      <div class="week-day-grid">
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;min-width:560px">
         ${week.map(dateStr => {
           const d = new Date(dateStr+'T12:00:00');
           const dayTasks = activeTasks.filter(t => t.deadline === dateStr).sort((a,b)=>{const po={high:0,med:1,low:2};return po[a.priority]-po[b.priority];});
           const isToday = dateStr === todayStr;
           const isWeekend = d.getDay()===0||d.getDay()===6;
           return `
-            <div style="background:${isToday?'#EFF6FF':isWeekend?'#FAFAF8':'var(--card)'};border:${isToday?'2px solid #3B82F6':'1px solid var(--border)'};border-radius:var(--r);min-height:160px;overflow:hidden">
+            <div class="week-day-cell" style="background:${isToday?'#EFF6FF':isWeekend?'#FAFAF8':'var(--card)'};border:${isToday?'2px solid #3B82F6':'1px solid var(--border)'};border-radius:var(--r);min-height:160px;overflow:hidden">
               <div style="padding:8px 10px 6px;border-bottom:1px solid var(--border);background:${isToday?'#DBEAFE':'var(--col)'}">
                 <div style="font-size:10px;font-weight:700;color:${isToday?'#1D4ED8':'var(--t3)'};text-transform:uppercase;letter-spacing:.5px">${days[d.getDay()]}</div>
                 <div style="font-size:16px;font-weight:700;color:${isToday?'#1D4ED8':'var(--t1)'}">${d.getDate()}</div>
@@ -1608,6 +1669,7 @@ function renderMyWeek() {
               </div>
             </div>`;
         }).join('')}
+        </div>
       </div>
 
       <div style="margin-top:20px">
@@ -1650,8 +1712,9 @@ function renderWsView() {
       </div>`;
     return;
   }
-  document.getElementById('wsGrid').innerHTML = workstreams.map(ws => {
-    const wsTasks = tasks.filter(t => t.ws === ws.id);
+  const visibleWs = state.ws !== 'all' ? workstreams.filter(w => w.id === state.ws) : workstreams;
+  document.getElementById('wsGrid').innerHTML = visibleWs.map(ws => {
+    const wsTasks = applyFilters(tasks.filter(t => t.ws === ws.id), {ignoreWs: true});
     const done  = wsTasks.filter(t => t.status === 'done').length;
     const pct   = wsTasks.length ? Math.round(done / wsTasks.length * 100) : 0;
     const pctColor = pct >= 75 ? '#059669' : pct >= 40 ? '#3B82F6' : '#F59E0B';
@@ -2091,7 +2154,7 @@ document.addEventListener('keydown', e => {
    GMAIL PANEL
 ══════════════════════════════════════════════════════════ */
 
-const GMAIL_CLIENT_ID = '990897011706-lh8qlk1ed3iqdbr6rs645kmei8b53ihl.apps.googleusercontent.com';
+const GMAIL_CLIENT_ID = '1052353371305-ibjabb8j5o8okn4ou5a05q8g1ta3s3li.apps.googleusercontent.com';
 const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send';
 let gmailToken = null;
 let gmailOpen  = false;
