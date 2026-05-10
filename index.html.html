@@ -294,10 +294,37 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   border:1px solid var(--border);
   transition:box-shadow .15s,transform .1s;
   user-select:none;
+  position:relative;
 }
 .card:hover{box-shadow:var(--sh-md);transform:translateY(-1px)}
 .card.dragging{opacity:.4;transform:scale(.97)}
 .card.urgent-card{border-left:3px solid var(--p-high)}
+.card.card-done{opacity:.55}
+.card.card-done .card-name{text-decoration:line-through;color:var(--t3)}
+.card-check{
+  position:absolute;top:10px;right:10px;
+  width:20px;height:20px;border-radius:50%;
+  border:2px solid var(--border);
+  background:transparent;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;flex-shrink:0;
+  z-index:2;
+}
+.card-check:hover{border-color:#22C55E;background:#F0FDF4}
+.card-check.checked{background:#22C55E;border-color:#22C55E}
+.card-check.checked svg{display:block}
+.card-check svg{display:none;width:10px;height:10px}
+.card-del{
+  position:absolute;bottom:10px;right:10px;
+  width:22px;height:22px;border-radius:4px;
+  border:1px solid transparent;
+  background:transparent;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;color:var(--t3);
+  opacity:0;transition:all .15s;z-index:2;
+}
+.card:hover .card-del{opacity:1}
+.card-del:hover{background:#FEF2F2;color:var(--p-high);border-color:#FECACA}
 
 .cat-badge{
   display:inline-flex;align-items:center;
@@ -675,11 +702,12 @@ textarea.fi{resize:vertical;min-height:72px}
   .btn-add{margin-left:auto}
   /* catNav/filterBar sticky offset for taller header */
   #catNav{top:88px}
-  #filterBar{position:sticky;top:calc(88px + 37px);z-index:185}
-  /* Filter bar horizontal scroll */
-  #filterBar{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;padding:6px 12px}
-  #filterBar::-webkit-scrollbar{display:none}
-  .fb-group{flex-shrink:0}
+  #filterBar{position:sticky;top:calc(88px + 37px);z-index:185;padding:0}
+  /* Each filter row scrolls horizontally on mobile */
+  .fb-row{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;padding:4px 12px;gap:5px}
+  .fb-row::-webkit-scrollbar{display:none}
+  .fb-group{flex-wrap:nowrap;flex-shrink:0}
+  .fb-label{min-width:52px;font-size:9px}
   /* Board banner stacks */
   #boardBanner{flex-direction:column;padding:10px 12px 0}
   .board-progress-bar{flex-direction:column;gap:6px;align-items:flex-start}
@@ -708,6 +736,25 @@ textarea.fi{resize:vertical;min-height:72px}
   #gmailPanel{width:100vw;top:88px}
   /* Ws header */
   .ws-header{flex-direction:column;align-items:flex-start;gap:8px}
+  /* Collapsible filter bar on phone */
+  .fb-toggle-row{display:flex!important}
+  #filterBar:not(.fb-expanded) .fb-row{display:none}
+}
+.fb-toggle-row{
+  display:none;
+  align-items:center;gap:8px;
+  padding:5px 12px;border-bottom:1px solid var(--border);
+  cursor:pointer;
+}
+.fb-toggle-btn{
+  font-size:11px;font-weight:600;color:var(--t2);
+  background:none;border:none;cursor:pointer;
+  font-family:inherit;display:flex;align-items:center;gap:5px;padding:2px 0;
+}
+.fb-active-pills{display:flex;gap:4px;flex:1;overflow:hidden}
+.fb-active-pill{
+  background:var(--t1);color:#fff;border-radius:20px;
+  padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap;
 }
 </style>
 </head>
@@ -873,7 +920,7 @@ textarea.fi{resize:vertical;min-height:72px}
           </select>
         </div>
       </div>
-      <div class="mfrow">
+      <div class="mfrow3">
         <div class="mf">
           <label>Status</label>
           <div class="sel-wrap">
@@ -887,7 +934,11 @@ textarea.fi{resize:vertical;min-height:72px}
           </div>
         </div>
         <div class="mf">
-          <label>Deadline</label>
+          <label>Start Date</label>
+          <input class="fi" type="date" id="fStartDate">
+        </div>
+        <div class="mf">
+          <label>Due Date</label>
           <input class="fi" type="date" id="fDeadline">
         </div>
       </div>
@@ -925,16 +976,19 @@ textarea.fi{resize:vertical;min-height:72px}
       <div class="mfrow">
         <div class="mf">
           <label>Color</label>
-          <select class="fi" id="wsColor">
-            <option value="#4F46E5">Indigo</option>
-            <option value="#0891B2">Blue</option>
-            <option value="#059669">Green</option>
-            <option value="#D97706">Amber</option>
-            <option value="#DC2626">Red</option>
-            <option value="#7C3AED">Purple</option>
-            <option value="#DB2777">Pink</option>
-            <option value="#EA580C">Orange</option>
-          </select>
+          <div class="sel-wrap">
+            <div class="sel-dot" id="dot-wsColor"></div>
+            <select class="fi" id="wsColor" onchange="document.getElementById('dot-wsColor').style.background=this.value">
+              <option value="#4F46E5">Indigo</option>
+              <option value="#0891B2">Blue</option>
+              <option value="#059669">Green</option>
+              <option value="#D97706">Amber</option>
+              <option value="#DC2626">Red</option>
+              <option value="#7C3AED">Purple</option>
+              <option value="#DB2777">Pink</option>
+              <option value="#EA580C">Orange</option>
+            </select>
+          </div>
         </div>
         <div class="mf">
           <label>Related Fund</label>
@@ -992,6 +1046,15 @@ textarea.fi{resize:vertical;min-height:72px}
         </div>
         <button class="btn-primary" style="margin-top:10px;width:100%" onclick="addMember()">+ Add to Team</button>
       </div>
+      <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+        <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Data Backup</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-ghost" style="flex:1;font-size:12px" onclick="exportData()">⬇ Export JSON</button>
+          <button class="btn-ghost" style="flex:1;font-size:12px" onclick="document.getElementById('importFile').click()">⬆ Import JSON</button>
+          <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+        </div>
+        <div style="font-size:10px;color:var(--t3);margin-top:6px;line-height:1.5">Export saves all tasks, workstreams and team to a file. Import restores from that file.</div>
+      </div>
     </div>
   </div>
 </div>
@@ -1007,6 +1070,8 @@ textarea.fi{resize:vertical;min-height:72px}
       <div class="sc-group">
         <div class="sc-group-label">Tasks</div>
         <div class="sc-row"><kbd>Q</kbd><span>New task</span></div>
+        <div class="sc-row"><kbd>C</kbd><span>Complete / reopen hovered task</span></div>
+        <div class="sc-row"><kbd>Del</kbd><span>Delete hovered task (with undo)</span></div>
         <div class="sc-row"><kbd>E</kbd><span>New workstream</span></div>
         <div class="sc-row"><kbd>T</kbd><span>Manage team</span></div>
       </div>
@@ -1400,7 +1465,22 @@ function renderFilterBar() {
     `<option value="${esc(w.id)}" ${state.ws===w.id?'selected':''}>${esc(w.name)}</option>`
   ).join('');
 
+  const activePills = [
+    state.priority !== 'all' ? ({high:'High',med:'Medium',low:'Low'}[state.priority]) : null,
+    state.fund !== 'all' ? (state.fund === 'none' ? 'No Fund' : state.fund) : null,
+    state.assignee !== 'all' ? state.assignee.split(' ')[0] : null,
+    state.ws !== 'all' ? (state.ws === '' ? 'No WS' : (getWs(state.ws)?.name.slice(0,12) || state.ws)) : null,
+  ].filter(Boolean);
+
+  const isExpanded = document.getElementById('filterBar')?.classList.contains('fb-expanded');
+
   document.getElementById('filterBar').innerHTML = `
+    <div class="fb-toggle-row" onclick="toggleFilterBar()">
+      <button class="fb-toggle-btn">⊞ Filters ${isExpanded ? '▴' : '▾'}</button>
+      <div class="fb-active-pills">
+        ${activePills.map(p => `<span class="fb-active-pill">${esc(p)}</span>`).join('')}
+      </div>
+    </div>
     <div class="fb-row">
       <span class="fb-label">Priority</span>
       <div class="fb-group">
@@ -1547,14 +1627,23 @@ function cardHTML(t) {
   const prioCls = t.priority || 'med';
   const prioLabel = { high: 'High', med: 'Medium', low: 'Low' }[t.priority] || t.priority;
 
+  const isDone = t.status === 'done';
   return `
-    <div class="card ${urgent||over?'urgent-card':''}"
+    <div class="card ${urgent||over?'urgent-card':''} ${isDone?'card-done':''}"
       draggable="true"
       data-id="${t.id}"
       ondragstart="dragStart(event,'${t.id}')"
       ondragend="dragEnd(event)"
+      onmouseenter="hoveredCardId='${t.id}'"
+      onmouseleave="hoveredCardId=null"
       onclick="openTaskModal('${t.id}')">
-      <div class="cat-badge" style="background:${cat.bg};color:${cat.color}">${esc(cat.label)}</div>
+      <button class="card-check ${isDone?'checked':''}" onclick="toggleTaskDone('${t.id}');event.stopPropagation()" title="Mark ${isDone?'incomplete':'complete'} (C)">
+        <svg viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="1.5,5 4,7.5 8.5,2.5"/>
+        </svg>
+      </button>
+      <button class="card-del" onclick="deleteTaskDirect('${t.id}');event.stopPropagation()" title="Delete task (Del)">🗑</button>
+      <div class="cat-badge" style="background:${cat.bg};color:${cat.color};padding-right:28px">${esc(cat.label)}</div>
       <div class="card-name">${esc(t.name)}</div>
       ${t.desc ? `<div class="card-notes">${esc(t.desc)}</div>` : ''}
       <div class="card-rows">
@@ -2021,9 +2110,10 @@ function openTaskModal(id) {
     document.getElementById('fFund').value     = t.fund || 'none';
     document.getElementById('fAssignee').value = t.assignee;
     document.getElementById('fPriority').value = t.priority;
-    document.getElementById('fStatus').value   = t.status;
-    document.getElementById('fDeadline').value = t.deadline || '';
-    document.getElementById('fWs').value       = t.ws || '';
+    document.getElementById('fStatus').value    = t.status;
+    document.getElementById('fStartDate').value = t.startDate || '';
+    document.getElementById('fDeadline').value  = t.deadline || '';
+    document.getElementById('fWs').value        = t.ws || '';
     del.style.display = 'block';
   } else {
     document.getElementById('taskModalTitle').textContent = 'New Task';
@@ -2033,9 +2123,10 @@ function openTaskModal(id) {
     document.getElementById('fFund').value     = state.fund !== 'all' && state.fund !== 'none' ? state.fund : 'none';
     document.getElementById('fAssignee').value = state.currentUser || '';
     document.getElementById('fPriority').value = 'med';
-    document.getElementById('fStatus').value   = 'todo';
+    document.getElementById('fStatus').value    = 'todo';
+    document.getElementById('fStartDate').value = new Date().toISOString().slice(0,10);
     const d = new Date(); d.setDate(d.getDate()+7);
-    document.getElementById('fDeadline').value = d.toISOString().slice(0,10);
+    document.getElementById('fDeadline').value  = d.toISOString().slice(0,10);
     document.getElementById('fWs').value       = state.ws !== 'all' ? (state.ws||'') : '';
     del.style.display = 'none';
   }
@@ -2051,6 +2142,23 @@ function openTaskModal(id) {
 function openTaskModalForWs(wsId) {
   openTaskModal();
   document.getElementById('fWs').value = wsId;
+}
+
+let hoveredCardId = null;
+
+function toggleTaskDone(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t) return;
+  if (t.status === 'done') {
+    t.status = 'todo';
+    t.completedAt = null;
+    toast(`↩ Reopened: ${t.name.slice(0,30)}`);
+  } else {
+    t.status = 'done';
+    t.completedAt = new Date().toISOString();
+    toast(`✓ Done: ${t.name.slice(0,30)}`);
+  }
+  persist(); renderAll();
 }
 
 function addExistingTaskToWs(wsId) {
@@ -2076,8 +2184,9 @@ function saveTask() {
   const assignee = document.getElementById('fAssignee').value;
   const priority = document.getElementById('fPriority').value;
   const status   = document.getElementById('fStatus').value;
-  const deadline = document.getElementById('fDeadline').value;
-  const ws       = document.getElementById('fWs').value;
+  const startDate = document.getElementById('fStartDate').value;
+  const deadline  = document.getElementById('fDeadline').value;
+  const ws        = document.getElementById('fWs').value;
 
   if (!name)     { flash('fName');     return; }
   if (!cat)      { flash('fCat');      return; }
@@ -2087,13 +2196,13 @@ function saveTask() {
     const t = tasks.find(x => x.id === editTaskId);
     if (t) {
       const wasDone = t.status === 'done';
-      Object.assign(t, { name, desc, cat, fund, assignee, priority, status, deadline, ws });
+      Object.assign(t, { name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws });
       if (status === 'done' && !wasDone) t.completedAt = new Date().toISOString();
       if (status !== 'done') t.completedAt = null;
     }
     toast('Task updated');
   } else {
-    tasks.unshift({ id: uid(), name, desc, cat, fund, assignee, priority, status, deadline, ws, createdAt: new Date().toISOString() });
+    tasks.unshift({ id: uid(), name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, createdAt: new Date().toISOString() });
     toast('Task created');
   }
   persist(); renderAll(); closeTaskModal();
@@ -2105,6 +2214,33 @@ function deleteTask() {
   tasks = tasks.filter(x => x.id !== editTaskId);
   persist(); renderAll(); closeTaskModal();
   toast('Task deleted');
+}
+
+let _lastDeleted = null;
+function deleteTaskDirect(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t) return;
+  _lastDeleted = { task: { ...t }, index: tasks.indexOf(t) };
+  tasks = tasks.filter(x => x.id !== id);
+  hoveredCardId = null;
+  persist(); renderAll();
+  const box = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = `🗑 Deleted "${esc(t.name.slice(0,25))}" <button onclick="undoDelete()" style="margin-left:8px;background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:4px;padding:1px 8px;cursor:pointer;font-size:11px;font-family:inherit">Undo</button>`;
+  box.appendChild(el);
+  el._timer = setTimeout(() => {
+    el.style.cssText = 'opacity:0;transition:opacity .25s';
+    setTimeout(() => el.remove(), 250);
+    _lastDeleted = null;
+  }, 4000);
+}
+function undoDelete() {
+  if (!_lastDeleted) return;
+  tasks.splice(_lastDeleted.index, 0, _lastDeleted.task);
+  _lastDeleted = null;
+  persist(); renderAll();
+  toast('↩ Delete undone');
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -2131,6 +2267,8 @@ function openWsModal(id) {
     document.getElementById('wsFund').value  = '';
     del.style.display = 'none';
   }
+  const wsColorEl = document.getElementById('wsColor');
+  document.getElementById('dot-wsColor').style.background = wsColorEl.value;
   document.getElementById('wsOverlay').classList.add('open');
   setTimeout(() => document.getElementById('wsName').focus(), 80);
 }
@@ -2238,6 +2376,39 @@ function addMember() {
   toast(`${name} added to team`);
 }
 
+function exportData() {
+  const data = JSON.stringify({ tasks, workstreams, team }, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `chope-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Backup downloaded');
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const d = JSON.parse(e.target.result);
+      if (!d.tasks || !Array.isArray(d.tasks)) throw new Error('Invalid format');
+      tasks = d.tasks;
+      workstreams = d.workstreams || workstreams;
+      team = d.team || team;
+      persist(); renderAll();
+      toast(`✓ Restored: ${tasks.length} tasks, ${workstreams.length} workstreams`);
+    } catch {
+      toast('Import failed — invalid backup file');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
 function removeMember(name) {
   if (team.length <= 1) return;
   team = team.filter(m => m.name !== name);
@@ -2278,12 +2449,29 @@ function toast(msg) {
 function openShortcutsModal()  { document.getElementById('shortcutsOverlay').classList.add('open'); }
 function closeShortcutsModal() { document.getElementById('shortcutsOverlay').classList.remove('open'); }
 
+function toggleFilterBar() {
+  document.getElementById('filterBar').classList.toggle('fb-expanded');
+  renderFilterBar();
+}
+
 document.addEventListener('keydown', e => {
   const tag = document.activeElement.tagName;
   const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
   const anyOpen = document.querySelector('.overlay.open');
 
-  if (e.key === 'Escape') { closeTaskModal(); closeWsModal(); closeTeamModal(); closeShortcutsModal(); }
+  // Chatbot number shortcuts — work even when chatbot is open
+  if (document.getElementById('chatbotOverlay').classList.contains('open')) {
+    const n = parseInt(e.key);
+    if (n >= 1 && n <= 9) {
+      const btn = document.getElementById('chatOpt' + (n - 1));
+      if (btn) { btn.click(); return; }
+    }
+  }
+
+  if (e.key === 'Escape') {
+    closeChatbot();
+    closeTaskModal(); closeWsModal(); closeTeamModal(); closeShortcutsModal();
+  }
 
   if (typing || anyOpen) return;
 
@@ -2295,6 +2483,8 @@ document.addEventListener('keydown', e => {
     case '2': document.querySelector('[data-view="daily"]')?.click(); break;
     case '3': document.querySelector('[data-view="week"]')?.click(); break;
     case '4': document.querySelector('[data-view="ws"]')?.click(); break;
+    case 'c': case 'C': if (hoveredCardId) toggleTaskDone(hoveredCardId); break;
+    case 'Delete': case 'Backspace': if (hoveredCardId) { e.preventDefault(); deleteTaskDirect(hoveredCardId); } break;
     case 'h': case 'H': setFilter('priority', state.priority === 'high' ? 'all' : 'high'); renderAll(); break;
     case 'x': case 'X':
       state.priority = 'all'; state.fund = 'all';
@@ -2391,9 +2581,11 @@ function chatbotAsk(step) {
       </div>`;
     body.scrollTop = body.scrollHeight;
 
-    // Show options
-    opts.innerHTML = q.options.map(o =>
-      `<button class="chat-opt" onclick="chatbotAnswer('${q.key}',${JSON.stringify(o.value)},'${esc(o.label)}')">${esc(o.label)}</button>`
+    // Show options with number shortcuts
+    opts.innerHTML = q.options.map((o, i) =>
+      `<button class="chat-opt" id="chatOpt${i}" onclick="chatbotAnswer('${q.key}',${JSON.stringify(o.value)},'${esc(o.label)}')">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:var(--border);font-size:9px;font-weight:700;margin-right:6px;flex-shrink:0">${i+1}</span>${esc(o.label)}
+      </button>`
     ).join('');
   }, 700);
 }
@@ -2426,8 +2618,12 @@ function chatbotFinish() {
     const startOffset    = chatbotAnswers.start    ?? 0;
     const durationOffset = chatbotAnswers.duration ?? 7;
     if (startOffset !== null) {
-      const due = new Date();
-      due.setDate(due.getDate() + (startOffset || 0) + (durationOffset || 7));
+      const start = new Date();
+      start.setDate(start.getDate() + (startOffset || 0));
+      t.startDate = start.toISOString().slice(0, 10);
+
+      const due = new Date(start);
+      due.setDate(due.getDate() + (durationOffset || 7));
       t.deadline = due.toISOString().slice(0, 10);
     }
     persist(); renderAll();
