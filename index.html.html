@@ -1136,6 +1136,8 @@ textarea.fi{resize:vertical;min-height:72px}
       <div class="sc-group">
         <div class="sc-group-label">Filters</div>
         <div class="sc-row"><kbd>H</kbd><span>Filter High priority</span></div>
+        <div class="sc-row"><kbd>M</kbd><span>Filter Medium priority</span></div>
+        <div class="sc-row"><kbd>L</kbd><span>Filter Low priority</span></div>
         <div class="sc-row"><kbd>X</kbd><span>Clear all filters</span></div>
       </div>
       <div class="sc-group" style="border-bottom:none">
@@ -2637,6 +2639,8 @@ document.addEventListener('keydown', e => {
     case 'c': case 'C': if (hoveredCardId) toggleTaskDone(hoveredCardId); break;
     case 'Delete': case 'Backspace': if (hoveredCardId) { e.preventDefault(); deleteTaskDirect(hoveredCardId); } break;
     case 'h': case 'H': setFilter('priority', state.priority === 'high' ? 'all' : 'high'); renderAll(); break;
+    case 'm': case 'M': setFilter('priority', state.priority === 'med'  ? 'all' : 'med');  renderAll(); break;
+    case 'l': case 'L': setFilter('priority', state.priority === 'low'  ? 'all' : 'low');  renderAll(); break;
     case 'x': case 'X':
       state.priority = 'all'; state.fund = 'all';
       state.assignee = 'all'; state.ws = 'all'; state.cat = 'all';
