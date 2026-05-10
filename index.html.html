@@ -886,7 +886,6 @@ textarea.fi{resize:vertical;min-height:72px}
               <option value="ir">IR &amp; Reporting</option>
               <option value="acq">Acquisition</option>
               <option value="fund">Fund Raising</option>
-              <option value="projects">Projects</option>
               <option value="corp">Corporate Development</option>
               <option value="admin">Admin</option>
             </select>
@@ -1145,7 +1144,6 @@ const CATEGORIES = {
   ir:         { label: 'IR & Reporting',        color: '#0D9488', bg: '#F0FDFA' },
   acq:        { label: 'Acquisition',           color: '#EA580C', bg: '#FFF7ED' },
   fund:       { label: 'Fund Raising',          color: '#DB2777', bg: '#FDF2F8' },
-  projects:   { label: 'Projects',              color: '#4F46E5', bg: '#EEF2FF' },
   corp:       { label: 'Corporate Development', color: '#0284C7', bg: '#EFF6FF' },
   admin:      { label: 'Admin',                 color: '#6B7280', bg: '#F9FAFB' },
 };
@@ -1336,7 +1334,7 @@ function estimateCatAndFund(text) {
   else if (/performance|attribution|return|irr|q2|q1|q3|q4/.test(t))               cat = 'perf';
   else if (/corp|secretary|entity|restructure|holdco/.test(t))                      cat = 'corp';
   else if (/schedule|coordinate|onboard|admin|meeting/.test(t))                     cat = 'admin';
-  else if (/project|build|implement|design/.test(t))                                cat = 'projects';
+  else if (/build|implement|design/.test(t))                                         cat = 'corp';
 
   if (/whpmt|westhill/.test(t))          fund = 'WHPMT';
   else if (/fund\s*ii\b|fund\s*2\b/.test(t))  fund = 'Fund II';
@@ -2044,7 +2042,7 @@ function renderWsView() {
         <div class="ws-existing-row">
           <select class="ws-existing-sel" id="wsExSel-${ws.id}">
             <option value="">Link existing task…</option>
-            ${tasks.filter(t => t.ws !== ws.id && t.status !== 'done').map(t =>
+            ${tasks.filter(t => !t.ws && t.status !== 'done').map(t =>
               `<option value="${t.id}">${esc(t.name.length>40 ? t.name.slice(0,40)+'…' : t.name)}</option>`
             ).join('')}
           </select>
