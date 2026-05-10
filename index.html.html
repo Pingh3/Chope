@@ -177,6 +177,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 }
 .plan-pill:hover,.plan-pill.active{background:var(--t1);color:#fff;border-color:var(--t1)}
 
+/* ── Calendar ────────────────────────────────────────────── */
+.cal-event{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:9px 12px;border-radius:var(--r);
+  background:var(--card);border:1px solid var(--border);
+  margin-bottom:6px;cursor:default;
+}
+.cal-event-time{font-size:11px;font-weight:600;color:var(--col-ip);white-space:nowrap;min-width:70px;padding-top:1px}
+.cal-event-name{font-size:12px;font-weight:500;color:var(--t1);line-height:1.4}
+.cal-event-loc{font-size:10px;color:var(--t3);margin-top:2px}
+.cal-event.all-day .cal-event-time{color:var(--t3);font-weight:500}
+.cal-connect-hint{text-align:center;padding:18px;color:var(--t3);font-size:12px}
+.btn-cal{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:6px 12px;border-radius:var(--r);font-size:12px;font-weight:500;
+  border:1px solid var(--border);background:var(--card);color:var(--t2);
+  cursor:pointer;font-family:inherit;transition:all .12s;
+}
+.btn-cal:hover{border-color:var(--col-ip);color:var(--col-ip)}
+.btn-cal.added{border-color:#22C55E;color:#22C55E;background:#F0FDF4}
+
 /* ── Deadline audit log ──────────────────────────────────── */
 .dl-history{display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
 .dl-history.visible{display:block}
@@ -962,6 +983,7 @@ textarea.fi{resize:vertical;min-height:72px}
     </div>
     <div class="modal-ft">
       <button class="btn-danger" id="btnDelete" onclick="deleteTask()" style="display:none">Delete</button>
+      <button class="btn-cal" id="btnAddCal" style="display:none" onclick="createCalendarEvent(editTaskId)">+ Add to Calendar</button>
       <button class="btn-ghost" onclick="closeTaskModal()">Cancel</button>
       <button class="btn-primary" onclick="saveTask()">Save Task</button>
     </div>
@@ -1081,6 +1103,8 @@ textarea.fi{resize:vertical;min-height:72px}
       <div class="sc-group">
         <div class="sc-group-label">Tasks</div>
         <div class="sc-row"><kbd>Q</kbd><span>New task</span></div>
+        <div class="sc-row"><kbd>⌘</kbd><kbd>K</kbd><span>New task (anywhere)</span></div>
+        <div class="sc-row"><kbd>⌘</kbd><kbd>↵</kbd><span>Save task or workstream</span></div>
         <div class="sc-row"><kbd>C</kbd><span>Complete / reopen hovered task</span></div>
         <div class="sc-row"><kbd>Del</kbd><span>Delete hovered task (with undo)</span></div>
         <div class="sc-row"><kbd>E</kbd><span>New workstream</span></div>
@@ -1778,6 +1802,11 @@ function renderDaily() {
     </div>
 
     <div class="daily-section">
+      <h2>🗓 Today's Schedule</h2>
+      <div id="calSection" class="daily-card" style="padding:12px 14px"></div>
+    </div>
+
+    <div class="daily-section">
       <h2>🎯 Today's Priorities ${todayTasks.length?`<span style="font-size:12px;color:var(--t3);font-weight:400">${todayTasks.length} task${todayTasks.length!==1?'s':''}</span>`:''}
       </h2>
       <div class="daily-tasks">
@@ -2056,7 +2085,7 @@ function renderAll() {
   renderCatNav();
   renderFilterBar();
   if (state.view === 'board')  renderBoard();
-  if (state.view === 'daily')  renderDaily();
+  if (state.view === 'daily')  { renderDaily(); loadCalendarForDaily(); }
   if (state.view === 'week')   renderMyWeek();
   if (state.view === 'ws')     renderWsView();
 }
@@ -2085,7 +2114,7 @@ function switchView(v, btn) {
 function onUserChange() {
   state.currentUser = document.getElementById('currentUserSel').value;
   localStorage.setItem('chope_user', state.currentUser);
-  if (state.view === 'daily') renderDaily();
+  if (state.view === 'daily') { renderDaily(); loadCalendarForDaily(); }
   if (state.view === 'week')  renderMyWeek();
 }
 
@@ -2157,6 +2186,14 @@ function openTaskModal(id) {
     document.getElementById('fDeadline').value  = t.deadline || '';
     document.getElementById('fWs').value        = t.ws || '';
     del.style.display = 'block';
+    const calBtn = document.getElementById('btnAddCal');
+    if (calBtn) {
+      const showCal = gmailToken && (t.startDate || t.deadline);
+      calBtn.style.display = showCal ? 'inline-flex' : 'none';
+      calBtn.textContent = '+ Add to Calendar';
+      calBtn.className = 'btn-cal';
+      calBtn.disabled = false;
+    }
     // Deadline history — Victor only
     const dlH = document.getElementById('dlHistory');
     if (state.currentUser === 'Victor' && t.deadlineHistory?.length) {
@@ -2191,6 +2228,8 @@ function openTaskModal(id) {
   delete document.getElementById('fCat').dataset.userSet;
   delete document.getElementById('fFund').dataset.userSet;
   document.getElementById('prioHint').style.display = 'none';
+  const calBtn = document.getElementById('btnAddCal');
+  if (calBtn) calBtn.style.display = 'none';
   updateSelDots();
   resetPlanBox();
   document.getElementById('taskOverlay').classList.add('open');
@@ -2645,6 +2684,113 @@ function resetPlanBox() {
 }
 
 /* ══════════════════════════════════════════════════════════
+   CALENDAR
+══════════════════════════════════════════════════════════ */
+
+let _calEvents = null; // cached for current day
+
+async function fetchTodayCalendarEvents() {
+  if (!gmailToken) return null;
+  const now = new Date();
+  const tMin = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const tMax = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(tMin)}&timeMax=${encodeURIComponent(tMax)}&singleEvents=true&orderBy=startTime&maxResults=20`,
+      { headers: { Authorization: 'Bearer ' + gmailToken } }
+    );
+    if (res.status === 401) { gmailToken = null; sessionStorage.removeItem('gmailToken'); return null; }
+    if (res.status === 403) return 'no-scope'; // signed in but missing calendar scope
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.items || [];
+  } catch { return null; }
+}
+
+function fmtCalTime(dtStr, isAllDay) {
+  if (isAllDay) return 'All day';
+  const d = new Date(dtStr);
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+function calEventHTML(ev) {
+  const isAllDay = !!ev.start?.date && !ev.start?.dateTime;
+  const time = isAllDay ? 'All day' : fmtCalTime(ev.start?.dateTime);
+  const endTime = isAllDay ? '' : ' – ' + fmtCalTime(ev.end?.dateTime);
+  const title = ev.summary || '(No title)';
+  const loc = ev.location ? `<div class="cal-event-loc">📍 ${esc(ev.location)}</div>` : '';
+  return `<div class="cal-event ${isAllDay ? 'all-day' : ''}">
+    <div class="cal-event-time">${esc(time)}${esc(endTime)}</div>
+    <div><div class="cal-event-name">${esc(title)}</div>${loc}</div>
+  </div>`;
+}
+
+async function loadCalendarForDaily() {
+  const el = document.getElementById('calSection');
+  if (!el) return;
+  if (!gmailToken) {
+    el.innerHTML = `<div class="cal-connect-hint">Connect Gmail + Calendar above to see today's schedule here.</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="cal-connect-hint" style="color:var(--t3)">Loading schedule…</div>`;
+  const events = await fetchTodayCalendarEvents();
+  if (events === 'no-scope') {
+    el.innerHTML = `<div class="cal-connect-hint">
+      Calendar access not granted yet.
+      <button class="btn-cal" style="margin-top:8px;display:inline-flex" onclick="gmailSignIn()">Grant Calendar Access</button>
+    </div>`;
+    return;
+  }
+  if (!events || !events.length) {
+    el.innerHTML = `<div class="cal-connect-hint">No events today — enjoy the clear schedule!</div>`;
+    return;
+  }
+  _calEvents = events;
+  el.innerHTML = events.map(calEventHTML).join('');
+}
+
+async function createCalendarEvent(taskId) {
+  const t = tasks.find(x => x.id === taskId);
+  if (!t) return;
+  if (!gmailToken) { toast('Connect Gmail first to add to calendar'); return; }
+  const btn = document.getElementById('btnAddCal');
+  if (btn) { btn.textContent = 'Adding…'; btn.disabled = true; }
+
+  const startDate = t.startDate || new Date().toISOString().slice(0,10);
+  // Google Calendar all-day events: end date is exclusive, so add 1 day
+  const endD = new Date((t.deadline || startDate) + 'T00:00:00');
+  endD.setDate(endD.getDate() + 1);
+  const endDate = endD.toISOString().slice(0,10);
+
+  const body = {
+    summary: t.name,
+    description: [t.desc, t.cat ? 'Category: ' + (CATEGORIES[t.cat]?.label || t.cat) : '', t.fund && t.fund !== 'none' ? 'Fund: ' + t.fund : ''].filter(Boolean).join('\n'),
+    start: { date: startDate },
+    end:   { date: endDate }
+  };
+  try {
+    const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + gmailToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (res.ok) {
+      if (btn) { btn.textContent = '✓ Added'; btn.className = 'btn-cal added'; btn.disabled = true; }
+      toast(`"${t.name.slice(0,30)}" added to Google Calendar`);
+    } else if (res.status === 403) {
+      toast('Calendar access not granted — reconnect Gmail');
+      if (btn) { btn.textContent = '+ Add to Calendar'; btn.disabled = false; }
+    } else {
+      toast('Could not add to calendar — try again');
+      if (btn) { btn.textContent = '+ Add to Calendar'; btn.disabled = false; }
+    }
+  } catch {
+    toast('Could not add to calendar');
+    if (btn) { btn.textContent = '+ Add to Calendar'; btn.disabled = false; }
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
    GMAIL PANEL
 ══════════════════════════════════════════════════════════ */
 
@@ -2791,6 +2937,15 @@ async function gmailSignIn() {
             <div style="font-size:11px;color:var(--t3);margin-top:4px">Click "Scan Inbox" to find actionable emails.</div>
           </div>`;
         document.getElementById('gmailFooter').style.display = 'flex';
+      } else {
+        // Firebase popup completed but returned no access token — tell the user
+        document.getElementById('gmailBody').innerHTML = `
+          <div style="text-align:center;padding:24px 16px">
+            <div style="font-size:20px;margin-bottom:8px">⚠️</div>
+            <div style="font-size:13px;font-weight:600;margin-bottom:6px">Couldn't get Gmail access</div>
+            <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Google didn't return an access token. Please try signing in again — make sure to grant Gmail permissions when prompted.</div>
+            <button class="btn-primary" onclick="gmailSignIn()" style="font-size:12px;padding:7px 16px">Try Again</button>
+          </div>`;
       }
     } catch(e) {
       if (btn) { btn.textContent = 'Sign in with Google'; btn.disabled = false; }
@@ -2857,7 +3012,13 @@ async function gmailScanInbox() {
       'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q=is:unread -category:promotions -category:social',
       { headers: { Authorization: 'Bearer ' + gmailToken } }
     );
-    if (listRes.status === 401) { gmailToken = null; gmailSignIn(); return; }
+    if (listRes.status === 401) {
+      gmailToken = null;
+      sessionStorage.removeItem('gmailToken');
+      await gmailSignIn();
+      if (gmailToken) { await gmailScanInbox(); }
+      return;
+    }
     const listData = await listRes.json();
     const messages = listData.messages || [];
     if (!messages.length) {
@@ -3029,6 +3190,9 @@ if (window.self === window.top) {
   const gmailProvider = new GoogleAuthProvider();
   gmailProvider.addScope('https://www.googleapis.com/auth/gmail.readonly');
   gmailProvider.addScope('https://www.googleapis.com/auth/gmail.send');
+  gmailProvider.addScope('https://www.googleapis.com/auth/calendar.readonly');
+  gmailProvider.addScope('https://www.googleapis.com/auth/calendar.events');
+  gmailProvider.setCustomParameters({ prompt: 'consent', access_type: 'online' });
 
   window._chopeFb = {
     // Firestore
