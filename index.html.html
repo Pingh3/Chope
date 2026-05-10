@@ -159,58 +159,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 }
 .verb-chip:hover{background:var(--t1);color:#fff;border-color:var(--t1)}
 
-/* ── Chatbot ─────────────────────────────────────────────── */
-#chatbotOverlay{
-  position:fixed;inset:0;z-index:500;
-  display:flex;align-items:flex-end;justify-content:flex-end;
-  padding:20px;pointer-events:none;
-}
-#chatbotOverlay.open{pointer-events:all}
-.chat-modal{
-  width:340px;max-height:520px;
-  background:var(--card);border:1px solid var(--border);
-  border-radius:16px;box-shadow:var(--sh-lg);
-  display:flex;flex-direction:column;
-  transform:translateY(20px) scale(.96);opacity:0;
-  transition:all .2s ease;pointer-events:none;
-}
-#chatbotOverlay.open .chat-modal{transform:translateY(0) scale(1);opacity:1;pointer-events:all}
-.chat-hd{
-  padding:12px 16px;border-bottom:1px solid var(--border);
-  display:flex;align-items:center;gap:10px;
-}
-.chat-avatar{width:30px;height:30px;border-radius:50%;background:var(--t1);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
-.chat-hd-info{flex:1}
-.chat-hd-name{font-size:13px;font-weight:700}
-.chat-hd-sub{font-size:10px;color:var(--t3)}
-.chat-body{flex:1;overflow-y:auto;padding:14px 14px 6px;display:flex;flex-direction:column;gap:10px}
-.chat-msg-bot{display:flex;align-items:flex-end;gap:8px}
-.chat-bot-bubble{
-  background:var(--col);border-radius:14px 14px 14px 2px;
-  padding:9px 13px;font-size:12px;color:var(--t1);line-height:1.5;
-  max-width:80%;
-}
-.chat-msg-user{display:flex;justify-content:flex-end}
-.chat-user-bubble{
-  background:var(--t1);color:#fff;
-  border-radius:14px 14px 2px 14px;
-  padding:7px 12px;font-size:12px;
-  max-width:80%;
-}
-.chat-options{display:flex;flex-direction:column;gap:5px;padding:6px 14px 10px;padding-left:50px}
-.chat-opt{
-  font-size:11px;padding:7px 12px;text-align:left;
+/* ── Planning box ────────────────────────────────────────── */
+.plan-box{
   background:var(--bg);border:1px solid var(--border);
-  border-radius:20px;cursor:pointer;font-family:inherit;
-  color:var(--t2);transition:all .12s;
+  border-radius:var(--r);padding:14px 16px;margin-top:4px;
 }
-.chat-opt:hover{background:var(--col-ip);color:#fff;border-color:var(--col-ip)}
-.chat-footer{padding:10px 14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
-.chat-typing{display:flex;align-items:center;gap:4px;height:16px}
-.chat-typing span{width:5px;height:5px;background:var(--t3);border-radius:50%;animation:typingDot 1.2s infinite}
-.chat-typing span:nth-child(2){animation-delay:.2s}
-.chat-typing span:nth-child(3){animation-delay:.4s}
-@keyframes typingDot{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-4px)}}
+.plan-box-title{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+.plan-row{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.plan-row:last-child{margin-bottom:0}
+.plan-q{font-size:12px;font-weight:600;color:var(--t1);margin-bottom:5px}
+.plan-pills{display:flex;flex-wrap:wrap;gap:5px}
+.plan-pill{
+  font-size:11px;padding:4px 11px;
+  background:var(--card);border:1px solid var(--border);
+  border-radius:20px;cursor:pointer;font-family:inherit;color:var(--t2);
+  transition:all .12s;
+}
+.plan-pill:hover,.plan-pill.active{background:var(--t1);color:#fff;border-color:var(--t1)}
 .fpill{
   padding:3px 10px;
   border-radius:20px;
@@ -844,22 +809,12 @@ textarea.fi{resize:vertical;min-height:72px}
     <div class="modal-body">
       <div class="mf">
         <label>Task Name *</label>
-        <input class="fi" id="fName" placeholder="e.g. Review LP subscription docs" oninput="onDescInput()">
+        <input class="fi" id="fName" placeholder="Start with a verb — e.g. Review LP docs, Draft IC memo…" oninput="onDescInput()">
         <div class="verb-chips">
           <span class="verb-chip" onclick="useVerb('Review')">Review</span>
           <span class="verb-chip" onclick="useVerb('Draft')">Draft</span>
           <span class="verb-chip" onclick="useVerb('Prepare')">Prepare</span>
-          <span class="verb-chip" onclick="useVerb('Analyse')">Analyse</span>
-          <span class="verb-chip" onclick="useVerb('Research')">Research</span>
-          <span class="verb-chip" onclick="useVerb('Coordinate')">Coordinate</span>
-          <span class="verb-chip" onclick="useVerb('Audit')">Audit</span>
-          <span class="verb-chip" onclick="useVerb('Build')">Build</span>
-          <span class="verb-chip" onclick="useVerb('Design')">Design</span>
-          <span class="verb-chip" onclick="useVerb('Outline')">Outline</span>
-          <span class="verb-chip" onclick="useVerb('Implement')">Implement</span>
-          <span class="verb-chip" onclick="useVerb('Submit')">Submit</span>
           <span class="verb-chip" onclick="useVerb('Follow up on')">Follow up on</span>
-          <span class="verb-chip" onclick="useVerb('Send')">Send</span>
           <span class="verb-chip" onclick="useVerb('Schedule')">Schedule</span>
         </div>
       </div>
@@ -951,6 +906,30 @@ textarea.fi{resize:vertical;min-height:72px}
           <option value="">None</option>
         </select>
       </div>
+      <div class="plan-box" id="planBox">
+        <div class="plan-box-title">Planning</div>
+        <div class="plan-row">
+          <div class="plan-q">How long will this take?</div>
+          <div class="plan-pills" id="planDuration">
+            <button class="plan-pill" onclick="setPlanDuration(0.5,'30 min')">30 min</button>
+            <button class="plan-pill" onclick="setPlanDuration(1,'1 hr')">1 hr</button>
+            <button class="plan-pill" onclick="setPlanDuration(2,'2 hrs')">2 hrs</button>
+            <button class="plan-pill" onclick="setPlanDuration(0.5*7,'Half day')">Half day</button>
+            <button class="plan-pill" onclick="setPlanDuration(1*7,'Full day')">Full day</button>
+            <button class="plan-pill" onclick="setPlanDuration(3*7,'2–3 days')">2–3 days</button>
+            <button class="plan-pill" onclick="setPlanDuration(7*7,'~1 week')">~1 week</button>
+          </div>
+        </div>
+        <div class="plan-row">
+          <div class="plan-q">When should you start?</div>
+          <div class="plan-pills" id="planStart">
+            <button class="plan-pill" onclick="setPlanStart(0,'Today')">Today</button>
+            <button class="plan-pill" onclick="setPlanStart(1,'Tomorrow')">Tomorrow</button>
+            <button class="plan-pill" onclick="setPlanStart(3,'This week')">This week</button>
+            <button class="plan-pill" onclick="setPlanStart(7,'Next week')">Next week</button>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="modal-ft">
       <button class="btn-danger" id="btnDelete" onclick="deleteTask()" style="display:none">Delete</button>
@@ -970,7 +949,7 @@ textarea.fi{resize:vertical;min-height:72px}
     <div class="modal-body">
       <div class="mf">
         <label>Workstream Name *</label>
-        <input class="fi" id="wsName" placeholder="e.g. 450 Park Ave Acquisition">
+        <input class="fi" id="wsName" placeholder="e.g. 450 Park Ave Acquisition" oninput="onWsNameInput()">
       </div>
       <div class="mf">
         <label>Description</label>
@@ -995,7 +974,7 @@ textarea.fi{resize:vertical;min-height:72px}
         </div>
         <div class="mf">
           <label>Related Fund</label>
-          <select class="fi" id="wsFund">
+          <select class="fi" id="wsFund" onchange="this.dataset.userSet='1'">
             <option value="">Any</option>
             <option value="WHPMT">WHPMT</option>
             <option value="Fund II">Fund II</option>
@@ -1095,28 +1074,6 @@ textarea.fi{resize:vertical;min-height:72px}
         <div class="sc-row"><kbd>?</kbd><span>Show / hide shortcuts</span></div>
         <div class="sc-row"><kbd>Esc</kbd><span>Close any modal</span></div>
       </div>
-    </div>
-  </div>
-</div>
-
-<!-- Chatbot -->
-<div id="chatbotOverlay">
-  <div class="chat-modal">
-    <div class="chat-hd">
-      <div class="chat-avatar">🤖</div>
-      <div class="chat-hd-info">
-        <div class="chat-hd-name">Chope Assistant</div>
-        <div class="chat-hd-sub">Helping you set up your task</div>
-      </div>
-      <button class="mclose" onclick="closeChatbot()">×</button>
-    </div>
-    <div class="chat-body" id="chatBody"></div>
-    <div id="chatOptions" class="chat-options"></div>
-    <div class="chat-footer">
-      <div class="chat-typing" id="chatTyping" style="display:none">
-        <span></span><span></span><span></span>
-      </div>
-      <button class="btn-ghost" style="font-size:11px;padding:4px 10px;margin-left:auto" onclick="closeChatbot()">Skip for now</button>
     </div>
   </div>
 </div>
@@ -1342,6 +1299,14 @@ function estimateCatAndFund(text) {
   else if (/fund\s*iv\b|fund\s*4\b/.test(t))  fund = 'Fund IV';
 
   return { cat, fund };
+}
+
+function onWsNameInput() {
+  const name = document.getElementById('wsName').value;
+  if (name.length < 3) return;
+  const { fund } = estimateCatAndFund(name);
+  const fundEl = document.getElementById('wsFund');
+  if (fund && !fundEl.dataset.userSet) fundEl.value = fund;
 }
 
 function useVerb(verb) {
@@ -2183,6 +2148,7 @@ function openTaskModal(id) {
   delete document.getElementById('fFund').dataset.userSet;
   document.getElementById('prioHint').style.display = 'none';
   updateSelDots();
+  resetPlanBox();
   document.getElementById('taskOverlay').classList.add('open');
   setTimeout(() => document.getElementById('fName').focus(), 80);
 }
@@ -2254,7 +2220,6 @@ function saveTask() {
     toast('Task created');
   }
   persist(); renderAll(); closeTaskModal();
-  if (!editTaskId) openChatbot(tasks[0]); // show chatbot for newly created task
 }
 
 function deleteTask() {
@@ -2313,6 +2278,7 @@ function openWsModal(id) {
     document.getElementById('wsDesc').value  = '';
     document.getElementById('wsColor').value = '#4F46E5';
     document.getElementById('wsFund').value  = '';
+    delete document.getElementById('wsFund').dataset.userSet;
     del.style.display = 'none';
   }
   const wsColorEl = document.getElementById('wsColor');
@@ -2507,17 +2473,7 @@ document.addEventListener('keydown', e => {
   const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
   const anyOpen = document.querySelector('.overlay.open');
 
-  // Chatbot number shortcuts — work even when chatbot is open
-  if (document.getElementById('chatbotOverlay').classList.contains('open')) {
-    const n = parseInt(e.key);
-    if (n >= 1 && n <= 9) {
-      const btn = document.getElementById('chatOpt' + (n - 1));
-      if (btn) { btn.click(); return; }
-    }
-  }
-
   if (e.key === 'Escape') {
-    closeChatbot();
     closeTaskModal(); closeWsModal(); closeTeamModal(); closeShortcutsModal();
   }
 
@@ -2546,153 +2502,41 @@ document.addEventListener('keydown', e => {
 });
 
 /* ══════════════════════════════════════════════════════════
-   CHATBOT
+   PLANNING BOX
 ══════════════════════════════════════════════════════════ */
 
-const CHATBOT_QUESTIONS = [
-  {
-    key: 'importance',
-    text: "How important is this task?",
-    hint: "This helps set the right priority.",
-    options: [
-      { label: "🔥 Very — it's time-sensitive",   value: 'high' },
-      { label: "📌 Quite important, but no rush",  value: 'med'  },
-      { label: "🌱 It can wait for now",           value: 'low'  },
-    ]
-  },
-  {
-    key: 'start',
-    text: "When are you looking to start?",
-    hint: "We'll use this to calculate a due date.",
-    options: [
-      { label: "Today",      value: 0  },
-      { label: "Tomorrow",   value: 1  },
-      { label: "This week",  value: 3  },
-      { label: "Next week",  value: 7  },
-      { label: "Not sure",   value: null },
-    ]
-  },
-  {
-    key: 'duration',
-    text: "How long do you think this will take?",
-    hint: "Even a rough guess helps.",
-    options: [
-      { label: "A few hours",     value: 0  },
-      { label: "1–2 days",        value: 2  },
-      { label: "3–5 days",        value: 5  },
-      { label: "About a week",    value: 7  },
-      { label: "More than a week",value: 14 },
-    ]
-  }
-];
+let _planDurationDays = null; // fractional days stored
 
-let chatbotTask = null;
-let chatbotStep = 0;
-let chatbotAnswers = {};
-
-function openChatbot(task) {
-  chatbotTask    = task;
-  chatbotStep    = 0;
-  chatbotAnswers = {};
-  document.getElementById('chatBody').innerHTML    = '';
-  document.getElementById('chatOptions').innerHTML = '';
-  document.getElementById('chatbotOverlay').classList.add('open');
-  setTimeout(() => chatbotAsk(0), 400);
+function setPlanDuration(days, label) {
+  _planDurationDays = days;
+  document.querySelectorAll('#planDuration .plan-pill').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  _recalcDeadline();
 }
 
-function closeChatbot() {
-  document.getElementById('chatbotOverlay').classList.remove('open');
-  chatbotTask = null;
+function setPlanStart(offsetDays, label) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  document.getElementById('fStartDate').value = d.toISOString().slice(0,10);
+  document.querySelectorAll('#planStart .plan-pill').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  _recalcDeadline();
 }
 
-function chatbotAsk(step) {
-  if (step >= CHATBOT_QUESTIONS.length) { chatbotFinish(); return; }
-  const q = CHATBOT_QUESTIONS[step];
-  const body = document.getElementById('chatBody');
-  const opts = document.getElementById('chatOptions');
-
-  // Show typing indicator
-  const typing = document.getElementById('chatTyping');
-  typing.style.display = 'flex';
-  opts.innerHTML = '';
-
-  setTimeout(() => {
-    typing.style.display = 'none';
-    // Add bot bubble
-    body.innerHTML += `
-      <div class="chat-msg-bot">
-        <div style="width:28px;height:28px;border-radius:50%;background:var(--t1);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">🤖</div>
-        <div>
-          <div class="chat-bot-bubble">${esc(q.text)}</div>
-          ${q.hint ? `<div style="font-size:10px;color:var(--t3);margin-top:3px;padding-left:4px">${esc(q.hint)}</div>` : ''}
-        </div>
-      </div>`;
-    body.scrollTop = body.scrollHeight;
-
-    // Show options with number shortcuts
-    opts.innerHTML = q.options.map((o, i) =>
-      `<button class="chat-opt" id="chatOpt${i}" onclick="chatbotAnswer('${q.key}',${JSON.stringify(o.value)},'${esc(o.label)}')">
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:var(--border);font-size:9px;font-weight:700;margin-right:6px;flex-shrink:0">${i+1}</span>${esc(o.label)}
-      </button>`
-    ).join('');
-  }, 700);
+function _recalcDeadline() {
+  const startVal = document.getElementById('fStartDate').value;
+  if (!startVal || _planDurationDays === null) return;
+  const start = new Date(startVal + 'T00:00:00');
+  // For sub-day durations, deadline = same day; otherwise add full days
+  const daysToAdd = _planDurationDays < 1 ? 0 : Math.ceil(_planDurationDays);
+  const due = new Date(start);
+  due.setDate(due.getDate() + daysToAdd);
+  document.getElementById('fDeadline').value = due.toISOString().slice(0,10);
 }
 
-function chatbotAnswer(key, value, label) {
-  chatbotAnswers[key] = value;
-  const body = document.getElementById('chatBody');
-  const opts = document.getElementById('chatOptions');
-  opts.innerHTML = '';
-
-  // Show user reply bubble
-  body.innerHTML += `<div class="chat-msg-user"><div class="chat-user-bubble">${esc(label)}</div></div>`;
-  body.scrollTop = body.scrollHeight;
-
-  chatbotStep++;
-  setTimeout(() => chatbotAsk(chatbotStep), 300);
-}
-
-function chatbotFinish() {
-  if (!chatbotTask) { closeChatbot(); return; }
-  const body = document.getElementById('chatBody');
-  const opts = document.getElementById('chatOptions');
-  opts.innerHTML = '';
-
-  // Apply answers to task
-  const t = tasks.find(x => x.id === chatbotTask.id);
-  if (t) {
-    if (chatbotAnswers.importance) t.priority = chatbotAnswers.importance;
-
-    const startOffset    = chatbotAnswers.start    ?? 0;
-    const durationOffset = chatbotAnswers.duration ?? 7;
-    if (startOffset !== null) {
-      const start = new Date();
-      start.setDate(start.getDate() + (startOffset || 0));
-      t.startDate = start.toISOString().slice(0, 10);
-
-      const due = new Date(start);
-      due.setDate(due.getDate() + (durationOffset || 7));
-      t.deadline = due.toISOString().slice(0, 10);
-    }
-    persist(); renderAll();
-  }
-
-  const typing = document.getElementById('chatTyping');
-  typing.style.display = 'flex';
-  setTimeout(() => {
-    typing.style.display = 'none';
-    const pLabel = { high: '🔴 High', med: '🟡 Medium', low: '⚪ Low' }[chatbotAnswers.importance] || '';
-    body.innerHTML += `
-      <div class="chat-msg-bot">
-        <div style="width:28px;height:28px;border-radius:50%;background:var(--t1);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">🤖</div>
-        <div class="chat-bot-bubble">
-          Got it! I've set the priority to <strong>${pLabel}</strong> and updated the due date. You can always edit the task to fine-tune. Good luck! 💪
-        </div>
-      </div>`;
-    body.scrollTop = body.scrollHeight;
-    document.getElementById('chatOptions').innerHTML =
-      `<button class="chat-opt" style="background:var(--t1);color:#fff;border-color:var(--t1)" onclick="closeChatbot()">Done ✓</button>`;
-  }, 800);
+function resetPlanBox() {
+  _planDurationDays = null;
+  document.querySelectorAll('#planDuration .plan-pill, #planStart .plan-pill').forEach(b => b.classList.remove('active'));
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -2927,15 +2771,15 @@ async function gmailScanInbox() {
       const fromName = from.replace(/<.*>/, '').trim() || from;
       const taskName = suggestTaskFromSubject(subject);
       return { id: msg.id, subject, fromName, taskName };
-    }).filter(s => s.taskName);
+    });
 
     if (!suggestions.length) {
-      document.getElementById('gmailBody').innerHTML = `<div style="text-align:center;padding:30px;color:var(--t3);font-size:13px">No actionable emails detected in latest unread.</div>`;
+      document.getElementById('gmailBody').innerHTML = `<div style="text-align:center;padding:30px;color:var(--t3);font-size:13px">No unread emails found.</div>`;
       return;
     }
 
     document.getElementById('gmailBody').innerHTML = `
-      <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">${suggestions.length} suggestions</div>
+      <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">${suggestions.length} unread email${suggestions.length !== 1 ? 's' : ''}</div>
       ${suggestions.map(s => `
         <div class="gmail-suggestion" id="gsugg-${s.id}">
           <div class="gmail-suggestion-from">${esc(s.fromName)}</div>
@@ -2954,12 +2798,7 @@ async function gmailScanInbox() {
 }
 
 function suggestTaskFromSubject(subject) {
-  const s = subject.toLowerCase();
-  const actionWords = ['review','sign','approve','respond','reply','follow up','send','submit','confirm','schedule','update','prepare','complete','action required','urgent','asap','deadline','due'];
-  if (actionWords.some(w => s.includes(w))) {
-    return subject.replace(/^(re:|fwd?:|fw:)\s*/i,'').trim().slice(0,80);
-  }
-  return null;
+  return subject.replace(/^(re:|fwd?:|fw:)\s*/i,'').trim().slice(0,80) || '(no subject)';
 }
 
 function gmailAddTask(msgId, taskName) {
