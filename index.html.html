@@ -2150,6 +2150,7 @@ function switchView(v, btn) {
 function onUserChange() {
   state.currentUser = document.getElementById('currentUserSel').value;
   localStorage.setItem('chope_user', state.currentUser);
+  localStorage.setItem('chope_user_manually_set', '1');
   if (state.view === 'daily') { renderDaily(); loadCalendarForDaily(); }
   if (state.view === 'week')  renderMyWeek();
 }
@@ -2672,10 +2673,15 @@ function setPlanDurCustom(val) {
   _recalcDeadline();
 }
 
+function _localDateStr(d) {
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+}
+
 function setPlanStart(offsetDays) {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
-  document.getElementById('fStartDate').value = d.toISOString().slice(0,10);
+  document.getElementById('fStartDate').value = _localDateStr(d);
   document.querySelectorAll('#planStart .plan-pill').forEach(b => b.classList.remove('active'));
   event.target.classList.add('active');
   _recalcDeadline();
@@ -2686,7 +2692,7 @@ function setPlanStartFriday() {
   const daysUntilFriday = (5 - today.getDay() + 7) % 7 || 7;
   const d = new Date();
   d.setDate(d.getDate() + daysUntilFriday);
-  document.getElementById('fStartDate').value = d.toISOString().slice(0,10);
+  document.getElementById('fStartDate').value = _localDateStr(d);
   document.querySelectorAll('#planStart .plan-pill').forEach(b => b.classList.remove('active'));
   event.target.classList.add('active');
   _recalcDeadline();
@@ -2698,7 +2704,7 @@ function setPlanStartNextWed() {
   const daysToNextMonday = (1 - today.getDay() + 7) % 7 || 7;
   const d = new Date();
   d.setDate(d.getDate() + daysToNextMonday + 2); // Mon + 2 = Wed
-  document.getElementById('fStartDate').value = d.toISOString().slice(0,10);
+  document.getElementById('fStartDate').value = _localDateStr(d);
   document.querySelectorAll('#planStart .plan-pill').forEach(b => b.classList.remove('active'));
   event.target.classList.add('active');
   _recalcDeadline();
@@ -2722,11 +2728,14 @@ function validateDates() {
 function _recalcDeadline() {
   const startVal = document.getElementById('fStartDate').value;
   if (!startVal || _planDurationDays === null) return;
-  const start = new Date(startVal + 'T00:00:00');
   const daysToAdd = _planDurationDays < 1 ? 0 : Math.ceil(_planDurationDays);
-  const due = new Date(start);
-  due.setDate(due.getDate() + daysToAdd);
-  document.getElementById('fDeadline').value = due.toISOString().slice(0,10);
+  if (daysToAdd === 0) {
+    document.getElementById('fDeadline').value = startVal;
+  } else {
+    const [y, mo, d] = startVal.split('-').map(Number);
+    const due = new Date(y, mo - 1, d + daysToAdd);
+    document.getElementById('fDeadline').value = _localDateStr(due);
+  }
   validateDates();
 }
 
@@ -2884,6 +2893,7 @@ async function googleSignIn() {
       || team.find(m => m.name.toLowerCase().startsWith(firstName.toLowerCase()))
       || team.find(m => firstName.toLowerCase().startsWith(m.name.split(' ')[0].toLowerCase()));
     if (matched) {
+      localStorage.removeItem('chope_user_manually_set');
       state.currentUser = matched.name;
       localStorage.setItem('chope_user', matched.name);
       renderHeader();
@@ -2927,7 +2937,7 @@ function setupGmailAuth() {
     const matched = team.find(m => m.name === displayName)
       || team.find(m => m.name.toLowerCase().startsWith(firstName.toLowerCase()))
       || team.find(m => firstName.toLowerCase().startsWith(m.name.split(' ')[0].toLowerCase()));
-    if (matched && state.currentUser !== matched.name) {
+    if (matched && state.currentUser !== matched.name && !localStorage.getItem('chope_user_manually_set')) {
       state.currentUser = matched.name;
       localStorage.setItem('chope_user', matched.name);
       renderHeader();
@@ -2979,6 +2989,7 @@ async function gmailSignIn() {
           || team.find(m => m.name.toLowerCase().startsWith(firstName.toLowerCase()))
           || team.find(m => firstName.toLowerCase().startsWith(m.name.split(' ')[0].toLowerCase()));
         if (matched) {
+          localStorage.removeItem('chope_user_manually_set');
           state.currentUser = matched.name;
           localStorage.setItem('chope_user', matched.name);
           renderHeader();
