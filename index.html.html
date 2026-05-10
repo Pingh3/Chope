@@ -1122,6 +1122,12 @@ textarea.fi{resize:vertical;min-height:72px}
 <div id="toasts"></div>
 
 <script>
+/* Silent Gmail re-auth iframe handler — must be first */
+if (window.self !== window.top) {
+  const _h = new URLSearchParams(location.hash.slice(1));
+  try { window.parent.postMessage({ type:'chope_silent_token', token: _h.get('access_token') }, location.origin); } catch {}
+}
+
 /* ══════════════════════════════════════════════════════════
    CONFIG
 ══════════════════════════════════════════════════════════ */
@@ -1179,22 +1185,62 @@ let suggestedPrio = 'med';
    PERSISTENCE + REALTIME
 ══════════════════════════════════════════════════════════ */
 
-function load() {
+let _lastLocalWrite = 0;
+
+async function load() {
+  // localStorage first — instant paint while Firestore loads
   try {
     const d = JSON.parse(localStorage.getItem('chope_v2') || 'null');
     if (d) { tasks = d.tasks || []; workstreams = d.workstreams || []; team = d.team || DEFAULT_TEAM; }
-    else   { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; persist(); }
+    else   { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; }
   } catch { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; }
-  // Restore last-used identity (persists across sessions on same device)
+
   const savedUser = localStorage.getItem('chope_user');
   state.currentUser = (savedUser && team.find(m => m.name === savedUser))
-    ? savedUser
-    : (team[0]?.name || '');
+    ? savedUser : (team[0]?.name || '');
+
+  // Firestore — source of truth across all devices
+  if (window._chopeFb) {
+    const { db, doc, getDoc, setDoc, onSnapshot } = window._chopeFb;
+    const ref = doc(db, 'chope', 'main');
+    try {
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const d = snap.data();
+        tasks = d.tasks || tasks;
+        workstreams = d.workstreams || workstreams;
+        team = d.team || team;
+        localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team }));
+      } else {
+        // First ever load — push local data to Firestore
+        await setDoc(ref, { tasks, workstreams, team });
+      }
+    } catch(e) { console.warn('Firestore load failed, falling back to localStorage', e); }
+
+    // Real-time listener: fires when another device saves
+    onSnapshot(ref, snap => {
+      if (!snap.exists() || Date.now() - _lastLocalWrite < 3000) return;
+      const d = snap.data();
+      tasks = d.tasks || [];
+      workstreams = d.workstreams || [];
+      team = d.team || DEFAULT_TEAM;
+      localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team }));
+      renderAll();
+      toast('🔄 Board updated by a colleague');
+    });
+  }
 }
 
 function persist() {
   localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team }));
   try { bc.postMessage({ tasks, workstreams, team }); } catch {}
+  // Firestore write — fire and forget
+  if (window._chopeFb) {
+    _lastLocalWrite = Date.now();
+    const { db, doc, setDoc } = window._chopeFb;
+    setDoc(doc(db, 'chope', 'main'), { tasks, workstreams, team })
+      .catch(e => console.warn('Firestore write failed:', e));
+  }
 }
 
 const bc = new BroadcastChannel('chope_v2');
@@ -2656,6 +2702,39 @@ const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www
 let gmailToken = null;
 let gmailOpen  = false;
 
+function gmailSilentAuth() {
+  if (!GMAIL_CLIENT_ID || !localStorage.getItem('gmailAuthorized') || gmailToken) return;
+  const params = new URLSearchParams({
+    client_id: GMAIL_CLIENT_ID,
+    redirect_uri: location.origin + location.pathname,
+    response_type: 'token',
+    scope: GMAIL_SCOPES,
+    prompt: 'none'
+  });
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'display:none;width:0;height:0;border:none;position:fixed;top:-9999px';
+  iframe.src = 'https://accounts.google.com/o/oauth2/v2/auth?' + params;
+  document.body.appendChild(iframe);
+  setTimeout(() => { try { iframe.remove(); } catch {} }, 10000);
+}
+
+window.addEventListener('message', e => {
+  if (e.origin !== location.origin || e.data?.type !== 'chope_silent_token') return;
+  const token = e.data.token;
+  if (token) {
+    gmailToken = token;
+    document.getElementById('gmailBody').innerHTML = `
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:20px;margin-bottom:6px">✅</div>
+        <div style="font-size:13px;font-weight:600">Gmail reconnected</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:4px">Signed in automatically. Click Scan Inbox to start.</div>
+      </div>`;
+    document.getElementById('gmailFooter').style.display = 'flex';
+  } else {
+    localStorage.removeItem('gmailAuthorized');
+  }
+});
+
 function toggleGmailPanel() {
   gmailOpen = !gmailOpen;
   document.getElementById('gmailPanel').classList.toggle('open', gmailOpen);
@@ -2700,6 +2779,7 @@ async function gmailHandleCallback() {
   const token = hash.get('access_token');
   if (!token) return;
   gmailToken = token;
+  localStorage.setItem('gmailAuthorized', '1');
   history.replaceState(null, '', location.pathname);
 
   // Auto-identify the user from Google profile
@@ -2856,25 +2936,61 @@ async function gmailSendBrief() {
    INIT
 ══════════════════════════════════════════════════════════ */
 
-load();
-gmailHandleCallback(); // pick up OAuth token redirect if present
+if (window.self === window.top) {
+  async function init() {
+    await load();
+    gmailHandleCallback();
 
-// Wire workstream IDs to seed tasks after workstreams are seeded
-if (workstreams.length && tasks.length) {
-  const wsMap = {};
-  workstreams.forEach(w => { wsMap[w.name] = w.id; });
-  tasks.forEach(t => {
-    if (!t.ws) {
-      if (t.cat === 'acq')  t.ws = wsMap['450 Park Ave Acquisition'] || '';
-      if (t.cat === 'fund') t.ws = wsMap['Fund III Capital Raise'] || '';
-      if (t.cat === 'ir')   t.ws = wsMap['Q2 Investor Relations'] || '';
-      if (t.fund === 'WHPMT' && t.cat === 'debt') t.ws = wsMap['WHPMT Refinancing'] || '';
+    // Wire workstream IDs to seed tasks after workstreams are seeded
+    if (workstreams.length && tasks.length) {
+      const wsMap = {};
+      workstreams.forEach(w => { wsMap[w.name] = w.id; });
+      tasks.forEach(t => {
+        if (!t.ws) {
+          if (t.cat === 'acq')  t.ws = wsMap['450 Park Ave Acquisition'] || '';
+          if (t.cat === 'fund') t.ws = wsMap['Fund III Capital Raise'] || '';
+          if (t.cat === 'ir')   t.ws = wsMap['Q2 Investor Relations'] || '';
+          if (t.fund === 'WHPMT' && t.cat === 'debt') t.ws = wsMap['WHPMT Refinancing'] || '';
+        }
+      });
     }
-  });
-}
 
-renderAll();
-setInterval(renderAll, 60000);
+    renderAll();
+    setInterval(renderAll, 60000);
+    setTimeout(gmailSilentAuth, 800);
+  }
+
+  // Wait for Firebase module, fall back to localStorage-only after 5s
+  if (window._chopeFb) {
+    init();
+  } else {
+    window.addEventListener('chopeFbReady', () => init(), { once: true });
+    setTimeout(() => { if (!window._chopeFb) init(); }, 5000);
+  }
+}
+</script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-analytics.js";
+  import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyD6I9vLBzuMdRLCeral6IZ-daH4gTDnUzU",
+    authDomain: "chope-91a4a.firebaseapp.com",
+    projectId: "chope-91a4a",
+    storageBucket: "chope-91a4a.firebasestorage.app",
+    messagingSenderId: "1085774814474",
+    appId: "1:1085774814474:web:e8d34ab240aba3176c2ef3",
+    measurementId: "G-6K5MNFTEDH"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  getAnalytics(app);
+  const db = getFirestore(app);
+
+  // Expose to main script and signal ready
+  window._chopeFb = { db, doc, setDoc, getDoc, onSnapshot };
+  window.dispatchEvent(new CustomEvent('chopeFbReady'));
 </script>
 </body>
 </html>
