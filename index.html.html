@@ -176,6 +176,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   transition:all .12s;
 }
 .plan-pill:hover,.plan-pill.active{background:var(--t1);color:#fff;border-color:var(--t1)}
+
+/* ── Deadline audit log ──────────────────────────────────── */
+.dl-history{display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.dl-history.visible{display:block}
+.dl-history-title{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px;display:flex;align-items:center;gap:5px}
+.dl-history-row{display:flex;align-items:baseline;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--t2)}
+.dl-history-row:last-child{border-bottom:none;padding-bottom:0}
+.dl-history-who{font-weight:600;color:var(--t1);min-width:55px;flex-shrink:0}
+.dl-history-change{flex:1;line-height:1.4}
+.dl-history-time{color:var(--t3);font-size:10px;white-space:nowrap;flex-shrink:0}
+.dl-moved-badge{display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:700;color:#D97706;background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;padding:1px 5px;margin-left:3px;vertical-align:middle}
 .fpill{
   padding:3px 10px;
   border-radius:20px;
@@ -911,24 +922,44 @@ textarea.fi{resize:vertical;min-height:72px}
         <div class="plan-row">
           <div class="plan-q">How long will this take?</div>
           <div class="plan-pills" id="planDuration">
-            <button class="plan-pill" onclick="setPlanDuration(0.5,'30 min')">30 min</button>
-            <button class="plan-pill" onclick="setPlanDuration(1,'1 hr')">1 hr</button>
-            <button class="plan-pill" onclick="setPlanDuration(2,'2 hrs')">2 hrs</button>
-            <button class="plan-pill" onclick="setPlanDuration(0.5*7,'Half day')">Half day</button>
-            <button class="plan-pill" onclick="setPlanDuration(1*7,'Full day')">Full day</button>
-            <button class="plan-pill" onclick="setPlanDuration(3*7,'2–3 days')">2–3 days</button>
-            <button class="plan-pill" onclick="setPlanDuration(7*7,'~1 week')">~1 week</button>
+            <button class="plan-pill" onclick="setPlanDuration(0.25)">30 min</button>
+            <button class="plan-pill" onclick="setPlanDuration(0.5)">1 hr</button>
+            <button class="plan-pill" onclick="setPlanDuration(0.75)">2 hrs</button>
+            <button class="plan-pill" onclick="setPlanDuration(0.5)">Half day</button>
+            <button class="plan-pill" onclick="setPlanDuration(1)">Full day</button>
+            <button class="plan-pill" onclick="setPlanDuration(2)">2 days</button>
+            <button class="plan-pill" onclick="setPlanDuration(3)">3 days</button>
+            <button class="plan-pill" onclick="setPlanDuration(5)">~1 week</button>
+            <button class="plan-pill" onclick="setPlanDuration(10)">2 weeks</button>
+            <button class="plan-pill" onclick="setPlanDuration(21)">3 weeks</button>
+            <button class="plan-pill" onclick="setPlanDuration(30)">1 month</button>
+            <button class="plan-pill" onclick="setPlanDuration(60)">2 months</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:7px">
+            <span style="font-size:11px;color:var(--t3)">or</span>
+            <input id="planDurCustom" type="number" min="1" placeholder="e.g. 4"
+              style="width:62px;font-size:12px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;background:var(--card);color:var(--t1)"
+              oninput="setPlanDurCustom(this.value)">
+            <span style="font-size:11px;color:var(--t3)">days</span>
           </div>
         </div>
         <div class="plan-row">
           <div class="plan-q">When should you start?</div>
           <div class="plan-pills" id="planStart">
-            <button class="plan-pill" onclick="setPlanStart(0,'Today')">Today</button>
-            <button class="plan-pill" onclick="setPlanStart(1,'Tomorrow')">Tomorrow</button>
-            <button class="plan-pill" onclick="setPlanStart(3,'This week')">This week</button>
-            <button class="plan-pill" onclick="setPlanStart(7,'Next week')">Next week</button>
+            <button class="plan-pill" onclick="setPlanStart(0)">Today</button>
+            <button class="plan-pill" onclick="setPlanStart(1)">Tomorrow</button>
+            <button class="plan-pill" onclick="setPlanStart(2)">In 2 days</button>
+            <button class="plan-pill" onclick="setPlanStart(3)">In 3 days</button>
+            <button class="plan-pill" onclick="setPlanStartFriday()">This Friday</button>
+            <button class="plan-pill" onclick="setPlanStartNextMonday()">Next Monday</button>
+            <button class="plan-pill" onclick="setPlanStart(14)">In 2 weeks</button>
+            <button class="plan-pill" onclick="setPlanStart(30)">Next month</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:7px">
+            <span style="font-size:11px;color:var(--t3)">or pick a specific date above in Start Date</span>
           </div>
         </div>
+        <div class="dl-history" id="dlHistory"></div>
       </div>
     </div>
     <div class="modal-ft">
@@ -1668,7 +1699,7 @@ function cardHTML(t) {
         </div>
         <div class="card-row">
           ${t.fund && t.fund !== 'none' ? `<div class="fund-chip">${esc(t.fund)}</div>` : '<span style="font-size:10px;color:var(--t3)">No fund</span>'}
-          ${dl ? `<div class="card-dl ${dlCls}" style="margin-left:auto">📅 ${dl}</div>` : ''}
+          ${dl ? `<div class="card-dl ${dlCls}" style="margin-left:auto">📅 ${dl}${state.currentUser==='Victor'&&t.deadlineHistory?.length?`<span class="dl-moved-badge">↻${t.deadlineHistory.length}</span>`:''}</div>` : ''}
           ${wsObj ? `<div class="ws-chip">${esc(wsObj.name)}</div>` : ''}
         </div>
         <div class="card-row">
@@ -2128,6 +2159,21 @@ function openTaskModal(id) {
     document.getElementById('fDeadline').value  = t.deadline || '';
     document.getElementById('fWs').value        = t.ws || '';
     del.style.display = 'block';
+    // Deadline history — Victor only
+    const dlH = document.getElementById('dlHistory');
+    if (state.currentUser === 'Victor' && t.deadlineHistory?.length) {
+      dlH.className = 'dl-history visible';
+      dlH.innerHTML = `<div class="dl-history-title">⏱ Deadline moved ${t.deadlineHistory.length}×</div>` +
+        t.deadlineHistory.map(h => `
+          <div class="dl-history-row">
+            <div class="dl-history-who">${esc(h.changedBy)}</div>
+            <div class="dl-history-change">${fmtDate(h.from)} → <strong>${fmtDate(h.to)}</strong></div>
+            <div class="dl-history-time">${new Date(h.at).toLocaleDateString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+          </div>`).join('');
+    } else {
+      dlH.className = 'dl-history';
+      dlH.innerHTML = '';
+    }
   } else {
     document.getElementById('taskModalTitle').textContent = 'New Task';
     document.getElementById('fName').value     = '';
@@ -2209,6 +2255,10 @@ function saveTask() {
   if (editTaskId) {
     const t = tasks.find(x => x.id === editTaskId);
     if (t) {
+      if (deadline && t.deadline && deadline !== t.deadline) {
+        if (!t.deadlineHistory) t.deadlineHistory = [];
+        t.deadlineHistory.push({ changedBy: state.currentUser || 'Unknown', from: t.deadline, to: deadline, at: new Date().toISOString() });
+      }
       const wasDone = t.status === 'done';
       Object.assign(t, { name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws });
       if (status === 'done' && !wasDone) t.completedAt = new Date().toISOString();
@@ -2505,18 +2555,49 @@ document.addEventListener('keydown', e => {
    PLANNING BOX
 ══════════════════════════════════════════════════════════ */
 
-let _planDurationDays = null; // fractional days stored
+let _planDurationDays = null;
 
-function setPlanDuration(days, label) {
+function setPlanDuration(days) {
   _planDurationDays = days;
   document.querySelectorAll('#planDuration .plan-pill').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('planDurCustom').value = '';
+  _recalcDeadline();
+}
+
+function setPlanDurCustom(val) {
+  const n = parseFloat(val);
+  if (!val || isNaN(n) || n <= 0) return;
+  _planDurationDays = n;
+  document.querySelectorAll('#planDuration .plan-pill').forEach(b => b.classList.remove('active'));
+  _recalcDeadline();
+}
+
+function setPlanStart(offsetDays) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  document.getElementById('fStartDate').value = d.toISOString().slice(0,10);
+  document.querySelectorAll('#planStart .plan-pill').forEach(b => b.classList.remove('active'));
   event.target.classList.add('active');
   _recalcDeadline();
 }
 
-function setPlanStart(offsetDays, label) {
+function setPlanStartFriday() {
+  const today = new Date();
+  const daysUntilFriday = (5 - today.getDay() + 7) % 7 || 7;
   const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
+  d.setDate(d.getDate() + daysUntilFriday);
+  document.getElementById('fStartDate').value = d.toISOString().slice(0,10);
+  document.querySelectorAll('#planStart .plan-pill').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  _recalcDeadline();
+}
+
+function setPlanStartNextMonday() {
+  const today = new Date();
+  const daysUntilMonday = (1 - today.getDay() + 7) % 7 || 7;
+  const d = new Date();
+  d.setDate(d.getDate() + daysUntilMonday);
   document.getElementById('fStartDate').value = d.toISOString().slice(0,10);
   document.querySelectorAll('#planStart .plan-pill').forEach(b => b.classList.remove('active'));
   event.target.classList.add('active');
@@ -2527,7 +2608,6 @@ function _recalcDeadline() {
   const startVal = document.getElementById('fStartDate').value;
   if (!startVal || _planDurationDays === null) return;
   const start = new Date(startVal + 'T00:00:00');
-  // For sub-day durations, deadline = same day; otherwise add full days
   const daysToAdd = _planDurationDays < 1 ? 0 : Math.ceil(_planDurationDays);
   const due = new Date(start);
   due.setDate(due.getDate() + daysToAdd);
@@ -2536,6 +2616,8 @@ function _recalcDeadline() {
 
 function resetPlanBox() {
   _planDurationDays = null;
+  const c = document.getElementById('planDurCustom');
+  if (c) c.value = '';
   document.querySelectorAll('#planDuration .plan-pill, #planStart .plan-pill').forEach(b => b.classList.remove('active'));
 }
 
