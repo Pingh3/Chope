@@ -764,6 +764,100 @@ textarea.fi{resize:vertical;min-height:72px}
   background:var(--t1);color:#fff;border-radius:20px;
   padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap;
 }
+
+/* ── Bulk Import Spotlight ──────────────────────────────── */
+#bulkOverlay{
+  position:fixed;inset:0;
+  background:rgba(0,0,0,.48);
+  backdrop-filter:blur(5px);
+  -webkit-backdrop-filter:blur(5px);
+  display:flex;justify-content:center;align-items:flex-start;
+  padding-top:72px;
+  z-index:500;opacity:0;pointer-events:none;transition:opacity .18s;
+}
+#bulkOverlay.open{opacity:1;pointer-events:all}
+#bulkModal{
+  width:660px;max-width:calc(100vw - 32px);
+  background:var(--card);
+  border-radius:16px;
+  box-shadow:0 28px 72px rgba(0,0,0,.28),0 0 0 1px rgba(0,0,0,.08);
+  overflow:hidden;
+  transform:translateY(-10px) scale(.98);transition:transform .2s;
+}
+#bulkOverlay.open #bulkModal{transform:translateY(0) scale(1)}
+.bulk-header{
+  padding:16px 20px 14px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:12px;
+}
+.bulk-icon{
+  width:32px;height:32px;border-radius:9px;
+  background:var(--t1);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;flex-shrink:0;
+}
+.bulk-header-text{flex:1}
+.bulk-header-title{font-size:14px;font-weight:700;color:var(--t1)}
+.bulk-header-sub{font-size:11px;color:var(--t3);margin-top:2px}
+.bulk-header-close{background:none;border:none;font-size:20px;color:var(--t3);cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1;transition:all .15s;font-family:inherit}
+.bulk-header-close:hover{color:var(--t1);background:var(--bg)}
+.bulk-input-wrap{padding:16px 20px 12px}
+#bulkInput{
+  width:100%;min-height:130px;max-height:240px;
+  resize:vertical;
+  border:1.5px solid var(--border);border-radius:10px;
+  padding:12px 14px;
+  font-size:13px;font-family:inherit;line-height:1.65;
+  color:var(--t1);background:var(--bg);
+  outline:none;transition:border-color .15s,box-shadow .15s;
+}
+#bulkInput:focus{border-color:var(--col-ip);box-shadow:0 0 0 3px rgba(59,130,246,.1)}
+#bulkInput::placeholder{color:var(--t3)}
+.bulk-input-hint{font-size:11px;color:var(--t3);margin-top:7px;padding-left:1px}
+.bulk-preview-section{border-top:1px solid var(--border)}
+.bulk-preview-hd{
+  padding:9px 20px 7px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.bulk-preview-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t3)}
+.bulk-preview-clear{font-size:11px;color:var(--col-ip);cursor:pointer;background:none;border:none;font-family:inherit;padding:0}
+.bulk-preview-clear:hover{text-decoration:underline}
+.bulk-task-list{max-height:260px;overflow-y:auto}
+.bulk-task-item{
+  padding:9px 20px;
+  display:flex;align-items:center;gap:10px;
+  border-bottom:1px solid var(--border);
+  transition:background .1s;
+}
+.bulk-task-item:last-child{border-bottom:none}
+.bulk-task-item:hover{background:var(--bg)}
+.bti-num{font-size:11px;color:var(--t3);width:18px;text-align:right;flex-shrink:0}
+.bti-info{flex:1;min-width:0}
+.bti-name{font-size:13px;font-weight:500;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bti-badges{display:flex;gap:4px;margin-top:3px;align-items:center;flex-wrap:wrap}
+.bti-badge{
+  font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+  padding:2px 7px;border-radius:10px;display:inline-flex;align-items:center;
+}
+.bti-assignee{
+  font-size:11px;padding:3px 6px;
+  border:1px solid var(--border);border-radius:6px;
+  background:var(--card);color:var(--t1);
+  outline:none;cursor:pointer;font-family:inherit;max-width:110px;
+}
+.bti-del{
+  background:none;border:none;color:var(--t3);
+  cursor:pointer;font-size:16px;padding:2px 5px;border-radius:4px;
+  line-height:1;transition:all .15s;flex-shrink:0;
+}
+.bti-del:hover{color:var(--p-high);background:#FEF2F2}
+.bulk-footer{
+  padding:12px 20px;
+  border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--card);
+}
+.bulk-footer-hint{font-size:11px;color:var(--t3)}
 </style>
 </head>
 <body>
@@ -787,6 +881,10 @@ textarea.fi{resize:vertical;min-height:72px}
   <button class="btn-ghost btn-ghost-team" style="font-size:12px;padding:5px 12px" onclick="openTeamModal()">⚙ Team</button>
   <button class="btn-ghost" style="font-size:12px;padding:5px 10px" onclick="toggleGmailPanel()" id="gmailHdrBtn" title="Gmail → Tasks">📧</button>
   <button class="btn-ghost btn-ghost-shortcuts" style="font-size:12px;padding:5px 10px" onclick="openShortcutsModal()" title="Keyboard shortcuts (?)">?</button>
+  <button class="btn-ghost" style="font-size:12px;padding:5px 11px;display:flex;align-items:center;gap:5px" onclick="openBulkImport()" title="Bulk import tasks (B)">
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="4" x2="13" y2="4"/><line x1="3" y1="8" x2="13" y2="8"/><line x1="3" y1="12" x2="9" y2="12"/><polyline points="12,10 14,12 12,14" stroke-width="1.8"/></svg>
+    Import
+  </button>
   <button class="btn-add" onclick="openTaskModal()">+ Add Task</button>
 </header>
 
@@ -1119,6 +1217,7 @@ textarea.fi{resize:vertical;min-height:72px}
         <div class="sc-row"><kbd>Q</kbd><span>New task</span></div>
         <div class="sc-row"><kbd>⌘</kbd><kbd>K</kbd><span>New task (anywhere)</span></div>
         <div class="sc-row"><kbd>⌘</kbd><kbd>↵</kbd><span>Save task or workstream</span></div>
+        <div class="sc-row"><kbd>B</kbd><span>Bulk import tasks</span></div>
         <div class="sc-row"><kbd>G</kbd><span>Open Gmail panel &amp; scan inbox</span></div>
         <div class="sc-row"><kbd>D</kbd><span>Duplicate hovered task</span></div>
         <div class="sc-row"><kbd>C</kbd><span>Complete / reopen hovered task</span></div>
@@ -1144,6 +1243,38 @@ textarea.fi{resize:vertical;min-height:72px}
         <div class="sc-group-label">General</div>
         <div class="sc-row"><kbd>?</kbd><span>Show / hide shortcuts</span></div>
         <div class="sc-row"><kbd>Esc</kbd><span>Close any modal</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Import Modal -->
+<div id="bulkOverlay" onclick="if(event.target===this)closeBulkImport()">
+  <div id="bulkModal">
+    <div class="bulk-header">
+      <div class="bulk-icon">≡+</div>
+      <div class="bulk-header-text">
+        <div class="bulk-header-title">Bulk Import Tasks</div>
+        <div class="bulk-header-sub">Paste a list — one task per line. Category, priority &amp; more are auto-filled.</div>
+      </div>
+      <button class="bulk-header-close" onclick="closeBulkImport()">×</button>
+    </div>
+    <div class="bulk-input-wrap">
+      <textarea id="bulkInput" placeholder="Paste your task list here, one per line:&#10;&#10;• Review LP subscription docs for Fund IV&#10;• Draft IC memo for 450 Park acquisition&#10;• Follow up with Hulic on Q3 reporting&#10;• Schedule trustee call — WHPMT compliance&#10;• Prepare quarterly performance attribution" oninput="onBulkInput()"></textarea>
+      <div class="bulk-input-hint">Tip: bullets (•  –  *), numbers (1. 2.) and dashes are stripped automatically.</div>
+    </div>
+    <div class="bulk-preview-section" id="bulkPreviewSection" style="display:none">
+      <div class="bulk-preview-hd">
+        <span class="bulk-preview-label" id="bulkPreviewCount">0 tasks</span>
+        <button class="bulk-preview-clear" onclick="clearBulkInput()">Clear all</button>
+      </div>
+      <div class="bulk-task-list" id="bulkTaskList"></div>
+    </div>
+    <div class="bulk-footer">
+      <span class="bulk-footer-hint" id="bulkFooterHint"></span>
+      <div style="display:flex;gap:8px">
+        <button class="btn-ghost" onclick="closeBulkImport()">Cancel</button>
+        <button class="btn-primary" id="bulkImportBtn" onclick="confirmBulkImport()" disabled>Import Tasks</button>
       </div>
     </div>
   </div>
@@ -2570,6 +2701,149 @@ function removeMember(name) {
   toast(`${name} removed from team`);
 }
 
+/* ══════════════════════════════════════════════════════════
+   BULK IMPORT
+══════════════════════════════════════════════════════════ */
+
+let _bulkItems = [];
+
+function openBulkImport() {
+  document.getElementById('bulkOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('bulkInput').focus(), 80);
+}
+
+function closeBulkImport() {
+  document.getElementById('bulkOverlay').classList.remove('open');
+  document.activeElement?.blur();
+}
+
+function _parseBulkLine(line) {
+  return line
+    .replace(/^\s*[•‣◦⁃∙—–\-\*\+·•◦‣]\s+/, '')
+    .replace(/^\s*\d+[\.\)]\s+/, '')
+    .trim();
+}
+
+function onBulkInput() {
+  const raw = document.getElementById('bulkInput').value;
+  const lines = raw.split('\n').map(_parseBulkLine).filter(l => l.length > 1);
+  const defaultAssignee = state.currentUser || (team[0]?.name ?? '');
+
+  _bulkItems = lines.map((name, i) => {
+    const prev = _bulkItems[i];
+    const priority = estimatePriority(name, '');
+    const { cat, fund } = estimateCatAndFund(name);
+    return {
+      name,
+      priority,
+      cat: cat || 'admin',
+      fund: fund || 'none',
+      assignee: prev?.assignee ?? defaultAssignee,
+    };
+  });
+
+  _renderBulkPreview();
+}
+
+function _renderBulkPreview() {
+  const listEl    = document.getElementById('bulkTaskList');
+  const sectionEl = document.getElementById('bulkPreviewSection');
+  const countEl   = document.getElementById('bulkPreviewCount');
+  const hintEl    = document.getElementById('bulkFooterHint');
+  const importBtn = document.getElementById('bulkImportBtn');
+
+  if (!_bulkItems.length) {
+    sectionEl.style.display = 'none';
+    hintEl.textContent = '';
+    importBtn.disabled = true;
+    return;
+  }
+
+  sectionEl.style.display = '';
+  const n = _bulkItems.length;
+  countEl.textContent = `${n} task${n !== 1 ? 's' : ''} detected`;
+  hintEl.textContent  = `Ready to import ${n} task${n !== 1 ? 's' : ''}`;
+  importBtn.disabled  = false;
+
+  const PRIO_BG    = { high:'#FEF2F2', med:'#FFFBEB', low:'#F0FDF4' };
+  const PRIO_COLOR = { high:'#DC2626', med:'#D97706', low:'#16A34A' };
+  const PRIO_LBL   = { high:'High',    med:'Med',     low:'Low'     };
+
+  listEl.innerHTML = _bulkItems.map((item, i) => {
+    const catInfo = CATEGORIES[item.cat] || CATEGORIES.admin;
+    const assigneeOpts = team.map(m =>
+      `<option value="${esc(m.name)}"${m.name === item.assignee ? ' selected' : ''}>${esc(m.name)}</option>`
+    ).join('');
+    const fundBadge = (item.fund && item.fund !== 'none')
+      ? `<span class="bti-badge" style="background:#EEF2FF;color:#4F46E5">${esc(item.fund)}</span>`
+      : '';
+    return `<div class="bulk-task-item">
+      <div class="bti-num">${i + 1}</div>
+      <div class="bti-info">
+        <div class="bti-name" title="${esc(item.name)}">${esc(item.name)}</div>
+        <div class="bti-badges">
+          <span class="bti-badge" style="background:${PRIO_BG[item.priority]};color:${PRIO_COLOR[item.priority]}">${PRIO_LBL[item.priority]}</span>
+          <span class="bti-badge" style="background:${catInfo.bg};color:${catInfo.color}">${catInfo.label}</span>
+          ${fundBadge}
+        </div>
+      </div>
+      <select class="bti-assignee" onchange="_bulkSetAssignee(${i},this.value)">${assigneeOpts}</select>
+      <button class="bti-del" onclick="_bulkRemove(${i})" title="Remove">×</button>
+    </div>`;
+  }).join('');
+}
+
+function _bulkSetAssignee(i, name) {
+  if (_bulkItems[i]) _bulkItems[i].assignee = name;
+}
+
+function _bulkRemove(i) {
+  _bulkItems.splice(i, 1);
+  const raw = document.getElementById('bulkInput').value;
+  const lines = raw.split('\n');
+  let kept = 0;
+  const filtered = lines.filter(l => {
+    const parsed = _parseBulkLine(l);
+    if (parsed.length <= 1) return true;
+    return kept++ !== i;
+  });
+  document.getElementById('bulkInput').value = filtered.join('\n');
+  _renderBulkPreview();
+}
+
+function clearBulkInput() {
+  document.getElementById('bulkInput').value = '';
+  _bulkItems = [];
+  _renderBulkPreview();
+}
+
+function confirmBulkImport() {
+  if (!_bulkItems.length) return;
+  const now = new Date().toISOString();
+  const newTasks = _bulkItems.map(item => ({
+    id: uid(),
+    name: item.name,
+    desc: '',
+    cat: item.cat,
+    fund: item.fund,
+    assignee: item.assignee || (team[0]?.name ?? ''),
+    priority: item.priority,
+    status: 'todo',
+    startDate: '',
+    deadline: '',
+    ws: '',
+    createdAt: now,
+    completedAt: null,
+  }));
+  tasks.unshift(...newTasks);
+  persist();
+  renderAll();
+  const count = newTasks.length;
+  closeBulkImport();
+  toast(`Imported ${count} task${count !== 1 ? 's' : ''}`);
+  setTimeout(() => { document.getElementById('bulkInput').value = ''; _bulkItems = []; }, 300);
+}
+
 function overlayClick(e, id) {
   if (e.target === document.getElementById(id)) {
     if (id === 'taskOverlay')  closeTaskModal();
@@ -2613,7 +2887,7 @@ document.addEventListener('keydown', e => {
   const anyOpen = document.querySelector('.overlay.open');
 
   if (e.key === 'Escape') {
-    closeTaskModal(); closeWsModal(); closeTeamModal(); closeShortcutsModal();
+    closeTaskModal(); closeWsModal(); closeTeamModal(); closeShortcutsModal(); closeBulkImport();
   }
 
   if ((e.metaKey||e.ctrlKey) && e.key === 'Enter') {
@@ -2647,6 +2921,7 @@ document.addEventListener('keydown', e => {
       state.assignee = 'all'; state.ws = 'all'; state.cat = 'all';
       renderAll(); toast('Filters cleared');
       break;
+    case 'b': case 'B': openBulkImport(); break;
     case '?': openShortcutsModal(); break;
   }
 });
