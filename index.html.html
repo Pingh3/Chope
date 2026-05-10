@@ -322,6 +322,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 }
 .card:hover .card-del{opacity:1}
 .card-del:hover{background:#FEF2F2;color:var(--p-high);border-color:#FECACA}
+.card-dup{
+  position:absolute;bottom:10px;right:36px;
+  width:22px;height:22px;border-radius:4px;
+  border:1px solid transparent;
+  background:transparent;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;color:var(--t3);
+  opacity:0;transition:all .15s;z-index:2;
+}
+.card:hover .card-dup{opacity:1}
+.card-dup:hover{background:#EFF6FF;color:var(--col-ip);border-color:#BFDBFE}
 
 .cat-badge{
   display:inline-flex;align-items:center;
@@ -873,6 +884,7 @@ textarea.fi{resize:vertical;min-height:72px}
               <option value="ir">IR &amp; Reporting</option>
               <option value="acq">Acquisition</option>
               <option value="fund">Fund Raising</option>
+              <option value="projects">Projects</option>
               <option value="corp">Corporate Development</option>
               <option value="admin">Admin</option>
             </select>
@@ -884,7 +896,8 @@ textarea.fi{resize:vertical;min-height:72px}
         <div class="sel-wrap">
           <div class="sel-dot" id="dot-fund"></div>
           <select class="fi" id="fFund" onchange="this.dataset.userSet='1';updateSelDots()">
-            <option value="none">No Fund</option>
+            <option value="none">None</option>
+            <option value="cross">Cross-funds</option>
             <option value="WHPMT">WHPMT</option>
             <option value="Fund II">Fund II</option>
             <option value="Fund III">Fund III</option>
@@ -966,7 +979,7 @@ textarea.fi{resize:vertical;min-height:72px}
         </div>
         <div class="mf">
           <label>Start Date</label>
-          <input class="fi" type="date" id="fStartDate" onchange="validateDates()">
+          <input class="fi" type="date" id="fStartDate" onchange="validateDates();_recalcDeadline()">
         </div>
         <div class="mf">
           <label>Due Date</label>
@@ -976,7 +989,7 @@ textarea.fi{resize:vertical;min-height:72px}
       <div id="dateError" style="display:none;color:#EF4444;font-size:11px;margin-top:-6px;padding:0 2px">Due date can't be earlier than start date.</div>
       <div class="mf">
         <label>Workstream / Project</label>
-        <select class="fi" id="fWs">
+        <select class="fi" id="fWs" onchange="this.dataset.userSet='1'">
           <option value="">None</option>
         </select>
       </div>
@@ -1027,6 +1040,7 @@ textarea.fi{resize:vertical;min-height:72px}
           <label>Related Fund</label>
           <select class="fi" id="wsFund" onchange="this.dataset.userSet='1'">
             <option value="">Any</option>
+            <option value="cross">Cross-funds</option>
             <option value="WHPMT">WHPMT</option>
             <option value="Fund II">Fund II</option>
             <option value="Fund III">Fund III</option>
@@ -1106,6 +1120,7 @@ textarea.fi{resize:vertical;min-height:72px}
         <div class="sc-row"><kbd>⌘</kbd><kbd>K</kbd><span>New task (anywhere)</span></div>
         <div class="sc-row"><kbd>⌘</kbd><kbd>↵</kbd><span>Save task or workstream</span></div>
         <div class="sc-row"><kbd>G</kbd><span>Open Gmail panel &amp; scan inbox</span></div>
+        <div class="sc-row"><kbd>D</kbd><span>Duplicate hovered task</span></div>
         <div class="sc-row"><kbd>C</kbd><span>Complete / reopen hovered task</span></div>
         <div class="sc-row"><kbd>Del</kbd><span>Delete hovered task (with undo)</span></div>
         <div class="sc-row"><kbd>E</kbd><span>New workstream</span></div>
@@ -1155,6 +1170,7 @@ const CATEGORIES = {
   ir:         { label: 'IR & Reporting',        color: '#0D9488', bg: '#F0FDFA' },
   acq:        { label: 'Acquisition',           color: '#EA580C', bg: '#FFF7ED' },
   fund:       { label: 'Fund Raising',          color: '#DB2777', bg: '#FDF2F8' },
+  projects:   { label: 'Projects',              color: '#4F46E5', bg: '#EEF2FF' },
   corp:       { label: 'Corporate Development', color: '#0284C7', bg: '#EFF6FF' },
   admin:      { label: 'Admin',                 color: '#6B7280', bg: '#F9FAFB' },
 };
@@ -1320,7 +1336,7 @@ function estimatePriority(name, desc) {
 
 const PRIO_COLORS   = { high:'#EF4444', med:'#F59E0B', low:'#22C55E' };
 const STATUS_COLORS = { todo:'#6B7280', inprogress:'#3B82F6', review:'#F59E0B', done:'#22C55E' };
-const FUND_COLORS   = { WHPMT:'#4F46E5', 'Fund II':'#0891B2', 'Fund III':'#059669', 'Fund IV':'#D97706', none:'#D1D5DB', '':'#D1D5DB' };
+const FUND_COLORS   = { WHPMT:'#4F46E5', 'Fund II':'#0891B2', 'Fund III':'#059669', 'Fund IV':'#D97706', cross:'#7C3AED', none:'#D1D5DB', '':'#D1D5DB' };
 
 function updateSelDots() {
   const set = (id, color) => { const el = document.getElementById(id); if (el) el.style.background = color || '#D1D5DB'; };
@@ -1345,7 +1361,9 @@ function estimateCatAndFund(text) {
   else if (/performance|attribution|return|irr|q2|q1|q3|q4/.test(t))               cat = 'perf';
   else if (/corp|secretary|entity|restructure|holdco/.test(t))                      cat = 'corp';
   else if (/schedule|coordinate|onboard|admin|meeting/.test(t))                     cat = 'admin';
-  else if (/build|implement|design/.test(t))                                         cat = 'corp';
+  else if (/\bproject\b|build|implement|develop|deploy|launch|setup|set up|system|platform|tool|app\b/.test(t)) cat = 'projects';
+  else if (/corp|secretary|entity|restructure|holdco/.test(t))                      cat = 'corp';
+  else if (/design/.test(t))                                                         cat = 'projects';
 
   if (/whpmt|westhill/.test(t))          fund = 'WHPMT';
   else if (/fund\s*ii\b|fund\s*2\b/.test(t))  fund = 'Fund II';
@@ -1396,6 +1414,19 @@ function onDescInput() {
     const fundEl = document.getElementById('fFund');
     if (est.cat  && !catEl.dataset.userSet)  { catEl.value  = est.cat;  updateSelDots(); }
     if (est.fund && !fundEl.dataset.userSet) { fundEl.value = est.fund; updateSelDots(); }
+
+    // Auto-suggest workstream by keyword-matching task name against existing workstreams
+    const wsEl = document.getElementById('fWs');
+    if (wsEl && !wsEl.dataset.userSet && workstreams.length) {
+      const words = name.toLowerCase().split(/\s+/).filter(w => w.length >= 4);
+      let bestWs = null, bestScore = 0;
+      for (const ws of workstreams) {
+        const wsWords = ws.name.toLowerCase().split(/\s+/).filter(w => w.length >= 4);
+        const score = words.filter(w => wsWords.some(ww => ww.includes(w) || w.includes(ww))).length;
+        if (score > bestScore) { bestScore = score; bestWs = ws; }
+      }
+      if (bestWs && bestScore >= 1) wsEl.value = bestWs.id;
+    }
   }
 }
 
@@ -1534,7 +1565,7 @@ function renderFilterBar() {
 
   const activePills = [
     state.priority !== 'all' ? ({high:'High',med:'Medium',low:'Low'}[state.priority]) : null,
-    state.fund !== 'all' ? (state.fund === 'none' ? 'No Fund' : state.fund) : null,
+    state.fund !== 'all' ? (state.fund === 'none' ? 'None' : state.fund) : null,
     state.assignee !== 'all' ? state.assignee.split(' ')[0] : null,
     state.ws !== 'all' ? (state.ws === '' ? 'No WS' : (getWs(state.ws)?.name.slice(0,12) || state.ws)) : null,
   ].filter(Boolean);
@@ -1565,7 +1596,8 @@ function renderFilterBar() {
         ${p('Fund II','Fund II','fund',state.fund==='Fund II')}
         ${p('Fund III','Fund III','fund',state.fund==='Fund III')}
         ${p('Fund IV','Fund IV','fund',state.fund==='Fund IV')}
-        ${p('none','No Fund','fund',state.fund==='none')}
+        ${p('cross','Cross-funds','fund',state.fund==='cross')}
+        ${p('none','None','fund',state.fund==='none')}
       </div>
     </div>
     <div class="fb-row">
@@ -1709,6 +1741,7 @@ function cardHTML(t) {
           <polyline points="1.5,5 4,7.5 8.5,2.5"/>
         </svg>
       </button>
+      <button class="card-dup" onclick="duplicateTask('${t.id}');event.stopPropagation()" title="Duplicate task (D)">⧉</button>
       <button class="card-del" onclick="deleteTaskDirect('${t.id}');event.stopPropagation()" title="Delete task (Del)">🗑</button>
       <div class="cat-badge" style="background:${cat.bg};color:${cat.color};padding-right:28px">${esc(cat.label)}</div>
       <div class="card-name">${esc(t.name)}</div>
@@ -2228,6 +2261,7 @@ function openTaskModal(id) {
   // Reset auto-estimate flags so new task gets fresh suggestions
   delete document.getElementById('fCat').dataset.userSet;
   delete document.getElementById('fFund').dataset.userSet;
+  delete document.getElementById('fWs').dataset.userSet;
   document.getElementById('prioHint').style.display = 'none';
   const calBtn = document.getElementById('btnAddCal');
   if (calBtn) calBtn.style.display = 'none';
@@ -2272,6 +2306,7 @@ function addExistingTaskToWs(wsId) {
 function closeTaskModal() {
   document.getElementById('taskOverlay').classList.remove('open');
   editTaskId = null;
+  document.activeElement?.blur();
 }
 
 function saveTask() {
@@ -2316,6 +2351,16 @@ function deleteTask() {
   tasks = tasks.filter(x => x.id !== editTaskId);
   persist(); renderAll(); closeTaskModal();
   toast('Task deleted');
+}
+
+function duplicateTask(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t) return;
+  const copy = { ...t, id: uid(), name: t.name + ' (copy)', createdAt: new Date().toISOString(), status: 'todo', completedAt: null };
+  delete copy.deadlineHistory;
+  tasks.splice(tasks.indexOf(t) + 1, 0, copy);
+  persist(); renderAll();
+  toast(`Duplicated: "${t.name.slice(0,28)}"`);
 }
 
 let _lastDeleted = null;
@@ -2379,6 +2424,7 @@ function openWsModal(id) {
 function closeWsModal() {
   document.getElementById('wsOverlay').classList.remove('open');
   editWsId = null;
+  document.activeElement?.blur();
 }
 
 function saveWs() {
@@ -2425,6 +2471,7 @@ function openTeamModal() {
 
 function closeTeamModal() {
   document.getElementById('teamOverlay').classList.remove('open');
+  document.activeElement?.blur();
 }
 
 function renderTeamMemberList() {
@@ -2550,7 +2597,7 @@ function toast(msg) {
 }
 
 function openShortcutsModal()  { document.getElementById('shortcutsOverlay').classList.add('open'); }
-function closeShortcutsModal() { document.getElementById('shortcutsOverlay').classList.remove('open'); }
+function closeShortcutsModal() { document.getElementById('shortcutsOverlay').classList.remove('open'); document.activeElement?.blur(); }
 
 function toggleFilterBar() {
   document.getElementById('filterBar').classList.toggle('fb-expanded');
@@ -2586,6 +2633,7 @@ document.addEventListener('keydown', e => {
     case '3': document.querySelector('[data-view="week"]')?.click(); break;
     case '4': document.querySelector('[data-view="ws"]')?.click(); break;
     case 'g': case 'G': if (!gmailOpen) toggleGmailPanel(); setTimeout(() => gmailScanInbox(), 300); break;
+    case 'd': case 'D': if (hoveredCardId) duplicateTask(hoveredCardId); break;
     case 'c': case 'C': if (hoveredCardId) toggleTaskDone(hoveredCardId); break;
     case 'Delete': case 'Backspace': if (hoveredCardId) { e.preventDefault(); deleteTaskDirect(hoveredCardId); } break;
     case 'h': case 'H': setFilter('priority', state.priority === 'high' ? 'all' : 'high'); renderAll(); break;
