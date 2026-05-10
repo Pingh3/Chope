@@ -2526,6 +2526,15 @@ document.addEventListener('keydown', e => {
     closeTaskModal(); closeWsModal(); closeTeamModal(); closeShortcutsModal();
   }
 
+  if ((e.metaKey||e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    if (document.getElementById('taskOverlay').classList.contains('open')) saveTask();
+    else if (document.getElementById('wsOverlay').classList.contains('open')) saveWs();
+    return;
+  }
+
+  if ((e.metaKey||e.ctrlKey) && e.key === 'k') { e.preventDefault(); openTaskModal(); return; }
+
   if (typing || anyOpen) return;
 
   switch (e.key) {
@@ -2545,13 +2554,6 @@ document.addEventListener('keydown', e => {
       renderAll(); toast('Filters cleared');
       break;
     case '?': openShortcutsModal(); break;
-  }
-
-  if ((e.metaKey||e.ctrlKey) && e.key === 'k') { e.preventDefault(); openTaskModal(); }
-  if ((e.metaKey||e.ctrlKey) && e.key === 'Enter') {
-    e.preventDefault();
-    if (document.getElementById('taskOverlay').classList.contains('open')) saveTask();
-    else if (document.getElementById('wsOverlay').classList.contains('open')) saveWs();
   }
 });
 
