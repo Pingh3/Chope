@@ -889,36 +889,8 @@ textarea.fi{resize:vertical;min-height:72px}
           </select>
         </div>
       </div>
-      <div class="mfrow3">
-        <div class="mf">
-          <label>Status</label>
-          <div class="sel-wrap">
-            <div class="sel-dot" id="dot-status"></div>
-            <select class="fi" id="fStatus" onchange="updateSelDots()">
-              <option value="todo">To Do</option>
-              <option value="inprogress">In Progress</option>
-              <option value="review">Under Review</option>
-              <option value="done">Done</option>
-            </select>
-          </div>
-        </div>
-        <div class="mf">
-          <label>Start Date</label>
-          <input class="fi" type="date" id="fStartDate">
-        </div>
-        <div class="mf">
-          <label>Due Date</label>
-          <input class="fi" type="date" id="fDeadline">
-        </div>
-      </div>
-      <div class="mf">
-        <label>Workstream / Project</label>
-        <select class="fi" id="fWs">
-          <option value="">None</option>
-        </select>
-      </div>
       <div class="plan-box" id="planBox">
-        <div class="plan-box-title">Planning</div>
+        <div class="plan-box-title">Planning <span style="font-weight:400;font-size:10px;color:var(--t3);text-transform:none;letter-spacing:0">— fills in dates below</span></div>
         <div class="plan-row">
           <div class="plan-q">How long will this take?</div>
           <div class="plan-pills" id="planDuration">
@@ -951,15 +923,41 @@ textarea.fi{resize:vertical;min-height:72px}
             <button class="plan-pill" onclick="setPlanStart(2)">In 2 days</button>
             <button class="plan-pill" onclick="setPlanStart(3)">In 3 days</button>
             <button class="plan-pill" onclick="setPlanStartFriday()">This Friday</button>
-            <button class="plan-pill" onclick="setPlanStartNextMonday()">Next Monday</button>
+            <button class="plan-pill" onclick="setPlanStartNextWed()">Next week (Wed)</button>
             <button class="plan-pill" onclick="setPlanStart(14)">In 2 weeks</button>
             <button class="plan-pill" onclick="setPlanStart(30)">Next month</button>
           </div>
-          <div style="display:flex;align-items:center;gap:6px;margin-top:7px">
-            <span style="font-size:11px;color:var(--t3)">or pick a specific date above in Start Date</span>
-          </div>
         </div>
         <div class="dl-history" id="dlHistory"></div>
+      </div>
+      <div class="mfrow3">
+        <div class="mf">
+          <label>Status</label>
+          <div class="sel-wrap">
+            <div class="sel-dot" id="dot-status"></div>
+            <select class="fi" id="fStatus" onchange="updateSelDots()">
+              <option value="todo">To Do</option>
+              <option value="inprogress">In Progress</option>
+              <option value="review">Under Review</option>
+              <option value="done">Done</option>
+            </select>
+          </div>
+        </div>
+        <div class="mf">
+          <label>Start Date</label>
+          <input class="fi" type="date" id="fStartDate" onchange="validateDates()">
+        </div>
+        <div class="mf">
+          <label>Due Date</label>
+          <input class="fi" type="date" id="fDeadline" onchange="validateDates()">
+        </div>
+      </div>
+      <div id="dateError" style="display:none;color:#EF4444;font-size:11px;margin-top:-6px;padding:0 2px">Due date can't be earlier than start date.</div>
+      <div class="mf">
+        <label>Workstream / Project</label>
+        <select class="fi" id="fWs">
+          <option value="">None</option>
+        </select>
       </div>
     </div>
     <div class="modal-ft">
@@ -2251,6 +2249,7 @@ function saveTask() {
   if (!name)     { flash('fName');     return; }
   if (!cat)      { flash('fCat');      return; }
   if (!assignee) { flash('fAssignee'); return; }
+  if (!validateDates()) { document.getElementById('fDeadline').focus(); return; }
 
   if (editTaskId) {
     const t = tasks.find(x => x.id === editTaskId);
@@ -2549,6 +2548,11 @@ document.addEventListener('keydown', e => {
   }
 
   if ((e.metaKey||e.ctrlKey) && e.key === 'k') { e.preventDefault(); openTaskModal(); }
+  if ((e.metaKey||e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    if (document.getElementById('taskOverlay').classList.contains('open')) saveTask();
+    else if (document.getElementById('wsOverlay').classList.contains('open')) saveWs();
+  }
 });
 
 /* ══════════════════════════════════════════════════════════
@@ -2593,15 +2597,31 @@ function setPlanStartFriday() {
   _recalcDeadline();
 }
 
-function setPlanStartNextMonday() {
+function setPlanStartNextWed() {
+  // Always lands on the Wednesday of next calendar week
   const today = new Date();
-  const daysUntilMonday = (1 - today.getDay() + 7) % 7 || 7;
+  const daysToNextMonday = (1 - today.getDay() + 7) % 7 || 7;
   const d = new Date();
-  d.setDate(d.getDate() + daysUntilMonday);
+  d.setDate(d.getDate() + daysToNextMonday + 2); // Mon + 2 = Wed
   document.getElementById('fStartDate').value = d.toISOString().slice(0,10);
   document.querySelectorAll('#planStart .plan-pill').forEach(b => b.classList.remove('active'));
   event.target.classList.add('active');
   _recalcDeadline();
+}
+
+function validateDates() {
+  const s = document.getElementById('fStartDate').value;
+  const d = document.getElementById('fDeadline').value;
+  const err = document.getElementById('dateError');
+  const deadlineEl = document.getElementById('fDeadline');
+  if (s && d && d < s) {
+    err.style.display = 'block';
+    deadlineEl.style.borderColor = '#EF4444';
+    return false;
+  }
+  err.style.display = 'none';
+  deadlineEl.style.borderColor = '';
+  return true;
 }
 
 function _recalcDeadline() {
@@ -2612,6 +2632,7 @@ function _recalcDeadline() {
   const due = new Date(start);
   due.setDate(due.getDate() + daysToAdd);
   document.getElementById('fDeadline').value = due.toISOString().slice(0,10);
+  validateDates();
 }
 
 function resetPlanBox() {
