@@ -772,6 +772,10 @@ textarea.fi{resize:vertical;min-height:72px}
   </div>
   <div class="live-dot-wrap"><div class="ldot"></div>Live</div>
   <select class="user-sel" id="currentUserSel" onchange="onUserChange()"></select>
+  <button class="btn-ghost" id="googleAuthBtn" style="font-size:11px;padding:4px 10px;gap:5px;display:flex;align-items:center" onclick="googleSignIn()" title="Sign in with Google to auto-identify yourself">
+    <svg width="13" height="13" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/></svg>
+    <span id="googleAuthLabel">Sign in</span>
+  </button>
   <button class="btn-ghost btn-ghost-team" style="font-size:12px;padding:5px 12px" onclick="openTeamModal()">⚙ Team</button>
   <button class="btn-ghost" style="font-size:12px;padding:5px 10px" onclick="toggleGmailPanel()" id="gmailHdrBtn" title="Gmail → Tasks">📧</button>
   <button class="btn-ghost btn-ghost-shortcuts" style="font-size:12px;padding:5px 10px" onclick="openShortcutsModal()" title="Keyboard shortcuts (?)">?</button>
@@ -2719,9 +2723,56 @@ if (gmailToken) {
 
 function gmailSilentAuth() { /* replaced by Firebase Auth — see setupGmailAuth() */ }
 
+async function googleSignIn() {
+  if (!window._chopeFb?.signInWithGoogle) { toast('Firebase not ready — try again'); return; }
+  const btn = document.getElementById('googleAuthBtn');
+  const lbl = document.getElementById('googleAuthLabel');
+  if (lbl) lbl.textContent = 'Signing in…';
+  if (btn) btn.disabled = true;
+  try {
+    const result = await window._chopeFb.signInWithGoogle();
+    const displayName = result.user.displayName || '';
+    const firstName   = displayName.split(' ')[0];
+    const matched = team.find(m => m.name === displayName)
+      || team.find(m => m.name.toLowerCase().startsWith(firstName.toLowerCase()))
+      || team.find(m => firstName.toLowerCase().startsWith(m.name.split(' ')[0].toLowerCase()));
+    if (matched) {
+      state.currentUser = matched.name;
+      localStorage.setItem('chope_user', matched.name);
+      renderHeader();
+      toast(`Welcome, ${matched.name.split(' ')[0]}! 👋`);
+    }
+    _updateGoogleAuthBtn(result.user);
+  } catch(e) {
+    if (btn) btn.disabled = false;
+    if (lbl) lbl.textContent = 'Sign in';
+    if (e.code !== 'auth/popup-closed-by-user') toast('Sign in failed — try again');
+  }
+}
+
+function _updateGoogleAuthBtn(user) {
+  const btn = document.getElementById('googleAuthBtn');
+  const lbl = document.getElementById('googleAuthLabel');
+  if (!btn || !lbl) return;
+  if (user) {
+    const first = (user.displayName || 'You').split(' ')[0];
+    lbl.textContent = '✓ ' + first;
+    btn.disabled = false;
+    btn.title = `Signed in as ${user.displayName || user.email}`;
+    btn.onclick = null; // signed in, button is just an indicator
+    btn.style.cursor = 'default';
+  } else {
+    lbl.textContent = 'Sign in';
+    btn.disabled = false;
+    btn.onclick = googleSignIn;
+    btn.style.cursor = 'pointer';
+  }
+}
+
 function setupGmailAuth() {
   if (!window._chopeFb?.onAuthStateChanged) return;
   window._chopeFb.onAuthStateChanged(user => {
+    _updateGoogleAuthBtn(user);
     if (!user) return;
     // Auto-identify from Firebase profile
     const displayName = user.displayName || '';
@@ -2734,15 +2785,15 @@ function setupGmailAuth() {
       localStorage.setItem('chope_user', matched.name);
       renderHeader();
     }
-    // If session token is gone (browser restarted / 1h expiry), show one-click reconnect
+    // Gmail token gone (browser restarted / 1h expiry) — show one-tap reconnect
     if (!gmailToken) {
       const body = document.getElementById('gmailBody');
       if (body) body.innerHTML = `
         <div style="text-align:center;padding:30px 20px">
-          <div style="font-size:20px;margin-bottom:8px">🔄</div>
-          <div style="font-size:13px;font-weight:600;margin-bottom:4px">Reconnect Gmail</div>
-          <div style="font-size:11px;color:var(--t3);margin-bottom:16px">You're still signed in — one tap restores Gmail access.</div>
-          <button class="btn-add" onclick="gmailSignIn()" style="width:100%">Reconnect Gmail</button>
+          <div style="font-size:20px;margin-bottom:8px">📧</div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:4px">Connect Gmail</div>
+          <div style="font-size:11px;color:var(--t3);margin-bottom:16px">Grant Gmail access to scan your inbox for tasks.</div>
+          <button class="btn-add" onclick="gmailSignIn()" style="width:100%">Connect Gmail</button>
         </div>`;
     }
   });
@@ -2767,9 +2818,9 @@ async function gmailSignIn() {
   const btn = document.getElementById('gmailSignInBtn');
   if (btn) { btn.textContent = 'Signing in…'; btn.disabled = true; }
   // Prefer Firebase popup (no redirect, session persists forever)
-  if (window._chopeFb?.signInWithGoogle) {
+  if (window._chopeFb?.signInWithGmail) {
     try {
-      const result = await window._chopeFb.signInWithGoogle();
+      const result = await window._chopeFb.signInWithGmail();
       const token  = window._chopeFb.getGmailToken(result);
       if (token) {
         gmailToken = token;
@@ -3029,15 +3080,21 @@ if (window.self === window.top) {
   const db = getFirestore(app);
   const auth = getAuth(app);
 
-  const provider = new GoogleAuthProvider();
-  provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
-  provider.addScope('https://www.googleapis.com/auth/gmail.send');
+  // Identity-only provider — no sensitive scopes, no warning
+  const identityProvider = new GoogleAuthProvider();
+
+  // Gmail provider — sensitive scopes, shows warning once
+  const gmailProvider = new GoogleAuthProvider();
+  gmailProvider.addScope('https://www.googleapis.com/auth/gmail.readonly');
+  gmailProvider.addScope('https://www.googleapis.com/auth/gmail.send');
 
   window._chopeFb = {
     // Firestore
     db, doc, setDoc, getDoc, onSnapshot,
-    // Auth
-    signInWithGoogle:  ()     => signInWithPopup(auth, provider),
+    // Identity sign-in (no warning)
+    signInWithGoogle:  ()     => signInWithPopup(auth, identityProvider),
+    // Gmail sign-in (warning appears, but only for Gmail, not for app login)
+    signInWithGmail:   ()     => signInWithPopup(auth, gmailProvider),
     getGmailToken:     result => GoogleAuthProvider.credentialFromResult(result)?.accessToken || null,
     onAuthStateChanged: cb    => onAuthStateChanged(auth, cb),
   };
