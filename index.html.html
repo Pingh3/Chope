@@ -2699,40 +2699,57 @@ function chatbotFinish() {
 
 const GMAIL_CLIENT_ID = '1052353371305-ibjabb8j5o8okn4ou5a05q8g1ta3s3li.apps.googleusercontent.com';
 const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send';
-let gmailToken = null;
+let gmailToken = sessionStorage.getItem('gmailToken') || null;
 let gmailOpen  = false;
 
-function gmailSilentAuth() {
-  if (!GMAIL_CLIENT_ID || !localStorage.getItem('gmailAuthorized') || gmailToken) return;
-  const params = new URLSearchParams({
-    client_id: GMAIL_CLIENT_ID,
-    redirect_uri: location.origin + location.pathname,
-    response_type: 'token',
-    scope: GMAIL_SCOPES,
-    prompt: 'none'
+// If a token was restored from sessionStorage, update the Gmail panel UI
+if (gmailToken) {
+  document.addEventListener('DOMContentLoaded', () => {
+    const body = document.getElementById('gmailBody');
+    const footer = document.getElementById('gmailFooter');
+    if (body) body.innerHTML = `
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:20px;margin-bottom:6px">✅</div>
+        <div style="font-size:13px;font-weight:600">Gmail connected</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:4px">Click "Scan Inbox" to find actionable emails.</div>
+      </div>`;
+    if (footer) footer.style.display = 'flex';
   });
-  const iframe = document.createElement('iframe');
-  iframe.style.cssText = 'display:none;width:0;height:0;border:none;position:fixed;top:-9999px';
-  iframe.src = 'https://accounts.google.com/o/oauth2/v2/auth?' + params;
-  document.body.appendChild(iframe);
-  setTimeout(() => { try { iframe.remove(); } catch {} }, 10000);
+}
+
+function gmailSilentAuth() { /* replaced by Firebase Auth — see setupGmailAuth() */ }
+
+function setupGmailAuth() {
+  if (!window._chopeFb?.onAuthStateChanged) return;
+  window._chopeFb.onAuthStateChanged(user => {
+    if (!user) return;
+    // Auto-identify from Firebase profile
+    const displayName = user.displayName || '';
+    const firstName   = displayName.split(' ')[0];
+    const matched = team.find(m => m.name === displayName)
+      || team.find(m => m.name.toLowerCase().startsWith(firstName.toLowerCase()))
+      || team.find(m => firstName.toLowerCase().startsWith(m.name.split(' ')[0].toLowerCase()));
+    if (matched && state.currentUser !== matched.name) {
+      state.currentUser = matched.name;
+      localStorage.setItem('chope_user', matched.name);
+      renderHeader();
+    }
+    // If session token is gone (browser restarted / 1h expiry), show one-click reconnect
+    if (!gmailToken) {
+      const body = document.getElementById('gmailBody');
+      if (body) body.innerHTML = `
+        <div style="text-align:center;padding:30px 20px">
+          <div style="font-size:20px;margin-bottom:8px">🔄</div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:4px">Reconnect Gmail</div>
+          <div style="font-size:11px;color:var(--t3);margin-bottom:16px">You're still signed in — one tap restores Gmail access.</div>
+          <button class="btn-add" onclick="gmailSignIn()" style="width:100%">Reconnect Gmail</button>
+        </div>`;
+    }
+  });
 }
 
 window.addEventListener('message', e => {
   if (e.origin !== location.origin || e.data?.type !== 'chope_silent_token') return;
-  const token = e.data.token;
-  if (token) {
-    gmailToken = token;
-    document.getElementById('gmailBody').innerHTML = `
-      <div style="text-align:center;padding:20px 0">
-        <div style="font-size:20px;margin-bottom:6px">✅</div>
-        <div style="font-size:13px;font-weight:600">Gmail reconnected</div>
-        <div style="font-size:11px;color:var(--t3);margin-top:4px">Signed in automatically. Click Scan Inbox to start.</div>
-      </div>`;
-    document.getElementById('gmailFooter').style.display = 'flex';
-  } else {
-    localStorage.removeItem('gmailAuthorized');
-  }
 });
 
 function toggleGmailPanel() {
@@ -2746,24 +2763,45 @@ function closeGmailPanel() {
   document.getElementById('gmailHdrBtn').style.background = '';
 }
 
-function gmailSignIn() {
-  if (!GMAIL_CLIENT_ID) {
-    document.getElementById('gmailBody').innerHTML = `
-      <div class="gmail-auth-area">
-        <div style="font-size:28px;margin-bottom:10px">🔑</div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:8px">Setup required</div>
-        <div style="font-size:12px;color:var(--t2);line-height:1.6;text-align:left">
-          To enable Gmail, add your <strong>Google OAuth Client ID</strong>:<br><br>
-          1. Go to <a href="https://console.cloud.google.com/" target="_blank" style="color:var(--col-ip)">Google Cloud Console</a><br>
-          2. Create a project → Enable Gmail API<br>
-          3. OAuth 2.0 Credentials → Web app<br>
-          4. Add your GitHub Pages URL as authorised origin<br>
-          5. Copy the Client ID and paste it into<br>
-          &nbsp;&nbsp;<code style="font-size:11px;background:var(--bg);padding:1px 4px;border-radius:3px">const GMAIL_CLIENT_ID</code> at the top of the script
-        </div>
-      </div>`;
+async function gmailSignIn() {
+  const btn = document.getElementById('gmailSignInBtn');
+  if (btn) { btn.textContent = 'Signing in…'; btn.disabled = true; }
+  // Prefer Firebase popup (no redirect, session persists forever)
+  if (window._chopeFb?.signInWithGoogle) {
+    try {
+      const result = await window._chopeFb.signInWithGoogle();
+      const token  = window._chopeFb.getGmailToken(result);
+      if (token) {
+        gmailToken = token;
+        sessionStorage.setItem('gmailToken', token);
+        localStorage.setItem('gmailAuthorized', '1');
+        const displayName = result.user.displayName || '';
+        const firstName   = displayName.split(' ')[0];
+        const matched = team.find(m => m.name === displayName)
+          || team.find(m => m.name.toLowerCase().startsWith(firstName.toLowerCase()))
+          || team.find(m => firstName.toLowerCase().startsWith(m.name.split(' ')[0].toLowerCase()));
+        if (matched) {
+          state.currentUser = matched.name;
+          localStorage.setItem('chope_user', matched.name);
+          renderHeader();
+          toast(`Welcome, ${matched.name.split(' ')[0]}! 👋`);
+        }
+        document.getElementById('gmailBody').innerHTML = `
+          <div style="text-align:center;padding:20px 0">
+            <div style="font-size:20px;margin-bottom:6px">✅</div>
+            <div style="font-size:13px;font-weight:600">Gmail connected!</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:4px">Click "Scan Inbox" to find actionable emails.</div>
+          </div>`;
+        document.getElementById('gmailFooter').style.display = 'flex';
+      }
+    } catch(e) {
+      if (btn) { btn.textContent = 'Sign in with Google'; btn.disabled = false; }
+      if (e.code !== 'auth/popup-closed-by-user') toast('Sign in failed — try again');
+    }
     return;
   }
+  // Fallback: redirect flow (no Firebase)
+  if (btn) { btn.textContent = 'Sign in with Google'; btn.disabled = false; }
   const params = new URLSearchParams({
     client_id: GMAIL_CLIENT_ID,
     redirect_uri: location.origin + location.pathname,
@@ -2780,6 +2818,7 @@ async function gmailHandleCallback() {
   if (!token) return;
   gmailToken = token;
   localStorage.setItem('gmailAuthorized', '1');
+  sessionStorage.setItem('gmailToken', token);
   history.replaceState(null, '', location.pathname);
 
   // Auto-identify the user from Google profile
@@ -2957,7 +2996,7 @@ if (window.self === window.top) {
 
     renderAll();
     setInterval(renderAll, 60000);
-    setTimeout(gmailSilentAuth, 800);
+    setupGmailAuth();
   }
 
   // Wait for Firebase module, fall back to localStorage-only after 5s
@@ -2973,6 +3012,7 @@ if (window.self === window.top) {
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
   import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-analytics.js";
   import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyD6I9vLBzuMdRLCeral6IZ-daH4gTDnUzU",
@@ -2987,9 +3027,20 @@ if (window.self === window.top) {
   const app = initializeApp(firebaseConfig);
   getAnalytics(app);
   const db = getFirestore(app);
+  const auth = getAuth(app);
 
-  // Expose to main script and signal ready
-  window._chopeFb = { db, doc, setDoc, getDoc, onSnapshot };
+  const provider = new GoogleAuthProvider();
+  provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
+  provider.addScope('https://www.googleapis.com/auth/gmail.send');
+
+  window._chopeFb = {
+    // Firestore
+    db, doc, setDoc, getDoc, onSnapshot,
+    // Auth
+    signInWithGoogle:  ()     => signInWithPopup(auth, provider),
+    getGmailToken:     result => GoogleAuthProvider.credentialFromResult(result)?.accessToken || null,
+    onAuthStateChanged: cb    => onAuthStateChanged(auth, cb),
+  };
   window.dispatchEvent(new CustomEvent('chopeFbReady'));
 </script>
 </body>
