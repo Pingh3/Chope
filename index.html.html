@@ -516,7 +516,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 }
 .gmail-hd-title{font-size:14px;font-weight:700;flex:1}
 .gmail-body{flex:1;overflow-y:auto;padding:12px 16px}
-.gmail-footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px}
+.gmail-footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
 .gmail-auth-area{text-align:center;padding:40px 20px}
 .gmail-suggestion{
   background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
@@ -935,8 +935,13 @@ textarea.fi{resize:vertical;min-height:72px}
     </div>
   </div>
   <div class="gmail-footer" id="gmailFooter" style="display:none">
-    <button class="btn-add" onclick="gmailScanInbox()" id="gmailScanBtn" style="flex:1">Scan Inbox</button>
-    <button class="btn-ghost" onclick="gmailSendBrief()" id="gmailBriefBtn" style="font-size:12px;padding:6px 12px" title="Email today's tasks to yourself">Send Today's Brief</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn-add" onclick="gmailScanInbox()" id="gmailScanBtn" style="flex:1">Scan Inbox</button>
+      <button class="btn-ghost" onclick="gmailSendBrief()" id="gmailBriefBtn" style="font-size:12px;padding:6px 12px" title="Email today's tasks to yourself">Daily Brief</button>
+    </div>
+    <button class="btn-ghost" onclick="gmailSendWeeklyAudit()" id="weeklyAuditBtn" style="width:100%;font-size:12px;padding:6px 12px;display:flex;justify-content:space-between;align-items:center" title="Send end-of-week team audit to yourself">
+      <span>📊 Weekly Audit</span><span id="weeklyAuditAge" style="font-size:10px;color:var(--t3)"></span>
+    </button>
   </div>
 </div>
 
@@ -3239,6 +3244,7 @@ function toggleGmailPanel() {
   gmailOpen = !gmailOpen;
   document.getElementById('gmailPanel').classList.toggle('open', gmailOpen);
   document.getElementById('gmailHdrBtn').style.background = gmailOpen ? 'var(--bg)' : '';
+  if (gmailOpen) updateWeeklyAuditAge();
 }
 function closeGmailPanel() {
   gmailOpen = false;
@@ -3462,6 +3468,152 @@ async function gmailSendBrief() {
   }
 }
 
+function updateWeeklyAuditAge() {
+  const el = document.getElementById('weeklyAuditAge');
+  if (!el) return;
+  const last = localStorage.getItem('chope_weekly_audit_sent');
+  if (!last) { el.textContent = 'never sent'; return; }
+  const days = Math.floor((Date.now() - new Date(last)) / 864e5);
+  el.textContent = days === 0 ? 'sent today' : days === 1 ? 'sent yesterday' : `sent ${days}d ago`;
+  const btn = document.getElementById('weeklyAuditBtn');
+  if (btn) btn.style.color = days >= 7 ? 'var(--col-ip)' : '';
+}
+
+async function gmailSendWeeklyAudit() {
+  if (!gmailToken) { gmailSignIn(); return; }
+  const btn = document.getElementById('weeklyAuditBtn');
+  if (btn) { btn.disabled = true; btn.querySelector('span').textContent = '📊 Sending…'; }
+
+  const now = new Date();
+  const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+  const weekAgoStr = weekAgo.toISOString();
+  const todayStr = now.toISOString().slice(0, 10);
+  const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const weekLabel = `${fmt(weekAgo)} – ${fmt(now)}`;
+
+  // Deadline changes this week
+  const dlChanges = [];
+  tasks.forEach(t => {
+    if (!t.deadlineHistory?.length) return;
+    const recent = t.deadlineHistory.filter(h => h.at >= weekAgoStr);
+    if (recent.length) dlChanges.push({ task: t, changes: recent });
+  });
+
+  // Completions this week
+  const completed = tasks.filter(t => t.status === 'done' && t.completedAt && t.completedAt >= weekAgoStr);
+
+  // Open tasks and overdue
+  const openTasks = tasks.filter(t => t.status !== 'done');
+  const overdue = openTasks.filter(t => t.deadline && t.deadline < todayStr);
+
+  // ── Email sections ─────────────────────────────────────
+  const card = (body, accent) =>
+    `<div style="background:#fff;border-radius:10px;padding:20px 22px;margin-bottom:14px;border:1px solid ${accent||'#E0E0DA'}">${body}</div>`;
+  const h2 = t => `<div style="font-size:14px;font-weight:700;margin-bottom:10px;color:#181816">${t}</div>`;
+  const muted = t => `<p style="color:#9A9A92;font-size:13px;margin:0">${t}</p>`;
+  const row = (main, sub) =>
+    `<div style="font-size:13px;padding:6px 0;border-bottom:1px solid #F0F0EC;display:flex;justify-content:space-between;align-items:center">
+      <span>${main}</span><span style="font-size:11px;color:#9A9A92;white-space:nowrap;margin-left:12px">${sub}</span></div>`;
+
+  const dlSection = dlChanges.length === 0 ? muted('No deadline changes this week.') :
+    dlChanges.map(({ task, changes }) =>
+      `<div style="margin-bottom:12px;padding:10px 12px;background:#F9F9F7;border-radius:8px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:5px">${esc(task.name)}</div>
+        ${changes.map(h =>
+          `<div style="font-size:12px;color:#62625C;margin-top:3px">
+            <b>${esc(h.changedBy)}</b> moved deadline
+            ${h.from ? `from <b>${h.from}</b>` : ''}
+            → <b>${h.to || 'removed'}</b>
+            <span style="color:#9A9A92"> · ${new Date(h.at).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</span>
+          </div>`).join('')}
+      </div>`).join('');
+
+  const completedSection = completed.length === 0 ? muted('No tasks completed this week.') :
+    completed.map(t => row(esc(t.name), `${esc(t.assignee)}`)).join('');
+
+  const workloadRows = team.map(m => {
+    const mine = openTasks.filter(t => t.assignee === m.name);
+    const doneWk = tasks.filter(t => t.assignee === m.name && t.status === 'done' && t.completedAt && t.completedAt >= weekAgoStr).length;
+    const cell = (n, color) => `<td style="padding:7px 10px;font-size:13px;text-align:center;color:${color};border-bottom:1px solid #F0F0EC">${n}</td>`;
+    return `<tr>
+      <td style="padding:7px 10px;font-size:13px;font-weight:500;border-bottom:1px solid #F0F0EC">${esc(m.name)} <span style="font-size:10px;color:#9A9A92;font-weight:400">${esc(m.role)}</span></td>
+      ${cell(mine.filter(t=>t.status==='todo').length,'#6B7280')}
+      ${cell(mine.filter(t=>t.status==='inprogress').length,'#3B82F6')}
+      ${cell(mine.filter(t=>t.status==='review').length,'#F59E0B')}
+      ${cell(doneWk,'#22C55E')}
+    </tr>`;
+  }).join('');
+
+  const overdueSection = overdue.length === 0 ? muted('No overdue tasks — great work!') :
+    overdue.map(t => row(esc(t.name), `${esc(t.assignee)} · was ${t.deadline}`)).join('');
+
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#F2F2EF;padding:20px;color:#181816;margin:0">
+<div style="max-width:620px;margin:0 auto">
+
+${card(`
+  <div style="font-size:20px;font-weight:700;margin-bottom:4px">📊 Chope Weekly Audit</div>
+  <div style="font-size:13px;color:#62625C">${weekLabel} &nbsp;·&nbsp; ${now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
+  <div style="display:flex;gap:20px;margin-top:14px">
+    <div><span style="font-size:22px;font-weight:700;color:#3B82F6">${openTasks.length}</span> <span style="font-size:12px;color:#62625C">open</span></div>
+    <div><span style="font-size:22px;font-weight:700;color:#22C55E">${completed.length}</span> <span style="font-size:12px;color:#62625C">done this wk</span></div>
+    <div><span style="font-size:22px;font-weight:700;color:#EF4444">${overdue.length}</span> <span style="font-size:12px;color:#62625C">overdue</span></div>
+    <div><span style="font-size:22px;font-weight:700;color:#F59E0B">${dlChanges.length}</span> <span style="font-size:12px;color:#62625C">deadline moves</span></div>
+  </div>`)}
+
+${card(h2('⏱ Deadline Changes') + dlSection)}
+
+${card(h2('✅ Completed This Week') + completedSection)}
+
+${card(`
+  ${h2('👥 Team Workload')}
+  <table style="width:100%;border-collapse:collapse">
+    <thead><tr style="background:#F9F9F7">
+      <th style="padding:7px 10px;font-size:10px;font-weight:600;color:#9A9A92;text-align:left;text-transform:uppercase;letter-spacing:.5px">Member</th>
+      <th style="padding:7px 10px;font-size:10px;font-weight:600;color:#6B7280;text-align:center;text-transform:uppercase;letter-spacing:.5px">Todo</th>
+      <th style="padding:7px 10px;font-size:10px;font-weight:600;color:#3B82F6;text-align:center;text-transform:uppercase;letter-spacing:.5px">In Progress</th>
+      <th style="padding:7px 10px;font-size:10px;font-weight:600;color:#F59E0B;text-align:center;text-transform:uppercase;letter-spacing:.5px">Review</th>
+      <th style="padding:7px 10px;font-size:10px;font-weight:600;color:#22C55E;text-align:center;text-transform:uppercase;letter-spacing:.5px">Done Wk</th>
+    </tr></thead>
+    <tbody>${workloadRows}</tbody>
+  </table>`)}
+
+${overdue.length > 0 ? card(h2('⚠️ Overdue Tasks') + overdueSection, '#FECACA') : ''}
+
+<div style="font-size:11px;color:#9A9A92;text-align:center;margin-top:4px;padding-bottom:8px">Sent from Chope · ${location.href}</div>
+</div></body></html>`;
+
+  const rawEmail = [
+    `To: me`,
+    `Subject: Chope Weekly Audit — ${weekLabel}`,
+    `MIME-Version: 1.0`,
+    `Content-Type: text/html; charset=utf-8`,
+    ``,
+    html
+  ].join('\r\n');
+  const encoded = btoa(unescape(encodeURIComponent(rawEmail))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+
+  try {
+    const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + gmailToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ raw: encoded })
+    });
+    if (res.ok) {
+      localStorage.setItem('chope_weekly_audit_sent', now.toISOString());
+      updateWeeklyAuditAge();
+      toast('Weekly audit sent to your Gmail!');
+    } else {
+      toast('Failed to send — check Gmail permissions');
+    }
+  } catch {
+    toast('Error sending weekly audit');
+  } finally {
+    if (btn) { btn.disabled = false; btn.querySelector('span').textContent = '📊 Weekly Audit'; }
+  }
+}
+
 /* ══════════════════════════════════════════════════════════
    INIT
 ══════════════════════════════════════════════════════════ */
@@ -3486,6 +3638,7 @@ if (window.self === window.top) {
     }
 
     renderAll();
+    updateWeeklyAuditAge();
     setInterval(renderAll, 60000);
     setupGmailAuth();
   }
