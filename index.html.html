@@ -800,6 +800,7 @@ textarea.fi{resize:vertical;min-height:72px}
 }
 #selBar .sel-clear-btn:hover{color:#fff}
 </style>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -1749,7 +1750,7 @@ function renderBoard() {
   const ft = filteredTasks();
   let html = '';
   Object.entries(COLS).forEach(([key, col]) => {
-    const colTasks = ft.filter(t => t.status === key);
+    const colTasks = ft.filter(t => t.status === key).sort((a,b) => {const po={high:0,med:1,low:2}; return (po[a.priority]??1)-(po[b.priority]??1);});
     html += `
       <div class="kol" id="kol-${key}"
         ondragover="dragOver(event,'${key}')"
@@ -3096,8 +3097,19 @@ async function createCalendarEvent(taskId) {
 
 const GMAIL_CLIENT_ID = '1052353371305-ibjabb8j5o8okn4ou5a05q8g1ta3s3li.apps.googleusercontent.com';
 const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events';
-let gmailToken = sessionStorage.getItem('gmailToken') || null;
+let gmailToken = null; // validated async below
 let gmailOpen  = false;
+// Discard any stored token that isn't from the correct OAuth client
+(async () => {
+  const _stored = sessionStorage.getItem('gmailToken');
+  if (!_stored) return;
+  try {
+    const _ti = await fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + _stored).then(r => r.json());
+    if ((_ti.scope||'').includes('gmail') && (_ti.aud||'').startsWith(GMAIL_CLIENT_ID.split('-')[0])) {
+      gmailToken = _stored;
+    } else { sessionStorage.removeItem('gmailToken'); }
+  } catch { sessionStorage.removeItem('gmailToken'); }
+})();
 
 // If a token was restored from sessionStorage, update the Gmail panel UI
 if (gmailToken) {
@@ -3208,51 +3220,46 @@ function closeGmailPanel() {
   document.getElementById('gmailHdrBtn').style.background = '';
 }
 
-async function gmailSignIn() {
+function gmailSignIn() {
   const btn = document.getElementById('gmailSignInBtn');
   if (btn) { btn.textContent = 'Signing in…'; btn.disabled = true; }
-  // Prefer Firebase popup (no redirect, session persists forever)
-  if (window._chopeFb?.signInWithGmail) {
-    try {
-      const result = await window._chopeFb.signInWithGmail();
-      const token  = window._chopeFb.getGmailToken(result);
-      if (token) {
-        gmailToken = token;
-        sessionStorage.setItem('gmailToken', token);
-        localStorage.setItem('gmailAuthorized', '1');
-        const displayName = result.user.displayName || '';
-        const firstName   = displayName.split(' ')[0];
-        const matched = team.find(m => m.name === displayName)
-          || team.find(m => m.name.toLowerCase().startsWith(firstName.toLowerCase()))
-          || team.find(m => firstName.toLowerCase().startsWith(m.name.split(' ')[0].toLowerCase()));
-        if (matched) {
-          localStorage.removeItem('chope_user_manually_set');
-          state.currentUser = matched.name;
-          localStorage.setItem('chope_user', matched.name);
-          renderHeader();
-          toast(`Welcome, ${matched.name.split(' ')[0]}! 👋`);
-        }
-        document.getElementById('gmailBody').innerHTML = `
-          <div style="text-align:center;padding:20px 0">
-            <div style="font-size:20px;margin-bottom:6px">✅</div>
-            <div style="font-size:13px;font-weight:600">Gmail connected!</div>
-            <div style="font-size:11px;color:var(--t3);margin-top:4px">Click "Scan Inbox" to find actionable emails.</div>
-          </div>`;
-        document.getElementById('gmailFooter').style.display = 'flex';
-      } else {
-        // Firebase popup gave no token — fall back to OAuth redirect (always works)
-        _gmailOAuthRedirect();
+
+  function _onToken(token) {
+    gmailToken = token;
+    sessionStorage.setItem('gmailToken', token);
+    localStorage.setItem('gmailAuthorized', '1');
+    document.getElementById('gmailBody').innerHTML = `
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:20px;margin-bottom:6px">✅</div>
+        <div style="font-size:13px;font-weight:600">Gmail connected!</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:4px">Click "Scan Inbox" to find actionable emails.</div>
+      </div>`;
+    document.getElementById('gmailFooter').style.display = 'flex';
+    if (btn) { btn.textContent = 'Sign in with Google'; btn.disabled = false; }
+  }
+
+  // Use Google Identity Services token client — works from any origin, no redirect needed
+  if (window.google?.accounts?.oauth2) {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: GMAIL_CLIENT_ID,
+      scope: GMAIL_SCOPES,
+      prompt: 'consent',
+      callback: (resp) => {
+        if (resp.access_token) { _onToken(resp.access_token); }
+        else { if (btn) { btn.textContent = 'Sign in with Google'; btn.disabled = false; } toast('Sign in failed — try again'); }
+      },
+      error_callback: (err) => {
+        if (btn) { btn.textContent = 'Sign in with Google'; btn.disabled = false; }
+        if (err.type !== 'popup_closed') toast('Sign in failed — try again');
       }
-    } catch(e) {
-      if (btn) { btn.textContent = 'Sign in with Google'; btn.disabled = false; }
-      if (e.code !== 'auth/popup-closed-by-user') toast('Sign in failed — try again');
-    }
+    });
+    client.requestAccessToken();
     return;
   }
-  // Fallback: redirect flow (no Firebase)
+
+  // Fallback: page redirect (works on deployed origins)
   _gmailOAuthRedirect();
 }
-
 function _gmailOAuthRedirect() {
   const params = new URLSearchParams({
     client_id: GMAIL_CLIENT_ID,
@@ -3307,6 +3314,17 @@ async function gmailScanInbox() {
   const btn = document.getElementById('gmailScanBtn');
   btn.textContent = 'Scanning…'; btn.disabled = true;
   try {
+    // Check token has Gmail scopes
+    const _ti = await fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + gmailToken).then(r => r.json());
+    // Wrong OAuth client (old Firebase token) or missing scope — wipe and force reconnect
+    const _hasScope = (_ti.scope || '').includes('gmail');
+    const _rightClient = (_ti.aud || '').startsWith(GMAIL_CLIENT_ID.split('-')[0]);
+    if (!_hasScope || !_rightClient) {
+      gmailToken = null; sessionStorage.removeItem('gmailToken');
+      document.getElementById('gmailBody').innerHTML = '<div style="text-align:center;padding:24px 16px"><p style="color:#EF4444;font-size:12px;margin-bottom:12px">⚠️ Please reconnect Gmail to continue.</p><button class="btn-add" onclick="gmailSignIn()" style="width:100%">Reconnect Gmail</button></div>';
+      document.getElementById('gmailFooter').style.display = 'none';
+      return;
+    }
     const listRes = await fetch(
       'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q=is:unread -category:promotions -category:social',
       { headers: { Authorization: 'Bearer ' + gmailToken } }
