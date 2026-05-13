@@ -3311,12 +3311,17 @@ async function gmailScanInbox() {
       'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q=is:unread -category:promotions -category:social',
       { headers: { Authorization: 'Bearer ' + gmailToken } }
     );
-    if (listRes.status === 401) {
-      gmailToken = null;
-      sessionStorage.removeItem('gmailToken');
-      await gmailSignIn();
-      if (gmailToken) { await gmailScanInbox(); }
-      return;
+    if (!listRes.ok) {
+      const errBody = await listRes.json().catch(() => ({}));
+      const errMsg  = errBody.error?.message || ('HTTP ' + listRes.status);
+      if (listRes.status === 401) {
+        gmailToken = null;
+        sessionStorage.removeItem('gmailToken');
+        document.getElementById('gmailBody').innerHTML = "<div style='text-align:center;padding:30px 20px'><div style='font-size:20px;margin-bottom:8px'>🔑</div><div style='font-size:13px;font-weight:600;margin-bottom:8px'>Session expired — reconnect Gmail</div><button class='btn-add' onclick='gmailSignIn()' style='width:100%'>Reconnect Gmail</button></div>";
+        document.getElementById('gmailFooter').style.display = 'none';
+        return;
+      }
+      throw new Error('Gmail API error (' + listRes.status + '): ' + errMsg);
     }
     const listData = await listRes.json();
     const messages = listData.messages || [];
@@ -3465,7 +3470,7 @@ if (window.self === window.top) {
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
   import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-analytics.js";
   import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
-  import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-auth.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, reauthenticateWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyD6I9vLBzuMdRLCeral6IZ-daH4gTDnUzU",
@@ -3499,7 +3504,7 @@ if (window.self === window.top) {
     // Identity sign-in (no warning)
     signInWithGoogle:  ()     => signInWithPopup(auth, identityProvider),
     // Gmail sign-in (warning appears, but only for Gmail, not for app login)
-    signInWithGmail:   ()     => signInWithPopup(auth, gmailProvider),
+    signInWithGmail:   ()     => auth.currentUser ? reauthenticateWithPopup(auth.currentUser, gmailProvider) : signInWithPopup(auth, gmailProvider),
     getGmailToken:     result => GoogleAuthProvider.credentialFromResult(result)?.accessToken
                               || result?._tokenResponse?.oauthAccessToken
                               || null,
