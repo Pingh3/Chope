@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -764,6 +764,41 @@ textarea.fi{resize:vertical;min-height:72px}
   background:var(--t1);color:#fff;border-radius:20px;
   padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap;
 }
+/* ── Batch selection ─────────────────────────────────────── */
+.card.card-selected{
+  outline:2px solid #3B82F6;
+  outline-offset:1px;
+  background:#EFF6FF !important;
+}
+.card.card-selected.card-done{opacity:.7}
+#selBar{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:#1E293B;color:#fff;
+  border-radius:12px;padding:10px 18px;
+  display:flex;align-items:center;gap:12px;
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
+  z-index:9999;
+  font-size:13px;font-weight:600;
+  animation:selBarIn .15s ease;
+  white-space:nowrap;
+}
+@keyframes selBarIn{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+#selBar kbd{
+  background:rgba(255,255,255,.15);border-radius:4px;
+  padding:1px 6px;font-size:11px;font-family:inherit;font-weight:500;
+}
+#selBar .sel-del-btn{
+  background:#EF4444;color:#fff;border:none;border-radius:8px;
+  padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;
+  transition:background .12s;
+}
+#selBar .sel-del-btn:hover{background:#DC2626}
+#selBar .sel-clear-btn{
+  background:transparent;color:rgba(255,255,255,.6);border:none;
+  font-size:12px;cursor:pointer;padding:0;
+  transition:color .12s;
+}
+#selBar .sel-clear-btn:hover{color:#fff}
 </style>
 </head>
 <body>
@@ -1159,6 +1194,14 @@ textarea.fi{resize:vertical;min-height:72px}
 
 <!-- Toasts -->
 <div id="toasts"></div>
+
+<!-- Batch selection bar -->
+<div id="selBar" style="display:none">
+  <span id="selCount"></span>
+  <button class="sel-del-btn" onclick="deleteSelected()">Delete selected</button>
+  <span style="color:rgba(255,255,255,.4)">·</span>
+  <button class="sel-clear-btn" onclick="clearSelection()">Clear &nbsp;<kbd>Esc</kbd></button>
+</div>
 
 <script>
 /* Silent Gmail re-auth iframe handler — must be first */
@@ -1737,15 +1780,16 @@ function cardHTML(t) {
   const prioLabel = { high: 'High', med: 'Medium', low: 'Low' }[t.priority] || t.priority;
 
   const isDone = t.status === 'done';
+  const isSel  = selectedTaskIds.has(t.id);
   return `
-    <div class="card ${urgent||over?'urgent-card':''} ${isDone?'card-done':''}"
+    <div class="card ${urgent||over?'urgent-card':''} ${isDone?'card-done':''} ${isSel?'card-selected':''}"
       draggable="true"
       data-id="${t.id}"
       ondragstart="dragStart(event,'${t.id}')"
       ondragend="dragEnd(event)"
-      onmouseenter="hoveredCardId='${t.id}'"
       onmouseleave="hoveredCardId=null"
-      onclick="openTaskModal('${t.id}')">
+      onmouseenter="hoveredCardId='${t.id}'; if(event.ctrlKey) selectCard('${t.id}')"
+      onclick="if(event.ctrlKey){event.stopPropagation();toggleSelectCard('${t.id}')}else{openTaskModal('${t.id}')}">
       <button class="card-check ${isDone?'checked':''}" onclick="toggleTaskDone('${t.id}');event.stopPropagation()" title="Mark ${isDone?'incomplete':'complete'} (C)">
         <svg viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="1.5,5 4,7.5 8.5,2.5"/>
@@ -2288,6 +2332,8 @@ function openTaskModalForWs(wsId) {
 }
 
 let hoveredCardId = null;
+let selectedTaskIds = new Set();
+let focusedCardId = null;
 
 function toggleTaskDone(id) {
   const t = tasks.find(x => x.id === id);
@@ -2381,6 +2427,75 @@ function duplicateTask(id) {
   toast(`Duplicated: "${t.name.slice(0,28)}"`);
 }
 
+/* ══════════════════════════════════════════════════════════
+   BATCH SELECTION
+══════════════════════════════════════════════════════════ */
+
+function updateSelectionBar() {
+  const bar = document.getElementById('selBar');
+  const cnt = document.getElementById('selCount');
+  if (selectedTaskIds.size === 0) { bar.style.display = 'none'; return; }
+  cnt.textContent = selectedTaskIds.size + ' task' + (selectedTaskIds.size !== 1 ? 's' : '') + ' selected';
+  bar.style.display = 'flex';
+}
+
+function selectCard(id) {
+  selectedTaskIds.add(id);
+  focusedCardId = id;
+  const el = document.querySelector('.card[data-id="' + id + '"]');
+  if (el) { el.classList.add('card-selected'); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  updateSelectionBar();
+}
+
+function toggleSelectCard(id) {
+  if (selectedTaskIds.has(id)) {
+    selectedTaskIds.delete(id);
+    document.querySelector('.card[data-id="' + id + '"]')?.classList.remove('card-selected');
+    focusedCardId = selectedTaskIds.size > 0 ? [...selectedTaskIds].at(-1) : null;
+  } else {
+    selectCard(id);
+    return;
+  }
+  updateSelectionBar();
+}
+
+function clearSelection() {
+  selectedTaskIds.clear();
+  focusedCardId = null;
+  document.querySelectorAll('.card.card-selected').forEach(el => el.classList.remove('card-selected'));
+  updateSelectionBar();
+}
+
+function deleteSelected() {
+  if (selectedTaskIds.size === 0) return;
+  const ids = [...selectedTaskIds];
+  const count = ids.length;
+  ids.forEach(id => { const t = tasks.find(x => x.id === id); if (t) _tdDelete(t.todoistId); });
+  tasks = tasks.filter(t => !selectedTaskIds.has(t.id));
+  clearSelection();
+  persist(); renderAll();
+  toast('🗑 Deleted ' + count + ' task' + (count !== 1 ? 's' : ''));
+}
+
+function _getBoardNavOrder() {
+  const ft = filteredTasks();
+  const ordered = [];
+  Object.keys(COLS).forEach(col => ft.filter(t => t.status === col).forEach(t => ordered.push({ id: t.id, col })));
+  return ordered;
+}
+
+function selectAdjacentCard(dir) {
+  const ordered = _getBoardNavOrder();
+  if (!ordered.length) return;
+  const curIdx = focusedCardId ? ordered.findIndex(x => x.id === focusedCardId) : -1;
+  let nextIdx;
+  if (dir === 'down' || dir === 'right') {
+    nextIdx = curIdx === -1 ? 0 : Math.min(curIdx + 1, ordered.length - 1);
+  } else {
+    nextIdx = curIdx <= 0 ? 0 : curIdx - 1;
+  }
+  selectCard(ordered[nextIdx].id);
+}
 let _lastDeleted = null;
 function deleteTaskDirect(id) {
   const t = tasks.find(x => x.id === id);
@@ -2389,6 +2504,7 @@ function deleteTaskDirect(id) {
   _lastDeleted = { task: { ...t }, index: tasks.indexOf(t) };
   tasks = tasks.filter(x => x.id !== id);
   hoveredCardId = null;
+  selectedTaskIds.delete(id); updateSelectionBar();
   persist(); renderAll();
   const box = document.getElementById('toasts');
   const el = document.createElement('div');
@@ -2725,6 +2841,7 @@ document.addEventListener('keydown', e => {
   const anyOpen = document.querySelector('.overlay.open');
 
   if (e.key === 'Escape') {
+    if (selectedTaskIds.size > 0) { clearSelection(); return; }
     closeTaskModal(); closeWsModal(); closeTeamModal(); closeShortcutsModal();
   }
 
@@ -2736,6 +2853,14 @@ document.addEventListener('keydown', e => {
   }
 
   if ((e.metaKey||e.ctrlKey) && e.key === 'k') { e.preventDefault(); openTaskModal(); return; }
+
+  if (e.ctrlKey && !e.metaKey && !typing && !anyOpen) {
+    if (e.key === 'ArrowDown')  { e.preventDefault(); selectAdjacentCard('down');  return; }
+    if (e.key === 'ArrowUp')    { e.preventDefault(); selectAdjacentCard('up');    return; }
+    if (e.key === 'ArrowRight') { e.preventDefault(); selectAdjacentCard('right'); return; }
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); selectAdjacentCard('left');  return; }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedTaskIds.size > 0) { e.preventDefault(); deleteSelected(); return; }
+  }
 
   if (typing || anyOpen) return;
 
