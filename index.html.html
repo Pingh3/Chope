@@ -551,8 +551,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .ws-card{
   background:var(--card);border:1px solid var(--border);
   border-radius:10px;box-shadow:var(--sh);overflow:hidden;
-  padding-bottom:3px;
+  padding-bottom:3px;transition:border-color .15s,box-shadow .15s;
 }
+.ws-card.ws-drag-over{border-color:#3B82F6!important;box-shadow:0 0 0 3px #BFDBFE}
+.ws-unassigned-zone{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  padding:10px 14px;margin-bottom:14px;transition:border-color .15s,box-shadow .15s;
+}
+.ws-unassigned-zone.ws-drag-over{border-color:#6B7280;box-shadow:0 0 0 3px #E5E7EB}
+.ws-unassigned-hd{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.ws-drag-chips{display:flex;flex-wrap:wrap;gap:6px;min-height:28px}
+.ws-drag-chip{
+  display:flex;align-items:center;gap:5px;background:var(--bg);
+  border:1px solid var(--border);border-radius:5px;padding:4px 9px;
+  font-size:11px;cursor:grab;user-select:none;transition:all .12s;
+}
+.ws-drag-chip:hover{border-color:#3B82F6;color:#3B82F6}
+.ws-drag-chip:active{cursor:grabbing;opacity:.6}
+.ws-task-row{cursor:grab}
+.ws-task-row.dragging{opacity:.35}
 .ws-card-hd{
   padding:14px 16px 10px;
   display:flex;align-items:center;gap:10px;
@@ -1079,6 +1096,7 @@ textarea.fi{resize:vertical;min-height:72px}
     <h1>Workstreams &amp; Projects</h1>
     <button class="btn-ws" onclick="openWsModal()">+ New Workstream</button>
   </div>
+  <div id="wsUnassigned"></div>
   <div class="ws-grid" id="wsGrid"></div>
 </div>
 
@@ -2445,6 +2463,29 @@ function renderMyWeek() {
 ══════════════════════════════════════════════════════════ */
 
 function renderWsView() {
+  // Unassigned tasks zone
+  const unassigned = tasks.filter(t => !t.ws && t.status !== 'done');
+  document.getElementById('wsUnassigned').innerHTML = `
+    <div class="ws-unassigned-zone" id="wsUnassignedZone"
+      ondragover="wsDragOver(event,null)" ondragleave="wsDragLeave(event)" ondrop="wsDrop(event,null)">
+      <div class="ws-unassigned-hd">Unassigned tasks <span style="font-weight:400;font-size:10px;text-transform:none;letter-spacing:0">(drag into a workstream below)</span></div>
+      <div class="ws-drag-chips">
+        ${unassigned.length
+          ? unassigned.map(t => {
+              const pCol = {high:'#EF4444',med:'#F59E0B',low:'#94A3B8'}[t.priority] || '#94A3B8';
+              return `<div class="ws-drag-chip" draggable="true"
+                data-id="${t.id}"
+                ondragstart="dragStart(event,'${t.id}')"
+                ondragend="dragEnd(event)">
+                <span style="width:6px;height:6px;border-radius:50%;background:${pCol};flex-shrink:0;display:inline-block"></span>
+                ${esc(t.name.length>32 ? t.name.slice(0,32)+'…' : t.name)}
+              </div>`;
+            }).join('')
+          : `<span style="font-size:11px;color:var(--t3)">All tasks are assigned to a workstream</span>`
+        }
+      </div>
+    </div>`;
+
   if (!workstreams.length) {
     document.getElementById('wsGrid').innerHTML =
       `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--t3)">
@@ -2459,7 +2500,10 @@ function renderWsView() {
     const pct   = wsTasks.length ? Math.round(done / wsTasks.length * 100) : 0;
     const pctColor = pct >= 75 ? '#059669' : pct >= 40 ? '#3B82F6' : '#F59E0B';
     return `
-      <div class="ws-card">
+      <div class="ws-card" id="wscard-${ws.id}"
+        ondragover="wsDragOver(event,'${ws.id}')"
+        ondragleave="wsDragLeave(event)"
+        ondrop="wsDrop(event,'${ws.id}')">
         <div class="ws-card-hd">
           <div class="ws-dot" style="background:${ws.color}"></div>
           <div style="flex:1;min-width:0">
@@ -2481,13 +2525,16 @@ function renderWsView() {
           ${wsTasks.length ? [...wsTasks].sort((a,b) => {const po={high:0,med:1,low:2}; return (po[a.priority]??1)-(po[b.priority]??1);}).map(t => {
             const cat  = CATEGORIES[t.cat] || { color: '#999', bg: '#F9F9F9' };
             const pCol = {high:'#EF4444',med:'#F59E0B',low:'#94A3B8'}[t.priority];
-            const done = t.status === 'done';
-            return `<div class="ws-task-row" onclick="openTaskModal('${t.id}')">
+            const isDone = t.status === 'done';
+            return `<div class="ws-task-row" draggable="true" data-id="${t.id}"
+              ondragstart="dragStart(event,'${t.id}')"
+              ondragend="dragEnd(event)"
+              onclick="openTaskModal('${t.id}')">
               <div class="prio-dot" style="background:${pCol}"></div>
-              <div class="ws-task-name" style="${done?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.name)}</div>
+              <div class="ws-task-name" style="${isDone?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.name)}</div>
               <span class="cat-badge" style="background:${cat.bg};color:${cat.color};margin-bottom:0;font-size:9px">${esc(CATEGORIES[t.cat]?.label||t.cat)}</span>
             </div>`;
-          }).join('') : `<div class="ws-empty">No tasks yet</div>`}
+          }).join('') : `<div class="ws-empty">Drop tasks here or use + below</div>`}
         </div>
         <div class="ws-existing-row">
           <select class="ws-existing-sel" id="wsExSel-${ws.id}">
@@ -2557,8 +2604,32 @@ function dragStart(e, id) {
   setTimeout(() => document.querySelector(`[data-id="${id}"]`)?.classList.add('dragging'), 0);
 }
 function dragEnd(e) {
-  document.querySelectorAll('.card').forEach(c => c.classList.remove('dragging'));
+  document.querySelectorAll('.card,.ws-task-row,.ws-drag-chip').forEach(c => c.classList.remove('dragging'));
   document.querySelectorAll('.kol-body').forEach(b => b.classList.remove('drag-over'));
+  document.querySelectorAll('.ws-card,.ws-unassigned-zone').forEach(c => c.classList.remove('ws-drag-over'));
+}
+function wsDragOver(e, wsId) {
+  e.preventDefault(); e.stopPropagation();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.ws-card,.ws-unassigned-zone').forEach(c => c.classList.remove('ws-drag-over'));
+  if (wsId) document.getElementById('wscard-' + wsId)?.classList.add('ws-drag-over');
+  else document.getElementById('wsUnassignedZone')?.classList.add('ws-drag-over');
+}
+function wsDragLeave(e) {
+  if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('ws-drag-over');
+}
+function wsDrop(e, wsId) {
+  e.preventDefault(); e.stopPropagation();
+  document.querySelectorAll('.ws-card,.ws-unassigned-zone').forEach(c => c.classList.remove('ws-drag-over'));
+  if (!dragId) return;
+  const t = tasks.find(x => x.id === dragId);
+  const newWs = wsId || null;
+  if (t && t.ws !== newWs) {
+    t.ws = newWs;
+    persist(); renderWsView();
+    toast(`Moved to ${newWs ? (workstreams.find(w => w.id === newWs)?.name || 'workstream') : 'Unassigned'}`);
+  }
+  dragId = null;
 }
 function dragOver(e, col) {
   e.preventDefault();
