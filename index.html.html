@@ -1316,13 +1316,13 @@ textarea.fi{resize:vertical;min-height:72px}
             <div class="sel-dot" id="dot-wsColor"></div>
             <select class="fi" id="wsColor" onchange="document.getElementById('dot-wsColor').style.background=this.value">
               <option value="#4F46E5">Indigo</option>
-              <option value="#0891B2">Blue</option>
-              <option value="#059669">Green</option>
-              <option value="#D97706">Amber</option>
-              <option value="#DC2626">Red</option>
+              <option value="#0891B2">Cyan</option>
+              <option value="#0369A1">Sky Blue</option>
+              <option value="#0D9488">Teal</option>
+              <option value="#1E3A8A">Navy</option>
               <option value="#7C3AED">Purple</option>
-              <option value="#DB2777">Pink</option>
-              <option value="#EA580C">Orange</option>
+              <option value="#C026D3">Fuchsia</option>
+              <option value="#92400E">Brown</option>
             </select>
           </div>
         </div>
@@ -1504,13 +1504,13 @@ if (window.self !== window.top) {
 
 const CATEGORIES = {
   portfolio:  { label: 'Portfolio',            color: '#7C3AED', bg: '#F5F3FF' },
-  asset:      { label: 'Asset Management',     color: '#059669', bg: '#ECFDF5' },
+  asset:      { label: 'Asset Management',     color: '#0369A1', bg: '#F0F9FF' },  // was green → sky blue
   debt:       { label: 'Debt & Capital',        color: '#0891B2', bg: '#ECFEFF' },
-  perf:       { label: 'Performance',           color: '#D97706', bg: '#FFFBEB' },
-  compliance: { label: 'Compliance',            color: '#DC2626', bg: '#FEF2F2' },
+  perf:       { label: 'Performance',           color: '#64748B', bg: '#F8FAFC' },  // was amber → slate
+  compliance: { label: 'Compliance',            color: '#334155', bg: '#F1F5F9' },  // was red → dark slate
   ir:         { label: 'IR & Reporting',        color: '#0D9488', bg: '#F0FDFA' },
-  acq:        { label: 'Acquisition',           color: '#EA580C', bg: '#FFF7ED' },
-  fund:       { label: 'Fund Raising',          color: '#DB2777', bg: '#FDF2F8' },
+  acq:        { label: 'Acquisition',           color: '#92400E', bg: '#FFF7ED' },  // was orange-red → dark amber-brown
+  fund:       { label: 'Fund Raising',          color: '#C026D3', bg: '#FDF4FF' },  // was pink → fuchsia
   projects:   { label: 'Projects',              color: '#4F46E5', bg: '#EEF2FF' },
   corp:       { label: 'Corporate Development', color: '#0284C7', bg: '#EFF6FF' },
   admin:      { label: 'Admin',                 color: '#6B7280', bg: '#F9FAFB' },
