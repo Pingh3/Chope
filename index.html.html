@@ -1530,7 +1530,7 @@ let state = {
   ws: 'all',
   currentUser: '',
 };
-let editTaskId = null, editWsId = null, dragId = null;
+let editTaskId = null, editWsId = null, dragId = null, winsExpanded = false;
 let suggestedPrio = 'med';
 
 /* ══════════════════════════════════════════════════════════
@@ -1992,6 +1992,7 @@ function loadWins() {
   try { return JSON.parse(localStorage.getItem(getWinsKey()) || '[]'); } catch { return []; }
 }
 function saveWins(ids) { localStorage.setItem(getWinsKey(), JSON.stringify(ids)); }
+function toggleWinsExpanded() { winsExpanded = !winsExpanded; renderMyWeek(); }
 function toggleWin(taskId) {
   const wins = loadWins();
   const idx = wins.indexOf(taskId);
@@ -2336,6 +2337,48 @@ function renderMyWeek() {
         <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:var(--r);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:13px;color:#DC2626">
           ⚠ <strong>${overdue.length} overdue task${overdue.length!==1?'s':''}</strong> — ${overdue.map(t=>`<span onclick="openTaskModal('${t.id}')" style="cursor:pointer;text-decoration:underline">${esc(t.name)}</span>`).join(', ')}
         </div>` : ''}
+      <div style="margin-bottom:20px" id="weekWinsSection">${(() => {
+          const pinnedIds = loadWins();
+          const wNow = new Date();
+          const wMon = new Date(wNow); wMon.setDate(wNow.getDate() - ((wNow.getDay()+6)%7));
+          const weekStartStr = wMon.toISOString().slice(0,10);
+          const allWins = tasks
+            .filter(t => t.status === 'done' && t.completedAt && t.completedAt.slice(0,10) >= weekStartStr)
+            .sort((a,b) => {
+              const ai = pinnedIds.indexOf(a.id), bi = pinnedIds.indexOf(b.id);
+              if (ai !== -1 && bi === -1) return -1;
+              if (bi !== -1 && ai === -1) return 1;
+              return new Date(b.completedAt) - new Date(a.completedAt);
+            });
+          const totalWins = allWins.length;
+          const displayWins = winsExpanded ? allWins : allWins.slice(0, 3);
+          const medals = ['🥇','🥈','🥉'];
+          const winRows = displayWins.length
+            ? displayWins.map((t, i) => {
+                const isPinned = pinnedIds.includes(t.id);
+                const pCol = PRIO_COLORS[t.priority];
+                const completedDate = t.completedAt ? new Date(t.completedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+                return `<div class="board-win-row" onclick="openTaskModal('${t.id}')">
+                  <span class="board-win-num">${!winsExpanded ? (medals[i]||'') : (isPinned ? medals[pinnedIds.indexOf(t.id)] || '📌' : '')}</span>
+                  <span style="width:7px;height:7px;border-radius:50%;background:${pCol};flex-shrink:0;display:inline-block"></span>
+                  <span class="board-win-name">${esc(t.name.length>34?t.name.slice(0,34)+'…':t.name)}</span>
+                  <span class="board-win-who">${esc(t.assignee.split(' ')[0])}</span>
+                  ${completedDate ? `<span style="font-size:10px;color:var(--t3);flex-shrink:0">${completedDate}</span>` : ''}
+                  <button class="board-win-rm" onclick="toggleWin('${t.id}');event.stopPropagation()" title="${isPinned?'Remove from top 3':'Pin to top 3'}" style="opacity:1;font-size:13px">${isPinned?'📌':'☆'}</button>
+                </div>`;
+              }).join('')
+            : `<div class="board-wins-empty">No wins yet this week.<br><span style="font-size:10px">Complete tasks to see them here.</span></div>`;
+          return `
+            <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;box-shadow:var(--sh)">
+              <div class="board-wins-hd">
+                <span class="board-wins-title">🏆 Top Wins This Week</span>
+                <span class="board-wins-badge ${totalWins===0?'zero':''}">${totalWins} completed</span>
+                ${totalWins > 0 ? `<button onclick="toggleWinsExpanded()" style="margin-left:auto;background:none;border:1px solid var(--border);border-radius:5px;padding:2px 9px;font-size:10px;color:var(--t3);cursor:pointer;font-family:inherit;transition:all .12s" onmouseover="this.style.borderColor='#3B82F6';this.style.color='#3B82F6'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--t3)'">${winsExpanded ? '▲ Show top 3' : `▼ View all (${totalWins})`}</button>` : ''}
+              </div>
+              ${winsExpanded ? `<div style="font-size:10px;color:var(--t3);margin-bottom:8px">☆ = pin to top 3 &nbsp;·&nbsp; 📌 = pinned (click to unpin)</div>` : ''}
+              <div style="${winsExpanded ? 'max-height:320px;overflow-y:auto' : ''}">${winRows}</div>
+            </div>`;
+        })()}</div>
       <div class="week-day-grid">
         <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;min-width:560px">
         ${week.map(dateStr => {
@@ -2392,43 +2435,6 @@ function renderMyWeek() {
         </div>
       </div>
 
-      <div style="margin-top:20px" id="weekWinsSection">
-        ${(() => {
-          const pinnedIds = loadWins();
-          const wNow = new Date();
-          const wMon = new Date(wNow); wMon.setDate(wNow.getDate() - ((wNow.getDay()+6)%7));
-          const weekStartStr = wMon.toISOString().slice(0,10);
-          const pinnedTasks = pinnedIds.map(id => tasks.find(t => t.id === id)).filter(Boolean);
-          const autoWins = tasks
-            .filter(t => t.status === 'done' && t.completedAt && t.completedAt.slice(0,10) >= weekStartStr && !pinnedIds.includes(t.id))
-            .sort((a,b) => new Date(b.completedAt) - new Date(a.completedAt));
-          const displayWins = [...pinnedTasks, ...autoWins].slice(0, 3);
-          const totalWins = tasks.filter(t => t.status === 'done' && t.completedAt && t.completedAt.slice(0,10) >= weekStartStr).length;
-          const medals = ['🥇','🥈','🥉'];
-          const winRows = displayWins.length
-            ? displayWins.map((t,i) => {
-                const isPinned = pinnedIds.includes(t.id);
-                const pCol = PRIO_COLORS[t.priority];
-                return `<div class="board-win-row" onclick="openTaskModal('${t.id}')">
-                  <span class="board-win-num">${medals[i]||i+1}</span>
-                  <span style="width:7px;height:7px;border-radius:50%;background:${pCol};flex-shrink:0;display:inline-block"></span>
-                  <span class="board-win-name">${esc(t.name.length>30?t.name.slice(0,30)+'…':t.name)}</span>
-                  <span class="board-win-who">${esc(t.assignee.split(' ')[0])}</span>
-                  <button class="board-win-rm" onclick="toggleWin('${t.id}');event.stopPropagation()" title="${isPinned?'Unpin win':'Pin win'}">${isPinned?'📌':'×'}</button>
-                </div>`;
-              }).join('')
-            : `<div class="board-wins-empty">No wins yet this week.<br><span style="font-size:10px">Complete tasks to see them here.</span></div>`;
-          return `
-            <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;box-shadow:var(--sh)">
-              <div class="board-wins-hd">
-                <span class="board-wins-title">🏆 Top Wins This Week</span>
-                <span class="board-wins-badge ${totalWins===0?'zero':''}">${totalWins} completed</span>
-              </div>
-              ${winRows}
-              ${totalWins > 3 ? `<div style="font-size:10px;color:var(--t3);text-align:center;padding-top:6px;border-top:1px solid var(--border);margin-top:4px">+${totalWins-3} more · hover a row to pin/unpin</div>` : ''}
-            </div>`;
-        })()}
-      </div>
     </div>`;
 
   document.getElementById('weekContent').innerHTML = html;
