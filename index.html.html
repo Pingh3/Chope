@@ -401,6 +401,50 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .board-quote-icon{font-size:18px;flex-shrink:0}
 .board-quote-text{font-size:12px;color:var(--t2);font-style:italic;line-height:1.5}
 .board-quote-author{font-size:10px;color:var(--t3);margin-top:2px;font-style:normal;font-weight:600}
+.board-wins{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  padding:10px 14px;flex:0 0 240px;box-shadow:var(--sh);display:flex;flex-direction:column;
+}
+.board-wins-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:6px}
+.board-wins-title{font-size:11px;font-weight:700;color:var(--t1);white-space:nowrap}
+.board-wins-badge{
+  background:#22C55E;color:#fff;border-radius:10px;
+  padding:1px 7px;font-size:10px;font-weight:700;
+}
+.board-wins-badge.zero{background:var(--border);color:var(--t3)}
+.board-wins-add{
+  margin-left:auto;background:none;border:1px dashed var(--border);
+  border-radius:5px;padding:2px 8px;font-size:10px;color:var(--t3);
+  cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .12s;
+}
+.board-wins-add:hover{border-color:var(--col-ip);color:var(--col-ip)}
+.board-win-row{
+  display:flex;align-items:center;gap:7px;
+  padding:5px 6px;border-radius:5px;cursor:pointer;
+  transition:background .1s;position:relative;
+}
+.board-win-row:hover{background:var(--bg)}
+.board-win-num{
+  font-size:10px;font-weight:800;color:var(--t3);
+  width:14px;text-align:center;flex-shrink:0;
+}
+.board-win-name{
+  font-size:11px;font-weight:500;color:var(--t1);
+  flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.board-win-who{
+  font-size:10px;color:var(--t3);flex-shrink:0;
+  background:var(--col);border-radius:10px;padding:1px 6px;
+}
+.board-win-rm{
+  position:absolute;right:2px;top:50%;transform:translateY(-50%);
+  background:none;border:none;cursor:pointer;color:var(--t3);font-size:13px;
+  opacity:0;transition:opacity .1s;padding:0 3px;line-height:1;
+}
+.board-win-row:hover .board-win-rm{opacity:1}
+.board-win-rm:hover{color:#EF4444}
+.board-wins-empty{font-size:11px;color:var(--t3);text-align:center;padding:10px 0;line-height:1.5}
+.board-wins-divider{font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;padding:4px 6px 2px;margin-top:2px}
 
 /* ── Daily View ──────────────────────────────────────────── */
 #dailyView{max-width:900px;margin:0 auto}
@@ -852,6 +896,69 @@ textarea.fi{resize:vertical;min-height:72px}
   transition:color .12s;
 }
 #selBar .sel-clear-btn:hover{color:#fff}
+
+/* ── Notification bell ───────────────────────────────── */
+.notif-btn{
+  position:relative;background:transparent;border:1px solid var(--border);
+  border-radius:var(--r);padding:5px 9px;font-size:14px;line-height:1;
+  cursor:pointer;color:var(--t2);transition:all .12s;display:flex;align-items:center;
+}
+.notif-btn:hover{border-color:var(--t2);color:var(--t1)}
+.notif-badge{
+  position:absolute;top:-5px;right:-5px;
+  background:#EF4444;color:#fff;border-radius:10px;
+  padding:1px 5px;font-size:9px;font-weight:700;line-height:1.4;
+  min-width:16px;text-align:center;display:none;
+}
+#notifPanel{
+  position:fixed;right:0;top:54px;bottom:0;width:320px;
+  background:var(--card);border-left:1px solid var(--border);
+  z-index:140;display:flex;flex-direction:column;
+  transform:translateX(100%);transition:transform .2s;
+  box-shadow:-4px 0 16px rgba(0,0,0,.08);
+}
+#notifPanel.open{transform:translateX(0)}
+.np-hd{
+  padding:13px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+}
+.np-title{font-size:13px;font-weight:700}
+.np-mark-all{font-size:11px;color:var(--col-ip);background:none;border:none;cursor:pointer;font-family:inherit;padding:0}
+.np-mark-all:hover{text-decoration:underline}
+.np-body{flex:1;overflow-y:auto}
+.np-item{
+  padding:11px 14px;border-bottom:1px solid var(--border);
+  cursor:pointer;transition:background .1s;
+}
+.np-item:hover{background:var(--bg)}
+.np-item.unread{background:#EFF6FF}
+.np-item.unread:hover{background:#DBEAFE}
+.np-task{font-size:11px;font-weight:700;color:var(--col-ip);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.np-text{font-size:12px;color:var(--t1);line-height:1.4;margin-bottom:4px}
+.np-meta{font-size:10px;color:var(--t3);display:flex;align-items:center;gap:5px}
+.np-dot{width:14px;height:14px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#fff;flex-shrink:0}
+.np-empty{padding:32px 16px;text-align:center;color:var(--t3);font-size:13px;line-height:1.6}
+
+/* ── Task notes thread ───────────────────────────────── */
+.notes-sep{border:none;border-top:1px solid var(--border);margin:6px 0 12px}
+.notes-hd{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);margin-bottom:9px}
+.note-thread{display:flex;flex-direction:column;gap:7px;max-height:180px;overflow-y:auto;margin-bottom:10px}
+.note-item{display:flex;gap:8px;align-items:flex-start}
+.note-av{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;flex-shrink:0;margin-top:1px}
+.note-bubble{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:7px 10px}
+.note-item.is-handoff .note-bubble{background:#FFF7ED;border-color:#FED7AA}
+.note-who{font-size:10px;font-weight:700;color:var(--t1);margin-bottom:2px}
+.note-txt{font-size:12px;color:var(--t2);line-height:1.4}
+.note-time{font-size:10px;color:var(--t3);margin-top:3px}
+.note-input-wrap{display:flex;gap:6px;align-items:flex-end}
+.note-ta{flex:1;resize:none;border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;font-size:12px;font-family:inherit;color:var(--t1);background:var(--card);outline:none;line-height:1.4;transition:border-color .12s}
+.note-ta:focus{border-color:#3B82F6}
+.note-post-btn{background:var(--t1);color:#fff;border:none;border-radius:var(--r);padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;height:36px}
+.note-post-btn:hover{background:#333}
+.handoff-box{background:#FFF7ED;border:1px solid #FED7AA;border-radius:var(--r);padding:9px 11px;margin-bottom:8px;display:none}
+.handoff-box.show{display:block}
+.handoff-box-label{font-size:11px;font-weight:600;color:#92400E;margin-bottom:5px}
+
 #selBar .sel-hint{font-size:10px;color:rgba(255,255,255,.4);margin-left:4px}
 
 /* ── Card select checkbox ─────────────────────────────── */
@@ -934,6 +1041,9 @@ textarea.fi{resize:vertical;min-height:72px}
   <button class="btn-ghost btn-ghost-team" style="font-size:12px;padding:5px 12px" onclick="openTeamModal()">⚙ Team</button>
   <button class="btn-ghost" style="font-size:12px;padding:5px 10px" onclick="toggleGmailPanel()" id="gmailHdrBtn" title="Gmail → Tasks">📧</button>
   <button class="btn-ghost btn-ghost-shortcuts" style="font-size:12px;padding:5px 10px" onclick="openShortcutsModal()" title="Keyboard shortcuts (?)">?</button>
+  <button class="notif-btn" id="notifBtn" onclick="toggleNotifPanel()" title="Team updates">
+    🔔<span class="notif-badge" id="notifBadge"></span>
+  </button>
   <button class="btn-add" onclick="openTaskModal()">+ Add Task</button>
 </header>
 
@@ -1056,7 +1166,7 @@ textarea.fi{resize:vertical;min-height:72px}
         <label>Assignee *</label>
         <div class="sel-wrap" id="assignee-wrap">
           <div class="sel-dot" id="dot-assignee"></div>
-          <select class="fi" id="fAssignee" onchange="updateSelDots()"></select>
+          <select class="fi" id="fAssignee" onchange="updateSelDots();onAssigneeChange()"></select>
         </div>
       </div>
       <div class="mf">
@@ -1139,6 +1249,17 @@ textarea.fi{resize:vertical;min-height:72px}
         <select class="fi" id="fWs" onchange="this.dataset.userSet='1'">
           <option value="">None</option>
         </select>
+      </div>
+      <hr class="notes-sep">
+      <div class="notes-hd">Notes & Handoffs</div>
+      <div class="handoff-box" id="handoffBox">
+        <div class="handoff-box-label">↗ Add a handoff note for the new assignee</div>
+        <textarea class="note-ta" id="handoffNote" rows="2" placeholder="e.g. Please check the latest term sheet before proceeding…" style="width:100%"></textarea>
+      </div>
+      <div class="note-thread" id="noteThread"></div>
+      <div class="note-input-wrap">
+        <textarea class="note-ta" id="noteInput" rows="2" placeholder="Add a comment…"></textarea>
+        <button class="note-post-btn" onclick="submitNote()">Post</button>
       </div>
     </div>
     <div class="modal-ft">
@@ -1302,6 +1423,16 @@ textarea.fi{resize:vertical;min-height:72px}
       </div>
     </div>
   </div>
+</div>
+
+<!-- Notifications panel -->
+<div id="notifPanel">
+  <div class="np-hd">
+    <span class="np-title">Team Updates</span>
+    <button class="np-mark-all" onclick="markAllNotifRead()">Mark all read</button>
+    <button onclick="closeNotifPanel()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--t3);padding:0;line-height:1;margin-left:8px">×</button>
+  </div>
+  <div class="np-body" id="notifPanelBody"></div>
 </div>
 
 <!-- Refocus modal -->
@@ -1707,6 +1838,7 @@ function renderHeader() {
   sel.innerHTML = team.map(m => `<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('');
   sel.value = state.currentUser || team[0]?.name || '';
   state.currentUser = sel.value;
+  updateNotifBadge();
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -1847,6 +1979,24 @@ function todayQuote() {
   return QUOTES[idx];
 }
 
+function getWinsKey() {
+  const now = new Date();
+  const mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay()+6)%7));
+  return 'chope_wins_' + mon.toISOString().slice(0,10);
+}
+function loadWins() {
+  try { return JSON.parse(localStorage.getItem(getWinsKey()) || '[]'); } catch { return []; }
+}
+function saveWins(ids) { localStorage.setItem(getWinsKey(), JSON.stringify(ids)); }
+function toggleWin(taskId) {
+  const wins = loadWins();
+  const idx = wins.indexOf(taskId);
+  if (idx === -1) { if (wins.length < 3) wins.push(taskId); else { toast('Already 3 wins pinned — remove one first'); return; } }
+  else wins.splice(idx, 1);
+  saveWins(wins);
+  renderBoardBanner();
+}
+
 function renderBoardBanner() {
   const todayStr = new Date().toISOString().slice(0, 10);
   const doneToday = tasks.filter(t =>
@@ -1862,6 +2012,39 @@ function renderBoardBanner() {
   else motivator = '🚀 Incredible pace today!';
 
   const q = todayQuote();
+
+  // Wins panel
+  const pinnedIds = loadWins();
+  const now = new Date();
+  const mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay()+6)%7));
+  const weekStartStr = mon.toISOString().slice(0,10);
+
+  // Pinned wins first, then auto-fill from this week's completions up to 3
+  const pinnedTasks = pinnedIds.map(id => tasks.find(t => t.id === id)).filter(Boolean);
+  const autoWins = tasks
+    .filter(t => t.status === 'done' && t.completedAt && t.completedAt.slice(0,10) >= weekStartStr && !pinnedIds.includes(t.id))
+    .sort((a,b) => new Date(b.completedAt) - new Date(a.completedAt));
+  const displayWins = [...pinnedTasks, ...autoWins].slice(0, 3);
+  const totalWins = tasks.filter(t => t.status === 'done' && t.completedAt && t.completedAt.slice(0,10) >= weekStartStr).length;
+
+  const winRowHTML = (t, rank, isPinned) => {
+    const pCol = PRIO_COLORS[t.priority];
+    const medals = ['🥇','🥈','🥉'];
+    return `<div class="board-win-row" onclick="openTaskModal('${t.id}')">
+      <span class="board-win-num">${medals[rank]||rank+1}</span>
+      <span style="width:7px;height:7px;border-radius:50%;background:${pCol};flex-shrink:0;display:inline-block"></span>
+      <span class="board-win-name">${esc(t.name.length>26?t.name.slice(0,26)+'…':t.name)}</span>
+      <span class="board-win-who">${esc(t.assignee.split(' ')[0])}</span>
+      <button class="board-win-rm" onclick="toggleWin('${t.id}');event.stopPropagation()" title="${isPinned?'Unpin win':'Pin win'}">
+        ${isPinned?'📌':'×'}
+      </button>
+    </div>`;
+  };
+
+  const winsHTML = displayWins.length
+    ? displayWins.map((t,i) => winRowHTML(t, i, pinnedIds.includes(t.id))).join('')
+    : `<div class="board-wins-empty">No wins yet this week.<br><span style="font-size:10px">Complete tasks to see them here.</span></div>`;
+
   document.getElementById('boardBanner').innerHTML = `
     <div class="board-progress-bar">
       <div>
@@ -1876,6 +2059,14 @@ function renderBoardBanner() {
         <div class="board-quote-text">"${esc(q.text)}"</div>
         <div class="board-quote-author">— ${esc(q.author)}</div>
       </div>
+    </div>
+    <div class="board-wins">
+      <div class="board-wins-hd">
+        <span class="board-wins-title">🏆 Top Wins</span>
+        <span class="board-wins-badge ${totalWins===0?'zero':''}">${totalWins} this week</span>
+      </div>
+      ${winsHTML}
+      ${totalWins > 3 ? `<div style="font-size:10px;color:var(--t3);text-align:center;padding-top:5px;border-top:1px solid var(--border);margin-top:4px">+${totalWins-3} more completed · hover to pin</div>` : ''}
     </div>`;
 }
 
@@ -2409,6 +2600,7 @@ function openTaskModal(id) {
     document.getElementById('fCat').value      = t.cat;
     document.getElementById('fFund').value     = t.fund || 'none';
     document.getElementById('fAssignee').value = t.assignee;
+    _origAssignee = t.assignee;
     document.getElementById('fPriority').value = t.priority;
     document.getElementById('fStatus').value    = t.status;
     document.getElementById('fStartDate').value = t.startDate || '';
@@ -2445,6 +2637,7 @@ function openTaskModal(id) {
     document.getElementById('fCat').value      = state.cat !== 'all' ? state.cat : '';
     document.getElementById('fFund').value     = state.fund !== 'all' && state.fund !== 'none' ? state.fund : 'none';
     document.getElementById('fAssignee').value = state.currentUser || '';
+    _origAssignee = null;
     document.getElementById('fPriority').value = 'med';
     document.getElementById('fStatus').value    = 'todo';
     document.getElementById('fStartDate').value = new Date().toISOString().slice(0,10);
@@ -2462,6 +2655,16 @@ function openTaskModal(id) {
   if (calBtn) calBtn.style.display = 'none';
   updateSelDots();
   resetPlanBox();
+  // Reset notes UI
+  document.getElementById('handoffBox').classList.remove('show');
+  const hn = document.getElementById('handoffNote'); if (hn) hn.value = '';
+  const ni = document.getElementById('noteInput'); if (ni) ni.value = '';
+  if (id) {
+    renderNoteThread(tasks.find(x=>x.id===id) || {});
+    markTaskNotesRead(id);
+  } else {
+    const el = document.getElementById('noteThread'); if (el) el.innerHTML = '';
+  }
   document.getElementById('taskOverlay').classList.add('open');
   setTimeout(() => document.getElementById('fName').focus(), 80);
 }
@@ -2531,6 +2734,14 @@ function saveTask() {
       if (deadline && t.deadline && deadline !== t.deadline) {
         if (!t.deadlineHistory) t.deadlineHistory = [];
         t.deadlineHistory.push({ changedBy: state.currentUser || 'Unknown', from: t.deadline, to: deadline, at: new Date().toISOString() });
+      }
+      // Add reassignment note if assignee changed
+      if (t.assignee !== assignee) {
+        if (!t.notes) t.notes = [];
+        const by = state.currentUser || 'Unknown';
+        t.notes.push({ id: uid(), author: '__system__', text: `Delegated from ${t.assignee} to ${assignee} by ${by}`, ts: new Date().toISOString(), type: 'handoff', readBy: [by] });
+        const hn = (document.getElementById('handoffNote')?.value || '').trim();
+        if (hn) t.notes.push({ id: uid(), author: by, text: hn, ts: new Date().toISOString(), type: 'handoff', readBy: [by] });
       }
       const wasDone = t.status === 'done';
       Object.assign(t, { name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws });
@@ -2712,6 +2923,163 @@ function schedRemoveTask(taskId, fromHour) {
 /* ══════════════════════════════════════════════════════════
    REFOCUS PROMPT
 ══════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════
+   NOTES & NOTIFICATIONS
+══════════════════════════════════════════════════════════ */
+
+let _origAssignee = null;
+
+function onAssigneeChange() {
+  const sel = document.getElementById('fAssignee');
+  const box = document.getElementById('handoffBox');
+  if (!box) return;
+  if (_origAssignee && sel.value && sel.value !== _origAssignee) {
+    box.classList.add('show');
+  } else {
+    box.classList.remove('show');
+    const hn = document.getElementById('handoffNote');
+    if (hn) hn.value = '';
+  }
+}
+
+function renderNoteThread(t) {
+  const el = document.getElementById('noteThread');
+  if (!el) return;
+  const notes = t.notes || [];
+  if (!notes.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--t3);padding:6px 0 2px">No notes yet.</div>';
+    return;
+  }
+  el.innerHTML = notes.map(n => {
+    const isSys = n.author === '__system__';
+    const col = isSys ? '#6B7280' : avatarColor(n.author);
+    const av = isSys ? '⚙' : esc(initials(n.author));
+    const who = isSys ? 'System' : esc(n.author);
+    const timeStr = new Date(n.ts).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    return `<div class="note-item ${n.type==='handoff'?'is-handoff':''}">
+      <div class="note-av" style="background:${col}">${av}</div>
+      <div class="note-bubble">
+        <div class="note-who">${who}</div>
+        <div class="note-txt">${esc(n.text)}</div>
+        <div class="note-time">${timeStr}</div>
+      </div>
+    </div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function submitNote() {
+  if (!editTaskId) return;
+  const input = document.getElementById('noteInput');
+  const text = (input?.value || '').trim();
+  if (!text) return;
+  const t = tasks.find(x => x.id === editTaskId);
+  if (!t) return;
+  if (!t.notes) t.notes = [];
+  t.notes.push({ id: uid(), author: state.currentUser || 'Unknown', text, ts: new Date().toISOString(), type: 'comment', readBy: [state.currentUser || ''] });
+  if (input) input.value = '';
+  persist();
+  renderNoteThread(t);
+  updateNotifBadge();
+}
+
+function markTaskNotesRead(taskId) {
+  const me = state.currentUser;
+  if (!me || !taskId) return;
+  const t = tasks.find(x => x.id === taskId);
+  if (!t || !t.notes) return;
+  let changed = false;
+  t.notes.forEach(n => {
+    if (n.author !== me && !(n.readBy || []).includes(me)) {
+      if (!n.readBy) n.readBy = [];
+      n.readBy.push(me);
+      changed = true;
+    }
+  });
+  if (changed) { persist(); updateNotifBadge(); }
+}
+
+function getUnreadNotes() {
+  const me = state.currentUser;
+  if (!me) return [];
+  const out = [];
+  tasks.forEach(t => {
+    (t.notes || []).forEach(n => {
+      if (n.author !== me && !(n.readBy || []).includes(me)) {
+        out.push({ taskId: t.id, taskName: t.name, note: n });
+      }
+    });
+  });
+  return out.sort((a,b) => new Date(b.note.ts) - new Date(a.note.ts));
+}
+
+function updateNotifBadge() {
+  const badge = document.getElementById('notifBadge');
+  if (!badge) return;
+  const count = getUnreadNotes().length;
+  badge.textContent = count > 9 ? '9+' : String(count);
+  badge.style.display = count > 0 ? 'block' : 'none';
+}
+
+function toggleNotifPanel() {
+  const panel = document.getElementById('notifPanel');
+  if (panel.classList.contains('open')) { closeNotifPanel(); }
+  else { renderNotifPanel(); panel.classList.add('open'); }
+}
+
+function closeNotifPanel() {
+  document.getElementById('notifPanel').classList.remove('open');
+}
+
+function renderNotifPanel() {
+  const me = state.currentUser;
+  const all = [];
+  tasks.forEach(t => {
+    (t.notes || []).forEach(n => {
+      const isUnread = n.author !== me && !(n.readBy || []).includes(me);
+      all.push({ taskId: t.id, taskName: t.name, note: n, isUnread });
+    });
+  });
+  all.sort((a,b) => new Date(b.note.ts) - new Date(a.note.ts));
+  const body = document.getElementById('notifPanelBody');
+  if (!all.length) {
+    body.innerHTML = '<div class="np-empty">No team updates yet.<br>Notes appear here when tasks are reassigned or comments are posted.</div>';
+    return;
+  }
+  body.innerHTML = all.slice(0, 30).map(item => {
+    const { note, taskName, taskId, isUnread } = item;
+    const isSys = note.author === '__system__';
+    const col = isSys ? '#6B7280' : avatarColor(note.author);
+    const av = isSys ? '⚙' : esc(initials(note.author));
+    const label = isSys ? 'System' : esc(note.author);
+    const timeStr = new Date(note.ts).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    return `<div class="np-item ${isUnread?'unread':''}" onclick="openTaskModal('${taskId}');closeNotifPanel()">
+      <div class="np-task">${esc(taskName)}</div>
+      <div class="np-text">${esc(note.text.length>90?note.text.slice(0,90)+'…':note.text)}</div>
+      <div class="np-meta">
+        <span class="np-dot" style="background:${col}">${av}</span>
+        <span>${label}</span><span>·</span><span>${timeStr}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function markAllNotifRead() {
+  const me = state.currentUser;
+  if (!me) return;
+  tasks.forEach(t => {
+    (t.notes || []).forEach(n => {
+      if (n.author !== me && !(n.readBy || []).includes(me)) {
+        if (!n.readBy) n.readBy = [];
+        n.readBy.push(me);
+      }
+    });
+  });
+  persist();
+  updateNotifBadge();
+  renderNotifPanel();
+}
 
 function checkRefocusPrompt() {
   const me = state.currentUser;
