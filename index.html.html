@@ -938,6 +938,10 @@ textarea.fi{resize:vertical;min-height:72px}
 .np-meta{font-size:10px;color:var(--t3);display:flex;align-items:center;gap:5px}
 .np-dot{width:14px;height:14px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#fff;flex-shrink:0}
 .np-empty{padding:32px 16px;text-align:center;color:var(--t3);font-size:13px;line-height:1.6}
+.np-item.handoff{border-left:3px solid #F97316}
+.np-item.handoff.unread{background:#FFF7ED}
+.np-item.handoff.unread:hover{background:#FFEDD5}
+.np-handoff-tag{display:inline-block;background:#F97316;color:#fff;border-radius:4px;font-size:9px;font-weight:700;padding:1px 5px;margin-right:5px;vertical-align:middle}
 
 /* ── Task notes thread ───────────────────────────────── */
 .notes-sep{border:none;border-top:1px solid var(--border);margin:6px 0 12px}
@@ -1994,7 +1998,7 @@ function toggleWin(taskId) {
   if (idx === -1) { if (wins.length < 3) wins.push(taskId); else { toast('Already 3 wins pinned — remove one first'); return; } }
   else wins.splice(idx, 1);
   saveWins(wins);
-  renderBoardBanner();
+  renderMyWeek();
 }
 
 function renderBoardBanner() {
@@ -2013,38 +2017,6 @@ function renderBoardBanner() {
 
   const q = todayQuote();
 
-  // Wins panel
-  const pinnedIds = loadWins();
-  const now = new Date();
-  const mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay()+6)%7));
-  const weekStartStr = mon.toISOString().slice(0,10);
-
-  // Pinned wins first, then auto-fill from this week's completions up to 3
-  const pinnedTasks = pinnedIds.map(id => tasks.find(t => t.id === id)).filter(Boolean);
-  const autoWins = tasks
-    .filter(t => t.status === 'done' && t.completedAt && t.completedAt.slice(0,10) >= weekStartStr && !pinnedIds.includes(t.id))
-    .sort((a,b) => new Date(b.completedAt) - new Date(a.completedAt));
-  const displayWins = [...pinnedTasks, ...autoWins].slice(0, 3);
-  const totalWins = tasks.filter(t => t.status === 'done' && t.completedAt && t.completedAt.slice(0,10) >= weekStartStr).length;
-
-  const winRowHTML = (t, rank, isPinned) => {
-    const pCol = PRIO_COLORS[t.priority];
-    const medals = ['🥇','🥈','🥉'];
-    return `<div class="board-win-row" onclick="openTaskModal('${t.id}')">
-      <span class="board-win-num">${medals[rank]||rank+1}</span>
-      <span style="width:7px;height:7px;border-radius:50%;background:${pCol};flex-shrink:0;display:inline-block"></span>
-      <span class="board-win-name">${esc(t.name.length>26?t.name.slice(0,26)+'…':t.name)}</span>
-      <span class="board-win-who">${esc(t.assignee.split(' ')[0])}</span>
-      <button class="board-win-rm" onclick="toggleWin('${t.id}');event.stopPropagation()" title="${isPinned?'Unpin win':'Pin win'}">
-        ${isPinned?'📌':'×'}
-      </button>
-    </div>`;
-  };
-
-  const winsHTML = displayWins.length
-    ? displayWins.map((t,i) => winRowHTML(t, i, pinnedIds.includes(t.id))).join('')
-    : `<div class="board-wins-empty">No wins yet this week.<br><span style="font-size:10px">Complete tasks to see them here.</span></div>`;
-
   document.getElementById('boardBanner').innerHTML = `
     <div class="board-progress-bar">
       <div>
@@ -2059,14 +2031,6 @@ function renderBoardBanner() {
         <div class="board-quote-text">"${esc(q.text)}"</div>
         <div class="board-quote-author">— ${esc(q.author)}</div>
       </div>
-    </div>
-    <div class="board-wins">
-      <div class="board-wins-hd">
-        <span class="board-wins-title">🏆 Top Wins</span>
-        <span class="board-wins-badge ${totalWins===0?'zero':''}">${totalWins} this week</span>
-      </div>
-      ${winsHTML}
-      ${totalWins > 3 ? `<div style="font-size:10px;color:var(--t3);text-align:center;padding-top:5px;border-top:1px solid var(--border);margin-top:4px">+${totalWins-3} more completed · hover to pin</div>` : ''}
     </div>`;
 }
 
@@ -2427,6 +2391,44 @@ function renderMyWeek() {
           }).join('')}
         </div>
       </div>
+
+      <div style="margin-top:20px" id="weekWinsSection">
+        ${(() => {
+          const pinnedIds = loadWins();
+          const wNow = new Date();
+          const wMon = new Date(wNow); wMon.setDate(wNow.getDate() - ((wNow.getDay()+6)%7));
+          const weekStartStr = wMon.toISOString().slice(0,10);
+          const pinnedTasks = pinnedIds.map(id => tasks.find(t => t.id === id)).filter(Boolean);
+          const autoWins = tasks
+            .filter(t => t.status === 'done' && t.completedAt && t.completedAt.slice(0,10) >= weekStartStr && !pinnedIds.includes(t.id))
+            .sort((a,b) => new Date(b.completedAt) - new Date(a.completedAt));
+          const displayWins = [...pinnedTasks, ...autoWins].slice(0, 3);
+          const totalWins = tasks.filter(t => t.status === 'done' && t.completedAt && t.completedAt.slice(0,10) >= weekStartStr).length;
+          const medals = ['🥇','🥈','🥉'];
+          const winRows = displayWins.length
+            ? displayWins.map((t,i) => {
+                const isPinned = pinnedIds.includes(t.id);
+                const pCol = PRIO_COLORS[t.priority];
+                return `<div class="board-win-row" onclick="openTaskModal('${t.id}')">
+                  <span class="board-win-num">${medals[i]||i+1}</span>
+                  <span style="width:7px;height:7px;border-radius:50%;background:${pCol};flex-shrink:0;display:inline-block"></span>
+                  <span class="board-win-name">${esc(t.name.length>30?t.name.slice(0,30)+'…':t.name)}</span>
+                  <span class="board-win-who">${esc(t.assignee.split(' ')[0])}</span>
+                  <button class="board-win-rm" onclick="toggleWin('${t.id}');event.stopPropagation()" title="${isPinned?'Unpin win':'Pin win'}">${isPinned?'📌':'×'}</button>
+                </div>`;
+              }).join('')
+            : `<div class="board-wins-empty">No wins yet this week.<br><span style="font-size:10px">Complete tasks to see them here.</span></div>`;
+          return `
+            <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;box-shadow:var(--sh)">
+              <div class="board-wins-hd">
+                <span class="board-wins-title">🏆 Top Wins This Week</span>
+                <span class="board-wins-badge ${totalWins===0?'zero':''}">${totalWins} completed</span>
+              </div>
+              ${winRows}
+              ${totalWins > 3 ? `<div style="font-size:10px;color:var(--t3);text-align:center;padding-top:6px;border-top:1px solid var(--border);margin-top:4px">+${totalWins-3} more · hover a row to pin/unpin</div>` : ''}
+            </div>`;
+        })()}
+      </div>
     </div>`;
 
   document.getElementById('weekContent').innerHTML = html;
@@ -2534,6 +2536,7 @@ function onUserChange() {
   state.currentUser = document.getElementById('currentUserSel').value;
   localStorage.setItem('chope_user', state.currentUser);
   localStorage.setItem('chope_user_manually_set', '1');
+  updateNotifBadge();
   if (state.view === 'daily') { renderDaily(); loadCalendarForDaily(); }
   if (state.view === 'week')  renderMyWeek();
 }
@@ -3006,7 +3009,8 @@ function getUnreadNotes() {
   const out = [];
   tasks.forEach(t => {
     (t.notes || []).forEach(n => {
-      if (n.author !== me && !(n.readBy || []).includes(me)) {
+      const isForMe = t.assignee === me || (n.type === 'handoff' && n.text.includes(` to ${me}`));
+      if (isForMe && n.author !== me && !(n.readBy || []).includes(me)) {
         out.push({ taskId: t.id, taskName: t.name, note: n });
       }
     });
@@ -3037,25 +3041,28 @@ function renderNotifPanel() {
   const all = [];
   tasks.forEach(t => {
     (t.notes || []).forEach(n => {
-      const isUnread = n.author !== me && !(n.readBy || []).includes(me);
+      const isForMe = t.assignee === me || (n.type === 'handoff' && n.text.includes(` to ${me}`));
+      if (!isForMe || n.author === me) return;
+      const isUnread = !(n.readBy || []).includes(me);
       all.push({ taskId: t.id, taskName: t.name, note: n, isUnread });
     });
   });
   all.sort((a,b) => new Date(b.note.ts) - new Date(a.note.ts));
   const body = document.getElementById('notifPanelBody');
   if (!all.length) {
-    body.innerHTML = '<div class="np-empty">No team updates yet.<br>Notes appear here when tasks are reassigned or comments are posted.</div>';
+    body.innerHTML = '<div class="np-empty">No updates for you yet.<br>Handoffs and comments on your tasks appear here.</div>';
     return;
   }
   body.innerHTML = all.slice(0, 30).map(item => {
     const { note, taskName, taskId, isUnread } = item;
+    const isHandoff = note.type === 'handoff';
     const isSys = note.author === '__system__';
     const col = isSys ? '#6B7280' : avatarColor(note.author);
     const av = isSys ? '⚙' : esc(initials(note.author));
     const label = isSys ? 'System' : esc(note.author);
     const timeStr = new Date(note.ts).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-    return `<div class="np-item ${isUnread?'unread':''}" onclick="openTaskModal('${taskId}');closeNotifPanel()">
-      <div class="np-task">${esc(taskName)}</div>
+    return `<div class="np-item ${isHandoff?'handoff':''} ${isUnread?'unread':''}" onclick="openTaskModal('${taskId}');closeNotifPanel()">
+      <div class="np-task">${isHandoff?'<span class="np-handoff-tag">HANDOFF</span>':''}${esc(taskName)}</div>
       <div class="np-text">${esc(note.text.length>90?note.text.slice(0,90)+'…':note.text)}</div>
       <div class="np-meta">
         <span class="np-dot" style="background:${col}">${av}</span>
