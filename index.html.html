@@ -428,6 +428,58 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .dt-meta{font-size:11px;color:var(--t3);margin-top:2px}
 .dt-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
 
+/* ── Schedule grid ───────────────────────────────────── */
+.sched-wrap{display:grid;grid-template-columns:210px 1fr;gap:14px;align-items:start}
+.sched-unscheduled{
+  background:var(--bg);border:1px solid var(--border);border-radius:10px;
+  padding:11px 12px;min-height:180px;transition:background .12s,border-color .12s;
+}
+.sched-unscheduled.sched-drag-over{background:#EFF6FF;border-color:#93C5FD}
+.sched-panel-hd{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:9px}
+.sched-chip{
+  background:var(--card);border:1px solid var(--border);border-radius:6px;
+  padding:7px 9px;margin-bottom:5px;cursor:grab;font-size:11px;font-weight:500;
+  color:var(--t1);display:flex;align-items:center;gap:7px;transition:box-shadow .12s;
+  user-select:none;
+}
+.sched-chip:hover{box-shadow:0 2px 6px rgba(0,0,0,.1)}
+.sched-chip:active{cursor:grabbing}
+.sched-slots{
+  border:1px solid var(--border);border-radius:10px;overflow:hidden;
+  background:var(--card);box-shadow:var(--sh);
+}
+.sched-row{
+  display:grid;grid-template-columns:58px 1fr;
+  border-bottom:1px solid var(--border);min-height:46px;
+}
+.sched-row:last-child{border-bottom:none}
+.sched-row.sched-now{background:#FEFCE8}
+.sched-hour-label{
+  padding:14px 8px;font-size:10px;font-weight:700;color:var(--t3);
+  border-right:1px solid var(--border);
+  display:flex;align-items:flex-start;justify-content:center;flex-shrink:0;
+}
+.sched-row.sched-now .sched-hour-label{color:#CA8A04;font-weight:800}
+.sched-slot{
+  padding:5px 7px;min-height:46px;display:flex;flex-wrap:wrap;
+  gap:4px;align-content:flex-start;transition:background .12s;
+}
+.sched-slot.sched-drag-over{background:#EFF6FF}
+.sched-slot-chip{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--bg);border:1px solid var(--border);border-radius:5px;
+  padding:4px 7px 4px 8px;font-size:11px;font-weight:500;color:var(--t1);
+  cursor:grab;max-width:100%;user-select:none;transition:box-shadow .12s;
+}
+.sched-slot-chip:hover{box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.sched-slot-chip:active{cursor:grabbing}
+.sched-slot-chip .sched-rm{
+  background:none;border:none;cursor:pointer;color:var(--t3);
+  font-size:14px;line-height:1;padding:0 0 0 2px;margin-left:1px;
+}
+.sched-slot-chip .sched-rm:hover{color:#EF4444}
+.sched-empty-hint{font-size:11px;color:var(--t3);text-align:center;padding:14px 0}
+
 /* Chart */
 .chart-wrap{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:16px}
 .donut-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
@@ -455,6 +507,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .ws-card{
   background:var(--card);border:1px solid var(--border);
   border-radius:10px;box-shadow:var(--sh);overflow:hidden;
+  padding-bottom:3px;
 }
 .ws-card-hd{
   padding:14px 16px 10px;
@@ -1976,7 +2029,7 @@ function renderDaily() {
 
     <div class="daily-section">
       <h2>🗓 Today's Schedule</h2>
-      <div id="calSection" class="daily-card" style="padding:12px 14px"></div>
+      <div id="schedGrid"></div>
     </div>
 
     <div class="daily-section">
@@ -2041,6 +2094,7 @@ function renderDaily() {
       </div>
     </div>
   `;
+  renderScheduleGrid();
 }
 
 function dailyTaskRow(t) {
@@ -2094,8 +2148,9 @@ function renderMyWeek() {
   });
 
   const ft = filteredTasks();
-  const activeTasks = ft.filter(t => t.status !== 'done' && t.deadline && t.deadline >= todayStr && t.deadline <= week[6]);
-  const overdue = ft.filter(t => t.status !== 'done' && t.deadline && t.deadline < todayStr);
+  const _po = (t) => ({high:0,med:1,low:2}[t.priority]??1);
+  const activeTasks = ft.filter(t => t.status !== 'done' && t.deadline && t.deadline >= todayStr && t.deadline <= week[6]).sort((a,b)=>_po(a)-_po(b));
+  const overdue = ft.filter(t => t.status !== 'done' && t.deadline && t.deadline < todayStr).sort((a,b)=>_po(a)-_po(b));
 
   const totalThisWeek = activeTasks.length;
   const highCount = activeTasks.filter(t => t.priority === 'high').length;
@@ -2560,6 +2615,98 @@ function deleteSelected() {
   clearSelection();
   persist(); renderAll();
   toast('🗑 Deleted ' + count + ' task' + (count !== 1 ? 's' : ''));
+}
+
+/* ══════════════════════════════════════════════════════════
+   SCHEDULE GRID
+══════════════════════════════════════════════════════════ */
+
+const SCHED_HOURS = ['07','08','09','10','11','12','13','14','15','16','17','18','19','20'];
+const SCHED_LABELS = {'07':'7 AM','08':'8 AM','09':'9 AM','10':'10 AM','11':'11 AM','12':'12 PM','13':'1 PM','14':'2 PM','15':'3 PM','16':'4 PM','17':'5 PM','18':'6 PM','19':'7 PM','20':'8 PM'};
+
+let scheduleData = {};
+function loadScheduleData() {
+  try { scheduleData = JSON.parse(localStorage.getItem('chope_schedule') || '{}'); } catch { scheduleData = {}; }
+}
+function persistScheduleData() { localStorage.setItem('chope_schedule', JSON.stringify(scheduleData)); }
+function schedKey() { return new Date().toISOString().slice(0,10) + '_' + state.currentUser; }
+function getSlotIds(h) { return (scheduleData[schedKey()] || {})[h] || []; }
+function setSlotIds(h, ids) {
+  const k = schedKey();
+  if (!scheduleData[k]) scheduleData[k] = {};
+  if (ids.length) scheduleData[k][h] = ids; else delete scheduleData[k][h];
+  persistScheduleData();
+}
+
+function renderScheduleGrid() {
+  const el = document.getElementById('schedGrid');
+  if (!el) return;
+  const me = state.currentUser;
+  const allScheduled = new Set(Object.values(scheduleData[schedKey()] || {}).flat());
+  const myOpen = tasks
+    .filter(t => t.assignee === me && t.status !== 'done')
+    .sort((a,b) => { const po={high:0,med:1,low:2}; return (po[a.priority]??1)-(po[b.priority]??1); });
+  const unscheduled = myOpen.filter(t => !allScheduled.has(t.id));
+  const nowHour = new Date().getHours();
+
+  const slotsHTML = SCHED_HOURS.map(h => {
+    const isCurrent = parseInt(h) === nowHour;
+    const slotIds = getSlotIds(h).filter(id => tasks.find(t => t.id === id && t.status !== 'done'));
+    return `
+      <div class="sched-row${isCurrent ? ' sched-now' : ''}">
+        <div class="sched-hour-label">${SCHED_LABELS[h]}</div>
+        <div class="sched-slot" ondragover="schedDragOver(event)" ondragleave="schedDragLeave(event)" ondrop="schedDrop(event,'${h}')">
+          ${slotIds.map(id => {
+            const t = tasks.find(x => x.id === id); if (!t) return '';
+            return `<div class="sched-slot-chip" draggable="true" ondragstart="schedDragStart(event,'${id}','${h}')">
+              <span style="width:7px;height:7px;border-radius:50%;background:${PRIO_COLORS[t.priority]};flex-shrink:0;display:inline-block"></span>
+              <span onclick="openTaskModal('${id}')" style="cursor:pointer">${esc(t.name.length>40?t.name.slice(0,40)+'…':t.name)}</span>
+              <button class="sched-rm" onclick="schedRemoveTask('${id}','${h}');event.stopPropagation()">×</button>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="sched-wrap">
+      <div class="sched-unscheduled" ondragover="schedDragOver(event)" ondragleave="schedDragLeave(event)" ondrop="schedDrop(event,'')">
+        <div class="sched-panel-hd">Unscheduled · ${unscheduled.length}</div>
+        ${unscheduled.map(t => `
+          <div class="sched-chip" draggable="true" style="border-left:3px solid ${PRIO_COLORS[t.priority]}" ondragstart="schedDragStart(event,'${t.id}','')">
+            <span onclick="openTaskModal('${t.id}')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer">${esc(t.name.length>30?t.name.slice(0,30)+'…':t.name)}</span>
+          </div>`).join('')}
+        ${unscheduled.length === 0 ? '<div class="sched-empty-hint">All tasks scheduled ✓</div>' : ''}
+      </div>
+      <div class="sched-slots">${slotsHTML}</div>
+    </div>`;
+}
+
+function schedDragStart(event, taskId, fromHour) {
+  event.dataTransfer.setData('sched_task', taskId);
+  event.dataTransfer.setData('sched_from', fromHour);
+  event.dataTransfer.effectAllowed = 'move';
+  event.stopPropagation();
+}
+function schedDragOver(event) {
+  event.preventDefault(); event.stopPropagation();
+  event.dataTransfer.dropEffect = 'move';
+  event.currentTarget.classList.add('sched-drag-over');
+}
+function schedDragLeave(event) { event.currentTarget.classList.remove('sched-drag-over'); }
+function schedDrop(event, toHour) {
+  event.preventDefault(); event.stopPropagation();
+  event.currentTarget.classList.remove('sched-drag-over');
+  const taskId = event.dataTransfer.getData('sched_task');
+  const fromHour = event.dataTransfer.getData('sched_from');
+  if (!taskId) return;
+  if (fromHour) setSlotIds(fromHour, getSlotIds(fromHour).filter(id => id !== taskId));
+  if (toHour) { const cur = getSlotIds(toHour); if (!cur.includes(taskId)) setSlotIds(toHour, [...cur, taskId]); }
+  renderScheduleGrid();
+}
+function schedRemoveTask(taskId, fromHour) {
+  setSlotIds(fromHour, getSlotIds(fromHour).filter(id => id !== taskId));
+  renderScheduleGrid();
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -3591,6 +3738,7 @@ async function gmailSendBrief() {
 if (window.self === window.top) {
   async function init() {
     await load();
+    loadScheduleData();
     gmailHandleCallback();
 
     // Wire workstream IDs to seed tasks after workstreams are seeded
