@@ -799,6 +799,64 @@ textarea.fi{resize:vertical;min-height:72px}
   transition:color .12s;
 }
 #selBar .sel-clear-btn:hover{color:#fff}
+#selBar .sel-hint{font-size:10px;color:rgba(255,255,255,.4);margin-left:4px}
+
+/* ── Card select checkbox ─────────────────────────────── */
+.card-sel{
+  position:absolute;top:10px;left:10px;
+  width:18px;height:18px;border-radius:4px;
+  border:2px solid var(--border);
+  background:var(--card);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:all .15s;z-index:3;flex-shrink:0;
+}
+.card:hover .card-sel{opacity:1}
+.card.card-selected .card-sel{opacity:1;background:#3B82F6;border-color:#3B82F6}
+.card-sel svg{display:none;width:10px;height:10px}
+.card.card-selected .card-sel svg{display:block}
+
+/* ── Refocus modal ────────────────────────────────────── */
+#refocusOverlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.45);
+  z-index:9000;display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity .2s;
+}
+#refocusOverlay.open{opacity:1;pointer-events:all}
+#refocusModal{
+  background:var(--card);border-radius:14px;
+  width:480px;max-width:92vw;
+  box-shadow:var(--sh-lg);
+  transform:translateY(12px);transition:transform .2s;overflow:hidden;
+}
+#refocusOverlay.open #refocusModal{transform:translateY(0)}
+.rfx-hd{padding:22px 24px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.rfx-title{font-size:17px;font-weight:700;color:var(--t1)}
+.rfx-sub{font-size:13px;color:var(--t2);margin-top:7px;line-height:1.55}
+.rfx-close{background:none;border:none;cursor:pointer;font-size:20px;color:var(--t3);padding:0;line-height:1;flex-shrink:0;margin-top:-2px}
+.rfx-close:hover{color:var(--t1)}
+.rfx-body{padding:14px 24px 0}
+.rfx-section-label{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.rfx-tasks{display:flex;flex-direction:column;gap:5px}
+.rfx-task{
+  display:flex;align-items:center;gap:10px;
+  background:var(--bg);border:1px solid var(--border);border-radius:7px;
+  padding:9px 12px;cursor:pointer;font-size:12px;font-weight:500;color:var(--t1);
+  transition:background .12s;text-align:left;width:100%;font-family:inherit;
+}
+.rfx-task:hover{background:#EFF6FF;border-color:#BFDBFE}
+.rfx-ft{padding:16px 24px 22px;display:flex;gap:8px;flex-wrap:wrap}
+.rfx-btn-pri{
+  background:var(--t1);color:#fff;border:none;border-radius:8px;
+  padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;
+  transition:background .12s;
+}
+.rfx-btn-pri:hover{background:#333}
+.rfx-btn-sec{
+  background:transparent;color:var(--t2);border:1px solid var(--border);border-radius:8px;
+  padding:8px 18px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;
+  transition:all .12s;
+}
+.rfx-btn-sec:hover{color:var(--t1);border-color:var(--t2)}
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -1193,12 +1251,35 @@ textarea.fi{resize:vertical;min-height:72px}
   </div>
 </div>
 
+<!-- Refocus modal -->
+<div id="refocusOverlay">
+  <div id="refocusModal">
+    <div class="rfx-hd">
+      <div>
+        <div class="rfx-title" id="rfxTitle"></div>
+        <div class="rfx-sub" id="rfxSub"></div>
+      </div>
+      <button class="rfx-close" onclick="closeRefocus()">×</button>
+    </div>
+    <div class="rfx-body">
+      <div class="rfx-section-label">Your high-priority open tasks</div>
+      <div class="rfx-tasks" id="rfxTasks"></div>
+    </div>
+    <div class="rfx-ft">
+      <button class="rfx-btn-pri" onclick="focusHighPriority()">Show all my high-priority tasks</button>
+      <button class="rfx-btn-sec" onclick="closeRefocus()">I'm on it 👊</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toasts -->
 <div id="toasts"></div>
 
 <!-- Batch selection bar -->
 <div id="selBar" style="display:none">
   <span id="selCount"></span>
+  <span class="sel-hint">Ctrl+click or use ☑ to select more</span>
+  <span style="color:rgba(255,255,255,.4)">·</span>
   <button class="sel-del-btn" onclick="deleteSelected()">Delete selected</button>
   <span style="color:rgba(255,255,255,.4)">·</span>
   <button class="sel-clear-btn" onclick="clearSelection()">Clear &nbsp;<kbd>Esc</kbd></button>
@@ -1791,6 +1872,9 @@ function cardHTML(t) {
       onmouseleave="hoveredCardId=null"
       onmouseenter="hoveredCardId='${t.id}'; if(event.ctrlKey) selectCard('${t.id}')"
       onclick="if(event.ctrlKey){event.stopPropagation();toggleSelectCard('${t.id}')}else{openTaskModal('${t.id}')}">
+      <button class="card-sel" onclick="toggleSelectCard('${t.id}');event.stopPropagation()" title="Select for bulk delete">
+        <svg viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
+      </button>
       <button class="card-check ${isDone?'checked':''}" onclick="toggleTaskDone('${t.id}');event.stopPropagation()" title="Mark ${isDone?'incomplete':'complete'} (C)">
         <svg viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="1.5,5 4,7.5 8.5,2.5"/>
@@ -2476,6 +2560,59 @@ function deleteSelected() {
   clearSelection();
   persist(); renderAll();
   toast('🗑 Deleted ' + count + ' task' + (count !== 1 ? 's' : ''));
+}
+
+/* ══════════════════════════════════════════════════════════
+   REFOCUS PROMPT
+══════════════════════════════════════════════════════════ */
+
+function checkRefocusPrompt() {
+  const me = state.currentUser;
+  if (!me) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const key = 'chope_refocus_' + today + '_' + me;
+  if (localStorage.getItem(key)) return;
+
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 3);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+  const myTasks = tasks.filter(t => t.assignee === me);
+  const myOpen  = myTasks.filter(t => t.status !== 'done');
+  const recentDone = myTasks.filter(t =>
+    t.status === 'done' && t.completedAt && t.completedAt.slice(0, 10) >= cutoffStr
+  );
+
+  if (myOpen.length === 0 || recentDone.length > 0) return;
+
+  localStorage.setItem(key, '1');
+
+  const highTasks = myOpen.filter(t => t.priority === 'high').slice(0, 4);
+  const firstName = me.split(' ')[0];
+
+  document.getElementById('rfxTitle').textContent = `Hey ${firstName}, let's refocus 🎯`;
+  document.getElementById('rfxSub').textContent =
+    `You haven't completed any tasks in the past 3 days. You have ${myOpen.length} open task${myOpen.length !== 1 ? 's' : ''} — here's what needs attention:`;
+
+  document.getElementById('rfxTasks').innerHTML = highTasks.length
+    ? highTasks.map(t => `
+        <button class="rfx-task" onclick="closeRefocus();openTaskModal('${t.id}')">
+          <span style="width:8px;height:8px;border-radius:50%;background:#EF4444;flex-shrink:0"></span>
+          <span>${esc(t.name)}</span>
+        </button>`).join('')
+    : `<div style="font-size:12px;color:var(--t3);padding:6px 0">No high-priority tasks — consider reviewing and updating your priorities.</div>`;
+
+  document.getElementById('refocusOverlay').classList.add('open');
+}
+
+function closeRefocus() {
+  document.getElementById('refocusOverlay').classList.remove('open');
+}
+
+function focusHighPriority() {
+  closeRefocus();
+  state.priority = 'high';
+  state.assignee = state.currentUser;
+  renderAll();
 }
 
 function _getBoardNavOrder() {
@@ -3471,6 +3608,7 @@ if (window.self === window.top) {
     }
 
     renderAll();
+    setTimeout(checkRefocusPrompt, 1200);
     setInterval(renderAll, 60000);
     setupGmailAuth();
   }
