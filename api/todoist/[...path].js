@@ -2,11 +2,16 @@
 // Route: /api/todoist/* → https://api.todoist.com/api/v1/*
 
 export default async function handler(req, res) {
-  const pathParts = Array.isArray(req.query.path)
-    ? req.query.path
-    : [req.query.path].filter(Boolean);
+  // Parse the path from req.url directly — more reliable than req.query.path
+  // req.url looks like: /api/todoist/projects  or  /api/todoist/tasks/123
+  const prefix = '/api/todoist/';
+  const rawUrl = req.url || '';
+  const qIdx = rawUrl.indexOf('?');
+  const pathname = qIdx >= 0 ? rawUrl.slice(0, qIdx) : rawUrl;
+  const queryString = qIdx >= 0 ? rawUrl.slice(qIdx) : '';
+  const todoistPath = pathname.startsWith(prefix) ? pathname.slice(prefix.length) : '';
 
-  const todoistUrl = `https://api.todoist.com/api/v1/${pathParts.join('/')}`;
+  const todoistUrl = `https://api.todoist.com/api/v1/${todoistPath}${queryString}`;
 
   const headers = {};
   if (req.headers['authorization'])  headers['Authorization']  = req.headers['authorization'];
@@ -23,18 +28,11 @@ export default async function handler(req, res) {
       : JSON.stringify(req.body);
   }
 
-  // Debug: log to Vercel function logs
-  const authHeader = headers['Authorization'] || '(none)';
-  console.log(`[todoist-proxy] ${req.method} ${todoistUrl}`);
-  console.log(`[todoist-proxy] Auth header present: ${authHeader !== '(none)'}, length: ${authHeader.length}, starts with "Bearer ": ${authHeader.startsWith('Bearer ')}`);
-
   try {
     const r = await fetch(todoistUrl, fetchOptions);
     const text = await r.text();
-    console.log(`[todoist-proxy] Response: ${r.status} — ${text.slice(0, 200)}`);
     res.status(r.status).send(text || '');
   } catch (e) {
-    console.log(`[todoist-proxy] Fetch error: ${e.message}`);
     res.status(502).json({ error: `Proxy error: ${e.message}` });
   }
 }

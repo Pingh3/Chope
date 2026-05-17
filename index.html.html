@@ -3327,7 +3327,7 @@ function undoDelete() {
 
 let _todoistToken = localStorage.getItem('chope_todoist_token') || '';
 let _todoistProjectId = localStorage.getItem('chope_todoist_project_id') || '';
-const _TODOIST = 'https://api.todoist.com/api/v1'; // direct — Todoist API v1 has CORS enabled
+const _TODOIST = '/api/todoist'; // proxied via Vercel Function to avoid CORS
 
 function _tdPriority(p) { return p === 'high' ? 4 : p === 'med' ? 3 : p === 'low' ? 2 : 1; }
 
