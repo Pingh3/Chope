@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(vercel ls *)",
+      "Bash(vercel project *)",
+      "Bash(vercel whoami *)",
+      "Bash(vercel teams *)",
+      "Bash(find /c/Users/phtan -name \"auth.json\" -path \"*vercel*\" 2>/dev/null | head -5)",
+      "Bash(vercel link *)",
+      "Bash(vercel --prod --yes)",
+      "Bash(vercel --version)",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"C:\\\\Users\\\\phtan\\\\OneDrive\\\\Documents\\\\Claude\\\\Coding projects\\\\Chope\\\\api\\\\todoist\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git init *)"
+    ]
+  }
+}
