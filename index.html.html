@@ -280,6 +280,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   text-align:center;
   font-size:12px;color:var(--t3);
 }
+.kol-collapse-btn{
+  background:none;border:none;cursor:pointer;
+  color:var(--t3);font-size:12px;line-height:1;
+  padding:2px 5px;border-radius:4px;transition:all .15s;
+  margin-left:4px;flex-shrink:0;
+}
+.kol-collapse-btn:hover{color:var(--t1);background:rgba(0,0,0,.06)}
+.kol-done-collapsed .kol-body{display:none}
+.kol-done-collapsed .kol-title{display:none}
+.kol-done-collapsed .kol-hd{flex-direction:column;align-items:center;padding:10px 4px;gap:8px}
+.kol-done-collapsed .kol-count{writing-mode:vertical-lr;transform:rotate(180deg);margin:0}
 
 /* ── Task Card ───────────────────────────────────────────── */
 .card{
@@ -447,6 +458,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .tr-fill{height:100%;border-radius:3px;background:var(--col-done)}
 .tr-pct{font-size:10px;color:var(--t3);width:32px;text-align:right}
 
+/* ── My Day Time Grid ─────────────────────────────────────── */
+.tg-wrap{background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--sh);overflow:hidden;position:relative}
+.tg-drop-zone.tg-over{background:rgba(59,130,246,.07)}
+.tg-block{border-radius:6px;padding:5px 8px;overflow:hidden;cursor:pointer;z-index:2;transition:box-shadow .15s}
+.tg-block:hover{box-shadow:var(--sh-md)}
+.daily-task{cursor:grab}
+.daily-task.dt-scheduled{opacity:.65}
+
 /* ── Workstreams View ────────────────────────────────────── */
 #wsView{}
 .ws-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
@@ -516,7 +535,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 }
 .gmail-hd-title{font-size:14px;font-weight:700;flex:1}
 .gmail-body{flex:1;overflow-y:auto;padding:12px 16px}
-.gmail-footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px}
+.gmail-footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
 .gmail-auth-area{text-align:center;padding:40px 20px}
 .gmail-suggestion{
   background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
@@ -935,8 +954,13 @@ textarea.fi{resize:vertical;min-height:72px}
     </div>
   </div>
   <div class="gmail-footer" id="gmailFooter" style="display:none">
-    <button class="btn-add" onclick="gmailScanInbox()" id="gmailScanBtn" style="flex:1">Scan Inbox</button>
-    <button class="btn-ghost" onclick="gmailSendBrief()" id="gmailBriefBtn" style="font-size:12px;padding:6px 12px" title="Email today's tasks to yourself">Send Today's Brief</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn-add" onclick="gmailScanInbox()" id="gmailScanBtn" style="flex:1">Scan Inbox</button>
+      <button class="btn-ghost" onclick="gmailSendBrief()" id="gmailBriefBtn" style="font-size:12px;padding:6px 12px" title="Email today's tasks to yourself">Daily Brief</button>
+    </div>
+    <button class="btn-ghost" onclick="gmailSendWeeklyAudit()" id="weeklyAuditBtn" style="width:100%;font-size:12px;padding:6px 12px;display:flex;justify-content:space-between;align-items:center" title="Send end-of-week team audit to yourself">
+      <span>📊 Weekly Audit</span><span id="weeklyAuditAge" style="font-size:10px;color:var(--t3)"></span>
+    </button>
   </div>
 </div>
 
@@ -1085,11 +1109,24 @@ textarea.fi{resize:vertical;min-height:72px}
         </div>
       </div>
       <div id="dateError" style="display:none;color:#EF4444;font-size:11px;margin-top:-6px;padding:0 2px">Due date can't be earlier than start date.</div>
-      <div class="mf">
-        <label>Workstream / Project</label>
-        <select class="fi" id="fWs" onchange="this.dataset.userSet='1'">
-          <option value="">None</option>
-        </select>
+      <div class="mfrow" style="grid-template-columns:2fr 1fr">
+        <div class="mf">
+          <label>Workstream / Project</label>
+          <select class="fi" id="fWs" onchange="this.dataset.userSet='1'">
+            <option value="">None</option>
+          </select>
+        </div>
+        <div class="mf">
+          <label>My Day Duration</label>
+          <select class="fi" id="fDurationHours">
+            <option value="1">1 hour</option>
+            <option value="2">2 hours</option>
+            <option value="3">3 hours</option>
+            <option value="4">4 hours</option>
+            <option value="5">5 hours</option>
+            <option value="6">6 hours</option>
+          </select>
+        </div>
       </div>
     </div>
     <div class="modal-ft">
@@ -1339,6 +1376,7 @@ let state = {
   assignee: 'all',
   ws: 'all',
   currentUser: '',
+  doneCollapsed: JSON.parse(localStorage.getItem('chope_done_collapsed') || 'false'),
 };
 let editTaskId = null, editWsId = null, dragId = null;
 let suggestedPrio = 'med';
@@ -1830,22 +1868,27 @@ function renderBoard() {
   let html = '';
   Object.entries(COLS).forEach(([key, col]) => {
     const colTasks = ft.filter(t => t.status === key);
+    const isDone = key === 'done';
+    const collapsed = isDone && state.doneCollapsed;
     html += `
-      <div class="kol" id="kol-${key}"
+      <div class="kol ${collapsed ? 'kol-done-collapsed' : ''}" id="kol-${key}"
         ondragover="dragOver(event,'${key}')"
         ondragleave="dragLeave(event,'${key}')"
         ondrop="drop(event,'${key}')">
         <div class="kol-hd">
           <div class="kol-bar" style="background:${col.color}"></div>
-          <div class="kol-title">${esc(col.label)}</div>
+          ${!collapsed ? `<div class="kol-title">${esc(col.label)}</div>` : ''}
           <div class="kol-count">${colTasks.length}</div>
+          ${isDone ? `<button class="kol-collapse-btn" onclick="toggleDoneCollapse();event.stopPropagation()" title="${collapsed ? 'Expand' : 'Collapse'} done">${collapsed ? '▶' : '◀'}</button>` : ''}
         </div>
         <div class="kol-body" id="body-${key}">
           ${colTasks.length ? colTasks.map(cardHTML).join('') : `<div class="kol-empty">No tasks</div>`}
         </div>
       </div>`;
   });
-  document.getElementById('board').innerHTML = html;
+  const board = document.getElementById('board');
+  board.innerHTML = html;
+  board.style.gridTemplateColumns = state.doneCollapsed ? '1fr 1fr 1fr 52px' : '';
 }
 
 function cardHTML(t) {
@@ -1899,6 +1942,94 @@ function cardHTML(t) {
     </div>`;
 }
 
+function toggleDoneCollapse() {
+  state.doneCollapsed = !state.doneCollapsed;
+  localStorage.setItem('chope_done_collapsed', JSON.stringify(state.doneCollapsed));
+  renderBoard();
+}
+
+/* ── My Day Time Grid ───────────────────────────────────── */
+const TG_SLOT_H = 60;   // px per hour
+const TG_START  = 8;    // 8 AM
+const TG_END    = 19;   // 7 PM
+
+function buildTimeGrid(scheduledTasks) {
+  const hours = Array.from({length: TG_END - TG_START}, (_, i) => TG_START + i);
+  const totalH = hours.length * TG_SLOT_H;
+
+  const now = new Date();
+  const curTop = (now.getHours() - TG_START) * TG_SLOT_H + now.getMinutes() / 60 * TG_SLOT_H;
+  const showNow = now.getHours() >= TG_START && now.getHours() < TG_END;
+
+  const hourLines = hours.map(h => {
+    const label = h === 12 ? '12 PM' : h < 12 ? `${h} AM` : `${h - 12} PM`;
+    return `<div style="position:absolute;top:${(h - TG_START) * TG_SLOT_H}px;left:0;right:0;height:${TG_SLOT_H}px;border-bottom:1px solid var(--border);pointer-events:none">
+      <div style="width:54px;position:absolute;left:0;top:0;bottom:0;display:flex;align-items:flex-start;justify-content:flex-end;padding:7px 8px 0;border-right:1px solid var(--border);font-size:10px;font-weight:600;color:var(--t3)">${label}</div>
+    </div>`;
+  }).join('');
+
+  const dropZones = hours.map(h =>
+    `<div class="tg-drop-zone" style="position:absolute;top:${(h - TG_START) * TG_SLOT_H}px;left:54px;right:0;height:${TG_SLOT_H}px"
+      ondragover="tgDragOver(event)" ondragleave="tgDragLeave(event)" ondrop="tgDrop(event,${h})"></div>`
+  ).join('');
+
+  const nowLine = showNow ? `<div style="position:absolute;left:54px;right:0;top:${Math.round(curTop)}px;height:2px;background:#3B82F6;z-index:4;pointer-events:none">
+    <div style="width:8px;height:8px;background:#3B82F6;border-radius:50%;position:absolute;top:-3px;left:-4px"></div></div>` : '';
+
+  const taskBlocks = scheduledTasks.map(t => {
+    const [hh, mm] = (t.scheduledTime || '08:00').split(':').map(Number);
+    const dur = t.durationHours || 1;
+    const top = (hh - TG_START) * TG_SLOT_H + (mm / 60) * TG_SLOT_H;
+    const height = dur * TG_SLOT_H - 2;
+    const cat = CATEGORIES[t.cat] || { color: '#3B82F6', bg: '#EFF6FF', label: t.cat };
+    const pCol = {high:'#EF4444', med:'#F59E0B', low:'#22C55E'}[t.priority] || '#6B7280';
+    return `<div class="tg-block" style="position:absolute;top:${Math.round(top)}px;height:${height}px;left:58px;right:5px;background:${cat.bg};border:1px solid ${cat.color}33;border-left:3px solid ${pCol}" onclick="openTaskModal('${t.id}')">
+      <div style="font-size:11px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:18px">${esc(t.name)}</div>
+      ${height > 40 ? `<div style="font-size:10px;color:var(--t2);margin-top:2px">${fmtHour(t.scheduledTime)}${dur > 1 ? ' · ' + dur + 'h' : ''}</div>` : ''}
+      <button onclick="tgUnschedule('${t.id}');event.stopPropagation()" title="Remove from schedule" style="position:absolute;top:3px;right:4px;background:none;border:none;cursor:pointer;color:var(--t3);font-size:14px;line-height:1;padding:1px 3px">×</button>
+    </div>`;
+  }).join('');
+
+  const hint = scheduledTasks.length === 0 ? `<div style="position:absolute;top:50%;left:54px;right:0;transform:translateY(-50%);text-align:center;pointer-events:none;padding:0 16px"><div style="font-size:12px;color:var(--t3)">Drag a task from "Today's Priorities" onto a time slot to schedule it</div></div>` : '';
+
+  return `<div class="tg-wrap"><div style="position:relative;height:${totalH}px">${hourLines}${dropZones}${nowLine}${taskBlocks}${hint}</div></div>`;
+}
+
+function tgDragStart(event, taskId) {
+  event.dataTransfer.setData('tg-task', taskId);
+  event.dataTransfer.effectAllowed = 'move';
+}
+
+function tgDragOver(event) {
+  if (!event.dataTransfer.types.includes('tg-task')) return;
+  event.preventDefault();
+  event.currentTarget.classList.add('tg-over');
+}
+
+function tgDragLeave(event) {
+  event.currentTarget.classList.remove('tg-over');
+}
+
+function tgDrop(event, hour) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('tg-over');
+  const taskId = event.dataTransfer.getData('tg-task');
+  if (!taskId) return;
+  const t = tasks.find(x => x.id === taskId);
+  if (!t) return;
+  t.scheduledTime = String(hour).padStart(2, '0') + ':00';
+  persist();
+  renderDaily();
+}
+
+function tgUnschedule(taskId) {
+  const t = tasks.find(x => x.id === taskId);
+  if (!t) return;
+  delete t.scheduledTime;
+  persist();
+  renderDaily();
+}
+
 /* ══════════════════════════════════════════════════════════
    RENDER — DAILY VIEW
 ══════════════════════════════════════════════════════════ */
@@ -1916,6 +2047,7 @@ function renderDaily() {
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   const todayStr = now.toISOString().slice(0,10);
+  const todayScheduled = myTasks.filter(t => t.scheduledTime);
   const todayTasks = myTasks.filter(t => !t.deadline || t.deadline <= todayStr).sort((a,b) => {
     const po = {high:0,med:1,low:2};
     return (po[a.priority]||1)-(po[b.priority]||1);
@@ -1969,7 +2101,12 @@ function renderDaily() {
     </div>
 
     <div class="daily-section">
-      <h2>🗓 Today's Schedule</h2>
+      <h2>🗓 My Schedule <span style="font-size:11px;font-weight:400;color:var(--t3)">— drag tasks from below onto a time slot</span></h2>
+      ${buildTimeGrid(todayScheduled)}
+    </div>
+
+    <div class="daily-section">
+      <h2>📅 Today's Meetings</h2>
       <div id="calSection" class="daily-card" style="padding:12px 14px"></div>
     </div>
 
@@ -2037,17 +2174,30 @@ function renderDaily() {
   `;
 }
 
+function fmtHour(timeStr) {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return m ? `${h12}:${String(m).padStart(2,'0')} ${ampm}` : `${h12} ${ampm}`;
+}
+
 function dailyTaskRow(t) {
-  const cat   = CATEGORIES[t.cat] || { label: t.cat, color: '#999', bg: '#F9F9F9' };
-  const over  = isOverdue(t);
+  const cat    = CATEGORIES[t.cat] || { label: t.cat, color: '#999', bg: '#F9F9F9' };
+  const over   = isOverdue(t);
   const urgent = isUrgent(t);
-  const pCol  = {high:'#EF4444',med:'#F59E0B',low:'#94A3B8'}[t.priority];
+  const pCol   = {high:'#EF4444',med:'#F59E0B',low:'#94A3B8'}[t.priority];
+  const sched  = t.scheduledTime;
+  const dur    = t.durationHours || 1;
   return `
-    <div class="daily-task ${over||urgent?'urgent-task':''}" onclick="openTaskModal('${t.id}')" style="cursor:pointer">
+    <div class="daily-task ${over||urgent?'urgent-task':''} ${sched?'dt-scheduled':''}"
+      draggable="true"
+      ondragstart="tgDragStart(event,'${t.id}')"
+      onclick="openTaskModal('${t.id}')">
       <div class="prio-dot" style="background:${pCol};flex-shrink:0"></div>
       <div class="dt-info">
         <div class="dt-name">${esc(t.name)}</div>
-        <div class="dt-meta">${esc(cat.label)} ${t.fund&&t.fund!=='none'?'· '+esc(t.fund):''}</div>
+        <div class="dt-meta">${esc(cat.label)}${t.fund&&t.fund!=='none'?' · '+esc(t.fund):''}${sched?` · 🕐 ${fmtHour(sched)}`:''}${dur>1?` · ${dur}h`:''}</div>
       </div>
       <div class="dt-right">
         <span class="fund-chip" style="font-size:10px">${esc(COLS[t.status]?.label||t.status)}</span>
@@ -2352,7 +2502,8 @@ function openTaskModal(id) {
     document.getElementById('fStatus').value    = t.status;
     document.getElementById('fStartDate').value = t.startDate || '';
     document.getElementById('fDeadline').value  = t.deadline || '';
-    document.getElementById('fWs').value        = t.ws || '';
+    document.getElementById('fWs').value            = t.ws || '';
+    document.getElementById('fDurationHours').value = t.durationHours || 1;
     del.style.display = 'block';
     const calBtn = document.getElementById('btnAddCal');
     if (calBtn) {
@@ -2389,7 +2540,8 @@ function openTaskModal(id) {
     document.getElementById('fStartDate').value = new Date().toISOString().slice(0,10);
     const d = new Date(); d.setDate(d.getDate()+7);
     document.getElementById('fDeadline').value  = d.toISOString().slice(0,10);
-    document.getElementById('fWs').value       = state.ws !== 'all' ? (state.ws||'') : '';
+    document.getElementById('fWs').value            = state.ws !== 'all' ? (state.ws||'') : '';
+    document.getElementById('fDurationHours').value = 1;
     del.style.display = 'none';
   }
   // Reset auto-estimate flags so new task gets fresh suggestions
@@ -2451,9 +2603,10 @@ function saveTask() {
   const assignee = document.getElementById('fAssignee').value;
   const priority = document.getElementById('fPriority').value;
   const status   = document.getElementById('fStatus').value;
-  const startDate = document.getElementById('fStartDate').value;
-  const deadline  = document.getElementById('fDeadline').value;
-  const ws        = document.getElementById('fWs').value;
+  const startDate    = document.getElementById('fStartDate').value;
+  const deadline     = document.getElementById('fDeadline').value;
+  const ws           = document.getElementById('fWs').value;
+  const durationHours = parseInt(document.getElementById('fDurationHours').value) || 1;
 
   if (!name)     { flash('fName');     return; }
   if (!cat)      { flash('fCat');      return; }
@@ -2468,13 +2621,13 @@ function saveTask() {
         t.deadlineHistory.push({ changedBy: state.currentUser || 'Unknown', from: t.deadline, to: deadline, at: new Date().toISOString() });
       }
       const wasDone = t.status === 'done';
-      Object.assign(t, { name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws });
+      Object.assign(t, { name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, durationHours });
       if (status === 'done' && !wasDone) t.completedAt = new Date().toISOString();
       if (status !== 'done') t.completedAt = null;
     }
     toast('Task updated');
   } else {
-    tasks.unshift({ id: uid(), name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, createdAt: new Date().toISOString() });
+    tasks.unshift({ id: uid(), name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, durationHours, createdAt: new Date().toISOString() });
     toast('Task created');
   }
   persist(); renderAll(); closeTaskModal();
@@ -3239,6 +3392,7 @@ function toggleGmailPanel() {
   gmailOpen = !gmailOpen;
   document.getElementById('gmailPanel').classList.toggle('open', gmailOpen);
   document.getElementById('gmailHdrBtn').style.background = gmailOpen ? 'var(--bg)' : '';
+  if (gmailOpen) updateWeeklyAuditAge();
 }
 function closeGmailPanel() {
   gmailOpen = false;
@@ -3462,6 +3616,152 @@ async function gmailSendBrief() {
   }
 }
 
+function updateWeeklyAuditAge() {
+  const el = document.getElementById('weeklyAuditAge');
+  if (!el) return;
+  const last = localStorage.getItem('chope_weekly_audit_sent');
+  if (!last) { el.textContent = 'never sent'; return; }
+  const days = Math.floor((Date.now() - new Date(last)) / 864e5);
+  el.textContent = days === 0 ? 'sent today' : days === 1 ? 'sent yesterday' : `sent ${days}d ago`;
+  const btn = document.getElementById('weeklyAuditBtn');
+  if (btn) btn.style.color = days >= 7 ? 'var(--col-ip)' : '';
+}
+
+async function gmailSendWeeklyAudit() {
+  if (!gmailToken) { gmailSignIn(); return; }
+  const btn = document.getElementById('weeklyAuditBtn');
+  if (btn) { btn.disabled = true; btn.querySelector('span').textContent = '📊 Sending…'; }
+
+  const now = new Date();
+  const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+  const weekAgoStr = weekAgo.toISOString();
+  const todayStr = now.toISOString().slice(0, 10);
+  const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const weekLabel = `${fmt(weekAgo)} – ${fmt(now)}`;
+
+  // Deadline changes this week
+  const dlChanges = [];
+  tasks.forEach(t => {
+    if (!t.deadlineHistory?.length) return;
+    const recent = t.deadlineHistory.filter(h => h.at >= weekAgoStr);
+    if (recent.length) dlChanges.push({ task: t, changes: recent });
+  });
+
+  // Completions this week
+  const completed = tasks.filter(t => t.status === 'done' && t.completedAt && t.completedAt >= weekAgoStr);
+
+  // Open tasks and overdue
+  const openTasks = tasks.filter(t => t.status !== 'done');
+  const overdue = openTasks.filter(t => t.deadline && t.deadline < todayStr);
+
+  // ── Email sections ─────────────────────────────────────
+  const card = (body, accent) =>
+    `<div style="background:#fff;border-radius:10px;padding:20px 22px;margin-bottom:14px;border:1px solid ${accent||'#E0E0DA'}">${body}</div>`;
+  const h2 = t => `<div style="font-size:14px;font-weight:700;margin-bottom:10px;color:#181816">${t}</div>`;
+  const muted = t => `<p style="color:#9A9A92;font-size:13px;margin:0">${t}</p>`;
+  const row = (main, sub) =>
+    `<div style="font-size:13px;padding:6px 0;border-bottom:1px solid #F0F0EC;display:flex;justify-content:space-between;align-items:center">
+      <span>${main}</span><span style="font-size:11px;color:#9A9A92;white-space:nowrap;margin-left:12px">${sub}</span></div>`;
+
+  const dlSection = dlChanges.length === 0 ? muted('No deadline changes this week.') :
+    dlChanges.map(({ task, changes }) =>
+      `<div style="margin-bottom:12px;padding:10px 12px;background:#F9F9F7;border-radius:8px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:5px">${esc(task.name)}</div>
+        ${changes.map(h =>
+          `<div style="font-size:12px;color:#62625C;margin-top:3px">
+            <b>${esc(h.changedBy)}</b> moved deadline
+            ${h.from ? `from <b>${h.from}</b>` : ''}
+            → <b>${h.to || 'removed'}</b>
+            <span style="color:#9A9A92"> · ${new Date(h.at).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</span>
+          </div>`).join('')}
+      </div>`).join('');
+
+  const completedSection = completed.length === 0 ? muted('No tasks completed this week.') :
+    completed.map(t => row(esc(t.name), `${esc(t.assignee)}`)).join('');
+
+  const workloadRows = team.map(m => {
+    const mine = openTasks.filter(t => t.assignee === m.name);
+    const doneWk = tasks.filter(t => t.assignee === m.name && t.status === 'done' && t.completedAt && t.completedAt >= weekAgoStr).length;
+    const cell = (n, color) => `<td style="padding:7px 10px;font-size:13px;text-align:center;color:${color};border-bottom:1px solid #F0F0EC">${n}</td>`;
+    return `<tr>
+      <td style="padding:7px 10px;font-size:13px;font-weight:500;border-bottom:1px solid #F0F0EC">${esc(m.name)} <span style="font-size:10px;color:#9A9A92;font-weight:400">${esc(m.role)}</span></td>
+      ${cell(mine.filter(t=>t.status==='todo').length,'#6B7280')}
+      ${cell(mine.filter(t=>t.status==='inprogress').length,'#3B82F6')}
+      ${cell(mine.filter(t=>t.status==='review').length,'#F59E0B')}
+      ${cell(doneWk,'#22C55E')}
+    </tr>`;
+  }).join('');
+
+  const overdueSection = overdue.length === 0 ? muted('No overdue tasks — great work!') :
+    overdue.map(t => row(esc(t.name), `${esc(t.assignee)} · was ${t.deadline}`)).join('');
+
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#F2F2EF;padding:20px;color:#181816;margin:0">
+<div style="max-width:620px;margin:0 auto">
+
+${card(`
+  <div style="font-size:20px;font-weight:700;margin-bottom:4px">📊 Chope Weekly Audit</div>
+  <div style="font-size:13px;color:#62625C">${weekLabel} &nbsp;·&nbsp; ${now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
+  <div style="display:flex;gap:20px;margin-top:14px">
+    <div><span style="font-size:22px;font-weight:700;color:#3B82F6">${openTasks.length}</span> <span style="font-size:12px;color:#62625C">open</span></div>
+    <div><span style="font-size:22px;font-weight:700;color:#22C55E">${completed.length}</span> <span style="font-size:12px;color:#62625C">done this wk</span></div>
+    <div><span style="font-size:22px;font-weight:700;color:#EF4444">${overdue.length}</span> <span style="font-size:12px;color:#62625C">overdue</span></div>
+    <div><span style="font-size:22px;font-weight:700;color:#F59E0B">${dlChanges.length}</span> <span style="font-size:12px;color:#62625C">deadline moves</span></div>
+  </div>`)}
+
+${card(h2('⏱ Deadline Changes') + dlSection)}
+
+${card(h2('✅ Completed This Week') + completedSection)}
+
+${card(`
+  ${h2('👥 Team Workload')}
+  <table style="width:100%;border-collapse:collapse">
+    <thead><tr style="background:#F9F9F7">
+      <th style="padding:7px 10px;font-size:10px;font-weight:600;color:#9A9A92;text-align:left;text-transform:uppercase;letter-spacing:.5px">Member</th>
+      <th style="padding:7px 10px;font-size:10px;font-weight:600;color:#6B7280;text-align:center;text-transform:uppercase;letter-spacing:.5px">Todo</th>
+      <th style="padding:7px 10px;font-size:10px;font-weight:600;color:#3B82F6;text-align:center;text-transform:uppercase;letter-spacing:.5px">In Progress</th>
+      <th style="padding:7px 10px;font-size:10px;font-weight:600;color:#F59E0B;text-align:center;text-transform:uppercase;letter-spacing:.5px">Review</th>
+      <th style="padding:7px 10px;font-size:10px;font-weight:600;color:#22C55E;text-align:center;text-transform:uppercase;letter-spacing:.5px">Done Wk</th>
+    </tr></thead>
+    <tbody>${workloadRows}</tbody>
+  </table>`)}
+
+${overdue.length > 0 ? card(h2('⚠️ Overdue Tasks') + overdueSection, '#FECACA') : ''}
+
+<div style="font-size:11px;color:#9A9A92;text-align:center;margin-top:4px;padding-bottom:8px">Sent from Chope · ${location.href}</div>
+</div></body></html>`;
+
+  const rawEmail = [
+    `To: me`,
+    `Subject: Chope Weekly Audit — ${weekLabel}`,
+    `MIME-Version: 1.0`,
+    `Content-Type: text/html; charset=utf-8`,
+    ``,
+    html
+  ].join('\r\n');
+  const encoded = btoa(unescape(encodeURIComponent(rawEmail))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+
+  try {
+    const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + gmailToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ raw: encoded })
+    });
+    if (res.ok) {
+      localStorage.setItem('chope_weekly_audit_sent', now.toISOString());
+      updateWeeklyAuditAge();
+      toast('Weekly audit sent to your Gmail!');
+    } else {
+      toast('Failed to send — check Gmail permissions');
+    }
+  } catch {
+    toast('Error sending weekly audit');
+  } finally {
+    if (btn) { btn.disabled = false; btn.querySelector('span').textContent = '📊 Weekly Audit'; }
+  }
+}
+
 /* ══════════════════════════════════════════════════════════
    INIT
 ══════════════════════════════════════════════════════════ */
@@ -3486,6 +3786,7 @@ if (window.self === window.top) {
     }
 
     renderAll();
+    updateWeeklyAuditAge();
     setInterval(renderAll, 60000);
     setupGmailAuth();
   }
