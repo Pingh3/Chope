@@ -280,6 +280,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   text-align:center;
   font-size:12px;color:var(--t3);
 }
+.kol-collapse-btn{
+  background:none;border:none;cursor:pointer;
+  color:var(--t3);font-size:12px;line-height:1;
+  padding:2px 5px;border-radius:4px;transition:all .15s;
+  margin-left:4px;flex-shrink:0;
+}
+.kol-collapse-btn:hover{color:var(--t1);background:rgba(0,0,0,.06)}
+.kol-done-collapsed .kol-body{display:none}
+.kol-done-collapsed .kol-title{display:none}
+.kol-done-collapsed .kol-hd{flex-direction:column;align-items:center;padding:10px 4px;gap:8px}
+.kol-done-collapsed .kol-count{writing-mode:vertical-lr;transform:rotate(180deg);margin:0}
 
 /* ── Task Card ───────────────────────────────────────────── */
 .card{
@@ -446,6 +457,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .tr-bar{flex:1;height:6px;background:var(--bg);border-radius:3px;overflow:hidden}
 .tr-fill{height:100%;border-radius:3px;background:var(--col-done)}
 .tr-pct{font-size:10px;color:var(--t3);width:32px;text-align:right}
+
+/* ── My Day Time Grid ─────────────────────────────────────── */
+.tg-wrap{background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--sh);overflow:hidden;position:relative}
+.tg-drop-zone.tg-over{background:rgba(59,130,246,.07)}
+.tg-block{border-radius:6px;padding:5px 8px;overflow:hidden;cursor:pointer;z-index:2;transition:box-shadow .15s}
+.tg-block:hover{box-shadow:var(--sh-md)}
+.daily-task{cursor:grab}
+.daily-task.dt-scheduled{opacity:.65}
 
 /* ── Workstreams View ────────────────────────────────────── */
 #wsView{}
@@ -1090,11 +1109,24 @@ textarea.fi{resize:vertical;min-height:72px}
         </div>
       </div>
       <div id="dateError" style="display:none;color:#EF4444;font-size:11px;margin-top:-6px;padding:0 2px">Due date can't be earlier than start date.</div>
-      <div class="mf">
-        <label>Workstream / Project</label>
-        <select class="fi" id="fWs" onchange="this.dataset.userSet='1'">
-          <option value="">None</option>
-        </select>
+      <div class="mfrow" style="grid-template-columns:2fr 1fr">
+        <div class="mf">
+          <label>Workstream / Project</label>
+          <select class="fi" id="fWs" onchange="this.dataset.userSet='1'">
+            <option value="">None</option>
+          </select>
+        </div>
+        <div class="mf">
+          <label>My Day Duration</label>
+          <select class="fi" id="fDurationHours">
+            <option value="1">1 hour</option>
+            <option value="2">2 hours</option>
+            <option value="3">3 hours</option>
+            <option value="4">4 hours</option>
+            <option value="5">5 hours</option>
+            <option value="6">6 hours</option>
+          </select>
+        </div>
       </div>
     </div>
     <div class="modal-ft">
@@ -1344,6 +1376,7 @@ let state = {
   assignee: 'all',
   ws: 'all',
   currentUser: '',
+  doneCollapsed: JSON.parse(localStorage.getItem('chope_done_collapsed') || 'false'),
 };
 let editTaskId = null, editWsId = null, dragId = null;
 let suggestedPrio = 'med';
@@ -1835,22 +1868,27 @@ function renderBoard() {
   let html = '';
   Object.entries(COLS).forEach(([key, col]) => {
     const colTasks = ft.filter(t => t.status === key);
+    const isDone = key === 'done';
+    const collapsed = isDone && state.doneCollapsed;
     html += `
-      <div class="kol" id="kol-${key}"
+      <div class="kol ${collapsed ? 'kol-done-collapsed' : ''}" id="kol-${key}"
         ondragover="dragOver(event,'${key}')"
         ondragleave="dragLeave(event,'${key}')"
         ondrop="drop(event,'${key}')">
         <div class="kol-hd">
           <div class="kol-bar" style="background:${col.color}"></div>
-          <div class="kol-title">${esc(col.label)}</div>
+          ${!collapsed ? `<div class="kol-title">${esc(col.label)}</div>` : ''}
           <div class="kol-count">${colTasks.length}</div>
+          ${isDone ? `<button class="kol-collapse-btn" onclick="toggleDoneCollapse();event.stopPropagation()" title="${collapsed ? 'Expand' : 'Collapse'} done">${collapsed ? '▶' : '◀'}</button>` : ''}
         </div>
         <div class="kol-body" id="body-${key}">
           ${colTasks.length ? colTasks.map(cardHTML).join('') : `<div class="kol-empty">No tasks</div>`}
         </div>
       </div>`;
   });
-  document.getElementById('board').innerHTML = html;
+  const board = document.getElementById('board');
+  board.innerHTML = html;
+  board.style.gridTemplateColumns = state.doneCollapsed ? '1fr 1fr 1fr 52px' : '';
 }
 
 function cardHTML(t) {
@@ -1904,6 +1942,94 @@ function cardHTML(t) {
     </div>`;
 }
 
+function toggleDoneCollapse() {
+  state.doneCollapsed = !state.doneCollapsed;
+  localStorage.setItem('chope_done_collapsed', JSON.stringify(state.doneCollapsed));
+  renderBoard();
+}
+
+/* ── My Day Time Grid ───────────────────────────────────── */
+const TG_SLOT_H = 60;   // px per hour
+const TG_START  = 8;    // 8 AM
+const TG_END    = 19;   // 7 PM
+
+function buildTimeGrid(scheduledTasks) {
+  const hours = Array.from({length: TG_END - TG_START}, (_, i) => TG_START + i);
+  const totalH = hours.length * TG_SLOT_H;
+
+  const now = new Date();
+  const curTop = (now.getHours() - TG_START) * TG_SLOT_H + now.getMinutes() / 60 * TG_SLOT_H;
+  const showNow = now.getHours() >= TG_START && now.getHours() < TG_END;
+
+  const hourLines = hours.map(h => {
+    const label = h === 12 ? '12 PM' : h < 12 ? `${h} AM` : `${h - 12} PM`;
+    return `<div style="position:absolute;top:${(h - TG_START) * TG_SLOT_H}px;left:0;right:0;height:${TG_SLOT_H}px;border-bottom:1px solid var(--border);pointer-events:none">
+      <div style="width:54px;position:absolute;left:0;top:0;bottom:0;display:flex;align-items:flex-start;justify-content:flex-end;padding:7px 8px 0;border-right:1px solid var(--border);font-size:10px;font-weight:600;color:var(--t3)">${label}</div>
+    </div>`;
+  }).join('');
+
+  const dropZones = hours.map(h =>
+    `<div class="tg-drop-zone" style="position:absolute;top:${(h - TG_START) * TG_SLOT_H}px;left:54px;right:0;height:${TG_SLOT_H}px"
+      ondragover="tgDragOver(event)" ondragleave="tgDragLeave(event)" ondrop="tgDrop(event,${h})"></div>`
+  ).join('');
+
+  const nowLine = showNow ? `<div style="position:absolute;left:54px;right:0;top:${Math.round(curTop)}px;height:2px;background:#3B82F6;z-index:4;pointer-events:none">
+    <div style="width:8px;height:8px;background:#3B82F6;border-radius:50%;position:absolute;top:-3px;left:-4px"></div></div>` : '';
+
+  const taskBlocks = scheduledTasks.map(t => {
+    const [hh, mm] = (t.scheduledTime || '08:00').split(':').map(Number);
+    const dur = t.durationHours || 1;
+    const top = (hh - TG_START) * TG_SLOT_H + (mm / 60) * TG_SLOT_H;
+    const height = dur * TG_SLOT_H - 2;
+    const cat = CATEGORIES[t.cat] || { color: '#3B82F6', bg: '#EFF6FF', label: t.cat };
+    const pCol = {high:'#EF4444', med:'#F59E0B', low:'#22C55E'}[t.priority] || '#6B7280';
+    return `<div class="tg-block" style="position:absolute;top:${Math.round(top)}px;height:${height}px;left:58px;right:5px;background:${cat.bg};border:1px solid ${cat.color}33;border-left:3px solid ${pCol}" onclick="openTaskModal('${t.id}')">
+      <div style="font-size:11px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:18px">${esc(t.name)}</div>
+      ${height > 40 ? `<div style="font-size:10px;color:var(--t2);margin-top:2px">${fmtHour(t.scheduledTime)}${dur > 1 ? ' · ' + dur + 'h' : ''}</div>` : ''}
+      <button onclick="tgUnschedule('${t.id}');event.stopPropagation()" title="Remove from schedule" style="position:absolute;top:3px;right:4px;background:none;border:none;cursor:pointer;color:var(--t3);font-size:14px;line-height:1;padding:1px 3px">×</button>
+    </div>`;
+  }).join('');
+
+  const hint = scheduledTasks.length === 0 ? `<div style="position:absolute;top:50%;left:54px;right:0;transform:translateY(-50%);text-align:center;pointer-events:none;padding:0 16px"><div style="font-size:12px;color:var(--t3)">Drag a task from "Today's Priorities" onto a time slot to schedule it</div></div>` : '';
+
+  return `<div class="tg-wrap"><div style="position:relative;height:${totalH}px">${hourLines}${dropZones}${nowLine}${taskBlocks}${hint}</div></div>`;
+}
+
+function tgDragStart(event, taskId) {
+  event.dataTransfer.setData('tg-task', taskId);
+  event.dataTransfer.effectAllowed = 'move';
+}
+
+function tgDragOver(event) {
+  if (!event.dataTransfer.types.includes('tg-task')) return;
+  event.preventDefault();
+  event.currentTarget.classList.add('tg-over');
+}
+
+function tgDragLeave(event) {
+  event.currentTarget.classList.remove('tg-over');
+}
+
+function tgDrop(event, hour) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('tg-over');
+  const taskId = event.dataTransfer.getData('tg-task');
+  if (!taskId) return;
+  const t = tasks.find(x => x.id === taskId);
+  if (!t) return;
+  t.scheduledTime = String(hour).padStart(2, '0') + ':00';
+  persist();
+  renderDaily();
+}
+
+function tgUnschedule(taskId) {
+  const t = tasks.find(x => x.id === taskId);
+  if (!t) return;
+  delete t.scheduledTime;
+  persist();
+  renderDaily();
+}
+
 /* ══════════════════════════════════════════════════════════
    RENDER — DAILY VIEW
 ══════════════════════════════════════════════════════════ */
@@ -1921,6 +2047,7 @@ function renderDaily() {
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   const todayStr = now.toISOString().slice(0,10);
+  const todayScheduled = myTasks.filter(t => t.scheduledTime);
   const todayTasks = myTasks.filter(t => !t.deadline || t.deadline <= todayStr).sort((a,b) => {
     const po = {high:0,med:1,low:2};
     return (po[a.priority]||1)-(po[b.priority]||1);
@@ -1974,7 +2101,12 @@ function renderDaily() {
     </div>
 
     <div class="daily-section">
-      <h2>🗓 Today's Schedule</h2>
+      <h2>🗓 My Schedule <span style="font-size:11px;font-weight:400;color:var(--t3)">— drag tasks from below onto a time slot</span></h2>
+      ${buildTimeGrid(todayScheduled)}
+    </div>
+
+    <div class="daily-section">
+      <h2>📅 Today's Meetings</h2>
       <div id="calSection" class="daily-card" style="padding:12px 14px"></div>
     </div>
 
@@ -2042,17 +2174,30 @@ function renderDaily() {
   `;
 }
 
+function fmtHour(timeStr) {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return m ? `${h12}:${String(m).padStart(2,'0')} ${ampm}` : `${h12} ${ampm}`;
+}
+
 function dailyTaskRow(t) {
-  const cat   = CATEGORIES[t.cat] || { label: t.cat, color: '#999', bg: '#F9F9F9' };
-  const over  = isOverdue(t);
+  const cat    = CATEGORIES[t.cat] || { label: t.cat, color: '#999', bg: '#F9F9F9' };
+  const over   = isOverdue(t);
   const urgent = isUrgent(t);
-  const pCol  = {high:'#EF4444',med:'#F59E0B',low:'#94A3B8'}[t.priority];
+  const pCol   = {high:'#EF4444',med:'#F59E0B',low:'#94A3B8'}[t.priority];
+  const sched  = t.scheduledTime;
+  const dur    = t.durationHours || 1;
   return `
-    <div class="daily-task ${over||urgent?'urgent-task':''}" onclick="openTaskModal('${t.id}')" style="cursor:pointer">
+    <div class="daily-task ${over||urgent?'urgent-task':''} ${sched?'dt-scheduled':''}"
+      draggable="true"
+      ondragstart="tgDragStart(event,'${t.id}')"
+      onclick="openTaskModal('${t.id}')">
       <div class="prio-dot" style="background:${pCol};flex-shrink:0"></div>
       <div class="dt-info">
         <div class="dt-name">${esc(t.name)}</div>
-        <div class="dt-meta">${esc(cat.label)} ${t.fund&&t.fund!=='none'?'· '+esc(t.fund):''}</div>
+        <div class="dt-meta">${esc(cat.label)}${t.fund&&t.fund!=='none'?' · '+esc(t.fund):''}${sched?` · 🕐 ${fmtHour(sched)}`:''}${dur>1?` · ${dur}h`:''}</div>
       </div>
       <div class="dt-right">
         <span class="fund-chip" style="font-size:10px">${esc(COLS[t.status]?.label||t.status)}</span>
@@ -2357,7 +2502,8 @@ function openTaskModal(id) {
     document.getElementById('fStatus').value    = t.status;
     document.getElementById('fStartDate').value = t.startDate || '';
     document.getElementById('fDeadline').value  = t.deadline || '';
-    document.getElementById('fWs').value        = t.ws || '';
+    document.getElementById('fWs').value            = t.ws || '';
+    document.getElementById('fDurationHours').value = t.durationHours || 1;
     del.style.display = 'block';
     const calBtn = document.getElementById('btnAddCal');
     if (calBtn) {
@@ -2394,7 +2540,8 @@ function openTaskModal(id) {
     document.getElementById('fStartDate').value = new Date().toISOString().slice(0,10);
     const d = new Date(); d.setDate(d.getDate()+7);
     document.getElementById('fDeadline').value  = d.toISOString().slice(0,10);
-    document.getElementById('fWs').value       = state.ws !== 'all' ? (state.ws||'') : '';
+    document.getElementById('fWs').value            = state.ws !== 'all' ? (state.ws||'') : '';
+    document.getElementById('fDurationHours').value = 1;
     del.style.display = 'none';
   }
   // Reset auto-estimate flags so new task gets fresh suggestions
@@ -2456,9 +2603,10 @@ function saveTask() {
   const assignee = document.getElementById('fAssignee').value;
   const priority = document.getElementById('fPriority').value;
   const status   = document.getElementById('fStatus').value;
-  const startDate = document.getElementById('fStartDate').value;
-  const deadline  = document.getElementById('fDeadline').value;
-  const ws        = document.getElementById('fWs').value;
+  const startDate    = document.getElementById('fStartDate').value;
+  const deadline     = document.getElementById('fDeadline').value;
+  const ws           = document.getElementById('fWs').value;
+  const durationHours = parseInt(document.getElementById('fDurationHours').value) || 1;
 
   if (!name)     { flash('fName');     return; }
   if (!cat)      { flash('fCat');      return; }
@@ -2473,13 +2621,13 @@ function saveTask() {
         t.deadlineHistory.push({ changedBy: state.currentUser || 'Unknown', from: t.deadline, to: deadline, at: new Date().toISOString() });
       }
       const wasDone = t.status === 'done';
-      Object.assign(t, { name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws });
+      Object.assign(t, { name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, durationHours });
       if (status === 'done' && !wasDone) t.completedAt = new Date().toISOString();
       if (status !== 'done') t.completedAt = null;
     }
     toast('Task updated');
   } else {
-    tasks.unshift({ id: uid(), name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, createdAt: new Date().toISOString() });
+    tasks.unshift({ id: uid(), name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, durationHours, createdAt: new Date().toISOString() });
     toast('Task created');
   }
   persist(); renderAll(); closeTaskModal();
