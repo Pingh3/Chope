@@ -472,6 +472,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .dt-meta{font-size:11px;color:var(--t3);margin-top:2px}
 .dt-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
 
+/* ── My Day main layout ──────────────────────────────── */
+.daily-main-row{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+.daily-schedule-col{min-width:0}
+.daily-tasks-col{min-width:0;display:flex;flex-direction:column;gap:0}
+
 /* ── Schedule grid ───────────────────────────────────── */
 .sched-wrap{display:grid;grid-template-columns:210px 1fr;gap:14px;align-items:start}
 .sched-unscheduled{
@@ -496,6 +501,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   display:grid;grid-template-columns:58px 1fr;
   border-bottom:1px solid var(--border);min-height:46px;
 }
+.sched-row.sched-has-cal{grid-template-columns:58px 130px 1fr}
 .sched-row:last-child{border-bottom:none}
 .sched-row.sched-now{background:#FEFCE8}
 .sched-hour-label{
@@ -523,10 +529,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 }
 .sched-slot-chip .sched-rm:hover{color:#EF4444}
 .sched-empty-hint{font-size:11px;color:var(--t3);text-align:center;padding:14px 0}
+
 .sched-cont-block{
   display:flex;align-items:center;gap:5px;width:100%;
   background:var(--bg);border:1px solid var(--border);border-radius:5px;
   padding:3px 7px;font-size:10px;color:var(--t2);user-select:none;
+}
+.sched-cal-col{
+  border-right:1px solid var(--border);padding:5px 6px;
+  display:flex;flex-direction:column;gap:3px;min-height:46px;
+}
+.sched-cal-ev{
+  font-size:10px;font-weight:500;color:#7C3AED;
+  background:#F5F3FF;border-radius:4px;padding:2px 5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.sched-row.sched-now .sched-cal-ev{background:#EDE9FE}
+.sched-dur{
+  font-size:10px;font-weight:600;color:#6366F1;
+  background:#EEF2FF;border-radius:3px;padding:1px 4px;
+  flex-shrink:0;margin-left:auto;
 }
 
 /* Chart */
@@ -2265,29 +2287,33 @@ function renderDaily() {
       </div>
     </div>
 
-    <div class="daily-section">
-      <h2>🗓 Today's Schedule</h2>
-      <div id="schedGrid"></div>
-    </div>
-
-    <div class="daily-section">
-      <h2>🎯 Today's Priorities ${todayTasks.length?`<span style="font-size:12px;color:var(--t3);font-weight:400">${todayTasks.length} task${todayTasks.length!==1?'s':''}</span>`:''}
-      </h2>
-      <div class="daily-tasks">
-        ${todayTasks.length ? todayTasks.map(dailyTaskRow).join('') :
-          `<div style="padding:20px;text-align:center;color:var(--t3);font-size:13px">
-            🎉 No urgent tasks today — you're on top of it!
-          </div>`}
+    <div class="daily-main-row">
+      <div class="daily-schedule-col">
+        <div class="daily-section">
+          <h2>🗓 Today's Schedule</h2>
+          <div id="schedGrid"></div>
+        </div>
+      </div>
+      <div class="daily-tasks-col">
+        <div class="daily-section">
+          <h2>🎯 Today's Priorities ${todayTasks.length?`<span style="font-size:12px;color:var(--t3);font-weight:400">${todayTasks.length} task${todayTasks.length!==1?'s':''}</span>`:''}
+          </h2>
+          <div class="daily-tasks">
+            ${todayTasks.length ? todayTasks.map(dailyTaskRow).join('') :
+              `<div style="padding:20px;text-align:center;color:var(--t3);font-size:13px">
+                🎉 No urgent tasks today — you're on top of it!
+              </div>`}
+          </div>
+        </div>
+        ${weekTasks.length ? `
+        <div class="daily-section">
+          <h2>📅 Coming This Week <span style="font-size:12px;color:var(--t3);font-weight:400">${weekTasks.length} tasks</span></h2>
+          <div class="daily-tasks">
+            ${weekTasks.map(dailyTaskRow).join('')}
+          </div>
+        </div>` : ''}
       </div>
     </div>
-
-    ${weekTasks.length ? `
-    <div class="daily-section">
-      <h2>📅 Coming This Week <span style="font-size:12px;color:var(--t3);font-weight:400">${weekTasks.length} tasks</span></h2>
-      <div class="daily-tasks">
-        ${weekTasks.map(dailyTaskRow).join('')}
-      </div>
-    </div>` : ''}
 
     <div class="daily-section">
       <h2>📊 Team Progress</h2>
@@ -2498,15 +2524,29 @@ function renderMyWeek() {
         <div style="display:flex;flex-direction:column;gap:8px">
           ${team.map(m => {
             const myWeekTasks = activeTasks.filter(t => t.assignee === m.name);
+            const myWeekDone  = tasks.filter(t => t.assignee === m.name && t.status === 'done' && t.deadline && t.deadline >= week[0] && t.deadline <= week[6]);
+            const weekTotal   = myWeekTasks.length + myWeekDone.length;
+            const weekRate    = weekTotal ? Math.round(myWeekDone.length / weekTotal * 100) : 0;
+            const allDone     = tasks.filter(t => t.assignee === m.name && t.status === 'done').length;
+            const allTotal    = tasks.filter(t => t.assignee === m.name).length;
+            const overallRate = allTotal ? Math.round(allDone / allTotal * 100) : 0;
+            const rateColor   = overallRate >= 70 ? '#059669' : overallRate >= 40 ? '#D97706' : '#DC2626';
             const col = avatarColor(m.name);
             return `
               <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:12px">
                 <div style="width:32px;height:32px;border-radius:50%;background:${col};font-size:11px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">${esc(initials(m.name))}</div>
                 <div style="flex:1;min-width:0">
                   <div style="font-size:13px;font-weight:600">${esc(m.name)} <span style="font-size:11px;color:var(--t3);font-weight:400">${esc(m.role)}</span></div>
-                  <div style="font-size:11px;color:var(--t3);margin-top:2px">${myWeekTasks.length} task${myWeekTasks.length!==1?'s':''} this week · ${myWeekTasks.filter(t=>t.priority==='high').length} high priority</div>
+                  <div style="font-size:11px;color:var(--t3);margin-top:2px">${myWeekTasks.length} open · ${myWeekDone.length} done this week · ${myWeekTasks.filter(t=>t.priority==='high').length} high priority</div>
+                  <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+                    <div style="flex:1;height:5px;background:var(--bg);border-radius:3px;overflow:hidden">
+                      <div style="height:100%;border-radius:3px;background:${rateColor};width:${overallRate}%;transition:width .4s ease"></div>
+                    </div>
+                    <span style="font-size:10px;font-weight:700;color:${rateColor};flex-shrink:0">${overallRate}%</span>
+                    <span style="font-size:10px;color:var(--t3);flex-shrink:0">overall</span>
+                  </div>
                 </div>
-                <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:60%">
+                <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:55%">
                   ${myWeekTasks.slice(0,4).map(t=>`
                     <span onclick="openTaskModal('${t.id}')" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:2px 7px;font-size:10px;cursor:pointer;white-space:nowrap;border-left:2px solid ${PRIO_COLORS[t.priority]}">${esc(t.name.slice(0,28))}${t.name.length>28?'…':''}</span>
                   `).join('')}
@@ -2889,7 +2929,7 @@ function saveTask() {
         if (hn) t.notes.push({ id: uid(), author: by, text: hn, ts: new Date().toISOString(), type: 'handoff', readBy: [by] });
       }
       const wasDone = t.status === 'done';
-      Object.assign(t, { name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, ...(_planDurationHours != null && { durationHours: _planDurationHours }) });
+      Object.assign(t, { name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, durationHours: _planDurationHours !== null ? _planDurationHours : t.durationHours });
       if (status === 'done' && !wasDone) t.completedAt = new Date().toISOString();
       if (status !== 'done') t.completedAt = null;
     }
@@ -2994,6 +3034,24 @@ function setSlotIds(h, ids) {
   persistScheduleData();
 }
 
+function _calEventsForHour(h) {
+  if (!_calEvents || !Array.isArray(_calEvents)) return [];
+  const hour = parseInt(h);
+  return _calEvents.filter(ev => {
+    if (!ev.start?.dateTime) return false;
+    const start = new Date(ev.start.dateTime).getHours();
+    const end   = ev.end?.dateTime ? new Date(ev.end.dateTime).getHours() : start + 1;
+    return start <= hour && hour < end;
+  });
+}
+
+function _fmtDurHours(h) {
+  if (!h) return '';
+  if (h < 1) return Math.round(h * 60) + 'm';
+  if (h % 1 === 0) return h + 'h';
+  return h.toFixed(1) + 'h';
+}
+
 function renderScheduleGrid() {
   const el = document.getElementById('schedGrid');
   if (!el) return;
@@ -3004,17 +3062,24 @@ function renderScheduleGrid() {
     .sort((a,b) => { const po={high:0,med:1,low:2}; return (po[a.priority]??1)-(po[b.priority]??1); });
   const unscheduled = myOpen.filter(t => !allScheduled.has(t.id));
   const nowHour = new Date().getHours();
+  const hasCalendar = Array.isArray(_calEvents);
 
   const seenTasks = new Set();
   const slotsHTML = SCHED_HOURS.map(h => {
     const isCurrent = parseInt(h) === nowHour;
     const slotIds = getSlotIds(h).filter(id => tasks.find(t => t.id === id && t.status !== 'done'));
+    const calEvs = _calEventsForHour(h);
+    const calColHTML = hasCalendar
+      ? `<div class="sched-cal-col">${calEvs.map(ev => `<div class="sched-cal-ev">${esc((ev.summary||'(No title)').length>22?(ev.summary||'(No title)').slice(0,22)+'…':(ev.summary||'(No title)'))}</div>`).join('')}</div>`
+      : '';
     return `
-      <div class="sched-row${isCurrent ? ' sched-now' : ''}">
+      <div class="sched-row${isCurrent ? ' sched-now' : ''}${hasCalendar ? ' sched-has-cal' : ''}">
         <div class="sched-hour-label">${SCHED_LABELS[h]}</div>
+        ${calColHTML}
         <div class="sched-slot" ondragover="schedDragOver(event)" ondragleave="schedDragLeave(event)" ondrop="schedDrop(event,'${h}')">
           ${slotIds.map(id => {
             const t = tasks.find(x => x.id === id); if (!t) return '';
+            const dur = t.durationHours ? `<span class="sched-dur">${_fmtDurHours(t.durationHours)}</span>` : '';
             if (seenTasks.has(id)) {
               return `<div class="sched-cont-block" style="border-left:3px solid ${PRIO_COLORS[t.priority]}">
                 <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.6;font-size:10px">${esc(t.name.length>35?t.name.slice(0,35)+'…':t.name)}</span>
@@ -3036,10 +3101,13 @@ function renderScheduleGrid() {
     <div class="sched-wrap">
       <div class="sched-unscheduled" ondragover="schedDragOver(event)" ondragleave="schedDragLeave(event)" ondrop="schedDrop(event,'')">
         <div class="sched-panel-hd">Unscheduled · ${unscheduled.length}</div>
-        ${unscheduled.map(t => `
-          <div class="sched-chip" draggable="true" style="border-left:3px solid ${PRIO_COLORS[t.priority]}" ondragstart="schedDragStart(event,'${t.id}','')">
-            <span onclick="openTaskModal('${t.id}')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer">${esc(t.name.length>30?t.name.slice(0,30)+'…':t.name)}</span>
-          </div>`).join('')}
+        ${unscheduled.map(t => {
+          const dur = t.durationHours ? `<span class="sched-dur">${_fmtDurHours(t.durationHours)}</span>` : '';
+          return `<div class="sched-chip" draggable="true" style="border-left:3px solid ${PRIO_COLORS[t.priority]}" ondragstart="schedDragStart(event,'${t.id}','')">
+            <span onclick="openTaskModal('${t.id}')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer">${esc(t.name.length>28?t.name.slice(0,28)+'…':t.name)}</span>
+            ${dur}
+          </div>`;
+        }).join('')}
         ${unscheduled.length === 0 ? '<div class="sched-empty-hint">All tasks scheduled ✓</div>' : ''}
       </div>
       <div class="sched-slots">${slotsHTML}</div>
@@ -4055,6 +4123,7 @@ async function loadCalendarForDaily() {
   }
   _calEvents = events;
   el.innerHTML = events.map(calEventHTML).join('');
+  renderScheduleGrid();
 }
 
 async function createCalendarEvent(taskId) {
