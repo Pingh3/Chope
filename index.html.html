@@ -2356,9 +2356,8 @@ function renderDaily() {
         <div class="daily-card-sub">${myTotal} total tasks assigned</div>
       </div>
       <div class="daily-card">
-        <div class="daily-card-label">Team Overdue</div>
-        <div class="daily-card-value" style="color:${s.over?'#DC2626':'#059669'}">${s.over}</div>
-        <div class="daily-card-sub">${s.ip} tasks in progress</div>
+        <div class="daily-card-label">My Overdue</div>
+        ${(() => { const myOver = myTasks.filter(t => t.deadline && t.deadline < todayStr).length; return `<div class="daily-card-value" style="color:${myOver?'#DC2626':'#059669'}">${myOver}</div><div class="daily-card-sub">${myOver ? myOver + ' past deadline' : 'All on track ✓'}</div>`; })()}
       </div>
     </div>
 
@@ -2760,6 +2759,7 @@ function setFilter(group, val) { state[group] = val; renderAll(); }
 ══════════════════════════════════════════════════════════ */
 
 function switchView(v, btn) {
+  if (v === 'board') hideDone = true;
   state.view = v;
   document.querySelectorAll('.vbtn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
