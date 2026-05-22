@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -280,17 +280,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   text-align:center;
   font-size:12px;color:var(--t3);
 }
-.kol-collapse-btn{
-  background:none;border:none;cursor:pointer;
-  color:var(--t3);font-size:12px;line-height:1;
-  padding:2px 5px;border-radius:4px;transition:all .15s;
-  margin-left:4px;flex-shrink:0;
-}
-.kol-collapse-btn:hover{color:var(--t1);background:rgba(0,0,0,.06)}
-.kol-done-collapsed .kol-body{display:none}
-.kol-done-collapsed .kol-title{display:none}
-.kol-done-collapsed .kol-hd{flex-direction:column;align-items:center;padding:10px 4px;gap:8px}
-.kol-done-collapsed .kol-count{writing-mode:vertical-lr;transform:rotate(180deg);margin:0}
 
 /* ── Task Card ───────────────────────────────────────────── */
 .card{
@@ -412,6 +401,50 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .board-quote-icon{font-size:18px;flex-shrink:0}
 .board-quote-text{font-size:12px;color:var(--t2);font-style:italic;line-height:1.5}
 .board-quote-author{font-size:10px;color:var(--t3);margin-top:2px;font-style:normal;font-weight:600}
+.board-wins{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  padding:10px 14px;flex:0 0 240px;box-shadow:var(--sh);display:flex;flex-direction:column;
+}
+.board-wins-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:6px}
+.board-wins-title{font-size:11px;font-weight:700;color:var(--t1);white-space:nowrap}
+.board-wins-badge{
+  background:#22C55E;color:#fff;border-radius:10px;
+  padding:1px 7px;font-size:10px;font-weight:700;
+}
+.board-wins-badge.zero{background:var(--border);color:var(--t3)}
+.board-wins-add{
+  margin-left:auto;background:none;border:1px dashed var(--border);
+  border-radius:5px;padding:2px 8px;font-size:10px;color:var(--t3);
+  cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .12s;
+}
+.board-wins-add:hover{border-color:var(--col-ip);color:var(--col-ip)}
+.board-win-row{
+  display:flex;align-items:center;gap:7px;
+  padding:5px 6px;border-radius:5px;cursor:pointer;
+  transition:background .1s;position:relative;
+}
+.board-win-row:hover{background:var(--bg)}
+.board-win-num{
+  font-size:10px;font-weight:800;color:var(--t3);
+  width:14px;text-align:center;flex-shrink:0;
+}
+.board-win-name{
+  font-size:11px;font-weight:500;color:var(--t1);
+  flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.board-win-who{
+  font-size:10px;color:var(--t3);flex-shrink:0;
+  background:var(--col);border-radius:10px;padding:1px 6px;
+}
+.board-win-rm{
+  position:absolute;right:2px;top:50%;transform:translateY(-50%);
+  background:none;border:none;cursor:pointer;color:var(--t3);font-size:13px;
+  opacity:0;transition:opacity .1s;padding:0 3px;line-height:1;
+}
+.board-win-row:hover .board-win-rm{opacity:1}
+.board-win-rm:hover{color:#EF4444}
+.board-wins-empty{font-size:11px;color:var(--t3);text-align:center;padding:10px 0;line-height:1.5}
+.board-wins-divider{font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;padding:4px 6px 2px;margin-top:2px}
 
 /* ── Daily View ──────────────────────────────────────────── */
 #dailyView{max-width:900px;margin:0 auto}
@@ -439,6 +472,85 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .dt-meta{font-size:11px;color:var(--t3);margin-top:2px}
 .dt-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
 
+/* ── My Day main layout ──────────────────────────────── */
+.daily-main-row{display:block}
+.daily-schedule-col{min-width:0}
+.daily-tasks-col{min-width:0;display:flex;flex-direction:column;gap:0}
+
+/* ── Schedule grid ───────────────────────────────────── */
+.sched-wrap{display:grid;grid-template-columns:240px 1fr;gap:14px;align-items:start}
+.sched-unscheduled{
+  background:var(--bg);border:1px solid var(--border);border-radius:10px;
+  padding:11px 12px;min-height:180px;transition:background .12s,border-color .12s;
+}
+.sched-unscheduled.sched-drag-over{background:#EFF6FF;border-color:#93C5FD}
+.sched-panel-hd{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:9px}
+.sched-chip{
+  background:var(--card);border:1px solid var(--border);border-radius:6px;
+  padding:7px 9px;margin-bottom:5px;cursor:grab;font-size:11px;font-weight:500;
+  color:var(--t1);display:flex;align-items:center;gap:7px;transition:box-shadow .12s;
+  user-select:none;
+}
+.sched-chip:hover{box-shadow:0 2px 6px rgba(0,0,0,.1)}
+.sched-chip:active{cursor:grabbing}
+.sched-slots{
+  border:1px solid var(--border);border-radius:10px;overflow:hidden;
+  background:var(--card);box-shadow:var(--sh);
+}
+.sched-row{
+  display:grid;grid-template-columns:58px 1fr;
+  border-bottom:1px solid var(--border);min-height:46px;
+}
+.sched-row.sched-has-cal{grid-template-columns:58px 130px 1fr}
+.sched-row:last-child{border-bottom:none}
+.sched-row.sched-now{background:#FEFCE8}
+.sched-hour-label{
+  padding:14px 8px;font-size:10px;font-weight:700;color:var(--t3);
+  border-right:1px solid var(--border);
+  display:flex;align-items:flex-start;justify-content:center;flex-shrink:0;
+}
+.sched-row.sched-now .sched-hour-label{color:#CA8A04;font-weight:800}
+.sched-slot{
+  padding:5px 7px;min-height:46px;display:flex;flex-wrap:wrap;
+  gap:4px;align-content:flex-start;transition:background .12s;
+}
+.sched-slot.sched-drag-over{background:#EFF6FF}
+.sched-slot-chip{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--bg);border:1px solid var(--border);border-radius:5px;
+  padding:4px 7px 4px 8px;font-size:11px;font-weight:500;color:var(--t1);
+  cursor:grab;max-width:100%;user-select:none;transition:box-shadow .12s;
+}
+.sched-slot-chip:hover{box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.sched-slot-chip:active{cursor:grabbing}
+.sched-slot-chip .sched-rm{
+  background:none;border:none;cursor:pointer;color:var(--t3);
+  font-size:14px;line-height:1;padding:0 0 0 2px;margin-left:1px;
+}
+.sched-slot-chip .sched-rm:hover{color:#EF4444}
+.sched-empty-hint{font-size:11px;color:var(--t3);text-align:center;padding:14px 0}
+
+.sched-cont-block{
+  display:flex;align-items:center;gap:5px;width:100%;
+  background:var(--bg);border:1px solid var(--border);border-radius:5px;
+  padding:3px 7px;font-size:10px;color:var(--t2);user-select:none;
+}
+.sched-cal-col{
+  border-right:1px solid var(--border);padding:5px 6px;
+  display:flex;flex-direction:column;gap:3px;min-height:46px;
+}
+.sched-cal-ev{
+  font-size:10px;font-weight:500;color:#7C3AED;
+  background:#F5F3FF;border-radius:4px;padding:2px 5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.sched-row.sched-now .sched-cal-ev{background:#EDE9FE}
+.sched-dur{
+  font-size:10px;font-weight:600;color:#6366F1;
+  background:#EEF2FF;border-radius:3px;padding:1px 4px;
+  flex-shrink:0;margin-left:auto;
+}
+
 /* Chart */
 .chart-wrap{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:16px}
 .donut-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
@@ -458,14 +570,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .tr-fill{height:100%;border-radius:3px;background:var(--col-done)}
 .tr-pct{font-size:10px;color:var(--t3);width:32px;text-align:right}
 
-/* ── My Day Time Grid ─────────────────────────────────────── */
-.tg-wrap{background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--sh);overflow:hidden;position:relative}
-.tg-drop-zone.tg-over{background:rgba(59,130,246,.07)}
-.tg-block{border-radius:6px;padding:5px 8px;overflow:hidden;cursor:pointer;z-index:2;transition:box-shadow .15s}
-.tg-block:hover{box-shadow:var(--sh-md)}
-.daily-task{cursor:grab}
-.daily-task.dt-scheduled{opacity:.65}
-
 /* ── Workstreams View ────────────────────────────────────── */
 #wsView{}
 .ws-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
@@ -474,7 +578,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .ws-card{
   background:var(--card);border:1px solid var(--border);
   border-radius:10px;box-shadow:var(--sh);overflow:hidden;
+  padding-bottom:3px;transition:border-color .15s,box-shadow .15s;
 }
+.ws-card.ws-drag-over{border-color:#3B82F6!important;box-shadow:0 0 0 3px #BFDBFE}
+.ws-unassigned-zone{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  padding:10px 14px;margin-bottom:14px;transition:border-color .15s,box-shadow .15s;
+}
+.ws-unassigned-zone.ws-drag-over{border-color:#6B7280;box-shadow:0 0 0 3px #E5E7EB}
+.ws-unassigned-hd{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.ws-drag-chips{display:flex;flex-wrap:wrap;gap:6px;min-height:28px}
+.ws-drag-chip{
+  display:flex;align-items:center;gap:5px;background:var(--bg);
+  border:1px solid var(--border);border-radius:5px;padding:4px 9px;
+  font-size:11px;cursor:grab;user-select:none;transition:all .12s;
+}
+.ws-drag-chip:hover{border-color:#3B82F6;color:#3B82F6}
+.ws-drag-chip:active{cursor:grabbing;opacity:.6}
+.ws-task-row{cursor:grab}
+.ws-task-row.dragging{opacity:.35}
 .ws-card-hd{
   padding:14px 16px 10px;
   display:flex;align-items:center;gap:10px;
@@ -535,7 +657,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 }
 .gmail-hd-title{font-size:14px;font-weight:700;flex:1}
 .gmail-body{flex:1;overflow-y:auto;padding:12px 16px}
-.gmail-footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
+.gmail-footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px}
 .gmail-auth-area{text-align:center;padding:40px 20px}
 .gmail-suggestion{
   background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
@@ -783,101 +905,174 @@ textarea.fi{resize:vertical;min-height:72px}
   background:var(--t1);color:#fff;border-radius:20px;
   padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap;
 }
-
-/* ── Bulk Import Spotlight ──────────────────────────────── */
-#bulkOverlay{
-  position:fixed;inset:0;
-  background:rgba(0,0,0,.48);
-  backdrop-filter:blur(5px);
-  -webkit-backdrop-filter:blur(5px);
-  display:flex;justify-content:center;align-items:flex-start;
-  padding-top:72px;
-  z-index:500;opacity:0;pointer-events:none;transition:opacity .18s;
+/* ── Batch selection ─────────────────────────────────────── */
+.card.card-selected{
+  outline:2px solid #3B82F6;
+  outline-offset:1px;
+  background:#EFF6FF !important;
 }
-#bulkOverlay.open{opacity:1;pointer-events:all}
-#bulkModal{
-  width:660px;max-width:calc(100vw - 32px);
-  background:var(--card);
-  border-radius:16px;
-  box-shadow:0 28px 72px rgba(0,0,0,.28),0 0 0 1px rgba(0,0,0,.08);
-  overflow:hidden;
-  transform:translateY(-10px) scale(.98);transition:transform .2s;
-}
-#bulkOverlay.open #bulkModal{transform:translateY(0) scale(1)}
-.bulk-header{
-  padding:16px 20px 14px;
-  border-bottom:1px solid var(--border);
+.card.card-selected.card-done{opacity:.7}
+#selBar{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:#1E293B;color:#fff;
+  border-radius:12px;padding:10px 18px;
   display:flex;align-items:center;gap:12px;
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
+  z-index:9999;
+  font-size:13px;font-weight:600;
+  animation:selBarIn .15s ease;
+  white-space:nowrap;
 }
-.bulk-icon{
-  width:32px;height:32px;border-radius:9px;
-  background:var(--t1);color:#fff;
+@keyframes selBarIn{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+#selBar kbd{
+  background:rgba(255,255,255,.15);border-radius:4px;
+  padding:1px 6px;font-size:11px;font-family:inherit;font-weight:500;
+}
+#selBar .sel-del-btn{
+  background:#EF4444;color:#fff;border:none;border-radius:8px;
+  padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;
+  transition:background .12s;
+}
+#selBar .sel-del-btn:hover{background:#DC2626}
+#selBar .sel-clear-btn{
+  background:transparent;color:rgba(255,255,255,.6);border:none;
+  font-size:12px;cursor:pointer;padding:0;
+  transition:color .12s;
+}
+#selBar .sel-clear-btn:hover{color:#fff}
+
+/* ── Notification bell ───────────────────────────────── */
+.notif-btn{
+  position:relative;background:transparent;border:1px solid var(--border);
+  border-radius:var(--r);padding:5px 9px;font-size:14px;line-height:1;
+  cursor:pointer;color:var(--t2);transition:all .12s;display:flex;align-items:center;
+}
+.notif-btn:hover{border-color:var(--t2);color:var(--t1)}
+.notif-badge{
+  position:absolute;top:-5px;right:-5px;
+  background:#EF4444;color:#fff;border-radius:10px;
+  padding:1px 5px;font-size:9px;font-weight:700;line-height:1.4;
+  min-width:16px;text-align:center;display:none;
+}
+#notifPanel{
+  position:fixed;right:0;top:54px;bottom:0;width:320px;
+  background:var(--card);border-left:1px solid var(--border);
+  z-index:140;display:flex;flex-direction:column;
+  transform:translateX(100%);transition:transform .2s;
+  box-shadow:-4px 0 16px rgba(0,0,0,.08);
+}
+#notifPanel.open{transform:translateX(0)}
+.np-hd{
+  padding:13px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+}
+.np-title{font-size:13px;font-weight:700}
+.np-mark-all{font-size:11px;color:var(--col-ip);background:none;border:none;cursor:pointer;font-family:inherit;padding:0}
+.np-mark-all:hover{text-decoration:underline}
+.np-body{flex:1;overflow-y:auto}
+.np-item{
+  padding:11px 14px;border-bottom:1px solid var(--border);
+  cursor:pointer;transition:background .1s;
+}
+.np-item:hover{background:var(--bg)}
+.np-item.unread{background:#EFF6FF}
+.np-item.unread:hover{background:#DBEAFE}
+.np-task{font-size:11px;font-weight:700;color:var(--col-ip);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.np-text{font-size:12px;color:var(--t1);line-height:1.4;margin-bottom:4px}
+.np-meta{font-size:10px;color:var(--t3);display:flex;align-items:center;gap:5px}
+.np-dot{width:14px;height:14px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#fff;flex-shrink:0}
+.np-empty{padding:32px 16px;text-align:center;color:var(--t3);font-size:13px;line-height:1.6}
+.np-item.handoff{border-left:3px solid #F97316}
+.np-item.handoff.unread{background:#FFF7ED}
+.np-item.handoff.unread:hover{background:#FFEDD5}
+.np-handoff-tag{display:inline-block;background:#F97316;color:#fff;border-radius:4px;font-size:9px;font-weight:700;padding:1px 5px;margin-right:5px;vertical-align:middle}
+
+/* ── Task notes thread ───────────────────────────────── */
+.notes-sep{border:none;border-top:1px solid var(--border);margin:6px 0 12px}
+.notes-hd{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);margin-bottom:9px}
+.note-thread{display:flex;flex-direction:column;gap:7px;max-height:180px;overflow-y:auto;margin-bottom:10px}
+.note-item{display:flex;gap:8px;align-items:flex-start}
+.note-av{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;flex-shrink:0;margin-top:1px}
+.note-bubble{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:7px 10px}
+.note-item.is-handoff .note-bubble{background:#FFF7ED;border-color:#FED7AA}
+.note-who{font-size:10px;font-weight:700;color:var(--t1);margin-bottom:2px}
+.note-txt{font-size:12px;color:var(--t2);line-height:1.4}
+.note-time{font-size:10px;color:var(--t3);margin-top:3px}
+.note-input-wrap{display:flex;gap:6px;align-items:flex-end}
+.note-ta{flex:1;resize:none;border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;font-size:12px;font-family:inherit;color:var(--t1);background:var(--card);outline:none;line-height:1.4;transition:border-color .12s}
+.note-ta:focus{border-color:#3B82F6}
+.note-post-btn{background:var(--t1);color:#fff;border:none;border-radius:var(--r);padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;height:36px}
+.note-post-btn:hover{background:#333}
+.handoff-box{background:#FFF7ED;border:1px solid #FED7AA;border-radius:var(--r);padding:9px 11px;margin-bottom:8px;display:none}
+.handoff-box.show{display:block}
+.handoff-box-label{font-size:11px;font-weight:600;color:#92400E;margin-bottom:5px}
+
+#selBar .sel-hint{font-size:10px;color:rgba(255,255,255,.4);margin-left:4px}
+
+/* ── Bulk import rows ────────────────────────────────── */
+.bulk-row{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.bulk-row-name{flex:1;font-size:12px;padding:5px 8px!important}
+.bulk-row-rm{background:none;border:none;cursor:pointer;color:var(--t3);font-size:18px;padding:0 2px;line-height:1;flex-shrink:0;transition:color .1s}
+.bulk-row-rm:hover{color:#EF4444}
+
+/* ── Card select checkbox ─────────────────────────────── */
+.card-sel{
+  position:absolute;top:10px;left:10px;
+  width:18px;height:18px;border-radius:4px;
+  border:2px solid var(--border);
+  background:var(--card);cursor:pointer;
   display:flex;align-items:center;justify-content:center;
-  font-size:15px;flex-shrink:0;
+  opacity:0;transition:all .15s;z-index:3;flex-shrink:0;
 }
-.bulk-header-text{flex:1}
-.bulk-header-title{font-size:14px;font-weight:700;color:var(--t1)}
-.bulk-header-sub{font-size:11px;color:var(--t3);margin-top:2px}
-.bulk-header-close{background:none;border:none;font-size:20px;color:var(--t3);cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1;transition:all .15s;font-family:inherit}
-.bulk-header-close:hover{color:var(--t1);background:var(--bg)}
-.bulk-input-wrap{padding:16px 20px 12px}
-#bulkInput{
-  width:100%;min-height:130px;max-height:240px;
-  resize:vertical;
-  border:1.5px solid var(--border);border-radius:10px;
-  padding:12px 14px;
-  font-size:13px;font-family:inherit;line-height:1.65;
-  color:var(--t1);background:var(--bg);
-  outline:none;transition:border-color .15s,box-shadow .15s;
+.card:hover .card-sel{opacity:1}
+.card.card-selected .card-sel{opacity:1;background:#3B82F6;border-color:#3B82F6}
+.card-sel svg{display:none;width:10px;height:10px}
+.card.card-selected .card-sel svg{display:block}
+
+/* ── Refocus modal ────────────────────────────────────── */
+#refocusOverlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.45);
+  z-index:9000;display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity .2s;
 }
-#bulkInput:focus{border-color:var(--col-ip);box-shadow:0 0 0 3px rgba(59,130,246,.1)}
-#bulkInput::placeholder{color:var(--t3)}
-.bulk-input-hint{font-size:11px;color:var(--t3);margin-top:7px;padding-left:1px}
-.bulk-preview-section{border-top:1px solid var(--border)}
-.bulk-preview-hd{
-  padding:9px 20px 7px;
-  display:flex;align-items:center;justify-content:space-between;
+#refocusOverlay.open{opacity:1;pointer-events:all}
+#refocusModal{
+  background:var(--card);border-radius:14px;
+  width:480px;max-width:92vw;
+  box-shadow:var(--sh-lg);
+  transform:translateY(12px);transition:transform .2s;overflow:hidden;
 }
-.bulk-preview-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t3)}
-.bulk-preview-clear{font-size:11px;color:var(--col-ip);cursor:pointer;background:none;border:none;font-family:inherit;padding:0}
-.bulk-preview-clear:hover{text-decoration:underline}
-.bulk-task-list{max-height:260px;overflow-y:auto}
-.bulk-task-item{
-  padding:9px 20px;
+#refocusOverlay.open #refocusModal{transform:translateY(0)}
+.rfx-hd{padding:22px 24px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.rfx-title{font-size:17px;font-weight:700;color:var(--t1)}
+.rfx-sub{font-size:13px;color:var(--t2);margin-top:7px;line-height:1.55}
+.rfx-close{background:none;border:none;cursor:pointer;font-size:20px;color:var(--t3);padding:0;line-height:1;flex-shrink:0;margin-top:-2px}
+.rfx-close:hover{color:var(--t1)}
+.rfx-body{padding:14px 24px 0}
+.rfx-section-label{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.rfx-tasks{display:flex;flex-direction:column;gap:5px}
+.rfx-task{
   display:flex;align-items:center;gap:10px;
-  border-bottom:1px solid var(--border);
-  transition:background .1s;
+  background:var(--bg);border:1px solid var(--border);border-radius:7px;
+  padding:9px 12px;cursor:pointer;font-size:12px;font-weight:500;color:var(--t1);
+  transition:background .12s;text-align:left;width:100%;font-family:inherit;
 }
-.bulk-task-item:last-child{border-bottom:none}
-.bulk-task-item:hover{background:var(--bg)}
-.bti-num{font-size:11px;color:var(--t3);width:18px;text-align:right;flex-shrink:0}
-.bti-info{flex:1;min-width:0}
-.bti-name{font-size:13px;font-weight:500;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bti-badges{display:flex;gap:4px;margin-top:3px;align-items:center;flex-wrap:wrap}
-.bti-badge{
-  font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
-  padding:2px 7px;border-radius:10px;display:inline-flex;align-items:center;
+.rfx-task:hover{background:#EFF6FF;border-color:#BFDBFE}
+.rfx-ft{padding:16px 24px 22px;display:flex;gap:8px;flex-wrap:wrap}
+.rfx-btn-pri{
+  background:var(--t1);color:#fff;border:none;border-radius:8px;
+  padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;
+  transition:background .12s;
 }
-.bti-assignee{
-  font-size:11px;padding:3px 6px;
-  border:1px solid var(--border);border-radius:6px;
-  background:var(--card);color:var(--t1);
-  outline:none;cursor:pointer;font-family:inherit;max-width:110px;
+.rfx-btn-pri:hover{background:#333}
+.rfx-btn-sec{
+  background:transparent;color:var(--t2);border:1px solid var(--border);border-radius:8px;
+  padding:8px 18px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;
+  transition:all .12s;
 }
-.bti-del{
-  background:none;border:none;color:var(--t3);
-  cursor:pointer;font-size:16px;padding:2px 5px;border-radius:4px;
-  line-height:1;transition:all .15s;flex-shrink:0;
-}
-.bti-del:hover{color:var(--p-high);background:#FEF2F2}
-.bulk-footer{
-  padding:12px 20px;
-  border-top:1px solid var(--border);
-  display:flex;align-items:center;justify-content:space-between;
-  background:var(--card);
-}
-.bulk-footer-hint{font-size:11px;color:var(--t3)}
+.rfx-btn-sec:hover{color:var(--t1);border-color:var(--t2)}
 </style>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -886,8 +1081,8 @@ textarea.fi{resize:vertical;min-height:72px}
   <div class="logo">Cho<em>pe</em></div>
   <div class="hdr-stats" id="hdrStats"></div>
   <div class="hdr-views" id="hdrViews">
-    <button class="vbtn active" data-view="board" onclick="switchView('board',this)">Board</button>
-    <button class="vbtn" data-view="daily" onclick="switchView('daily',this)">My Day</button>
+    <button class="vbtn" data-view="board" onclick="switchView('board',this)">Board</button>
+    <button class="vbtn active" data-view="daily" onclick="switchView('daily',this)">My Day</button>
     <button class="vbtn" data-view="week" onclick="switchView('week',this)">Our Week</button>
     <button class="vbtn" data-view="ws" onclick="switchView('ws',this)">Workstreams</button>
   </div>
@@ -900,10 +1095,10 @@ textarea.fi{resize:vertical;min-height:72px}
   <button class="btn-ghost btn-ghost-team" style="font-size:12px;padding:5px 12px" onclick="openTeamModal()">⚙ Team</button>
   <button class="btn-ghost" style="font-size:12px;padding:5px 10px" onclick="toggleGmailPanel()" id="gmailHdrBtn" title="Gmail → Tasks">📧</button>
   <button class="btn-ghost btn-ghost-shortcuts" style="font-size:12px;padding:5px 10px" onclick="openShortcutsModal()" title="Keyboard shortcuts (?)">?</button>
-  <button class="btn-ghost" style="font-size:12px;padding:5px 11px;display:flex;align-items:center;gap:5px" onclick="openBulkImport()" title="Bulk import tasks (B)">
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="4" x2="13" y2="4"/><line x1="3" y1="8" x2="13" y2="8"/><line x1="3" y1="12" x2="9" y2="12"/><polyline points="12,10 14,12 12,14" stroke-width="1.8"/></svg>
-    Import
+  <button class="notif-btn" id="notifBtn" onclick="toggleNotifPanel()" title="Team updates">
+    🔔<span class="notif-badge" id="notifBadge"></span>
   </button>
+  <button class="btn-ghost" style="font-size:12px;padding:5px 10px" onclick="openBulkModal()" title="Bulk add tasks">⊞ Bulk</button>
   <button class="btn-add" onclick="openTaskModal()">+ Add Task</button>
 </header>
 
@@ -914,13 +1109,13 @@ textarea.fi{resize:vertical;min-height:72px}
 <div id="filterBar"></div>
 
 <!-- Board View -->
-<div class="view active" id="boardView">
+<div class="view" id="boardView">
   <div id="boardBanner"></div>
   <div class="board" id="board"></div>
 </div>
 
 <!-- Daily View -->
-<div class="view" id="dailyView">
+<div class="view active" id="dailyView">
   <div id="dailyContent"></div>
 </div>
 
@@ -935,6 +1130,7 @@ textarea.fi{resize:vertical;min-height:72px}
     <h1>Workstreams &amp; Projects</h1>
     <button class="btn-ws" onclick="openWsModal()">+ New Workstream</button>
   </div>
+  <div id="wsUnassigned"></div>
   <div class="ws-grid" id="wsGrid"></div>
 </div>
 
@@ -954,13 +1150,8 @@ textarea.fi{resize:vertical;min-height:72px}
     </div>
   </div>
   <div class="gmail-footer" id="gmailFooter" style="display:none">
-    <div style="display:flex;gap:8px">
-      <button class="btn-add" onclick="gmailScanInbox()" id="gmailScanBtn" style="flex:1">Scan Inbox</button>
-      <button class="btn-ghost" onclick="gmailSendBrief()" id="gmailBriefBtn" style="font-size:12px;padding:6px 12px" title="Email today's tasks to yourself">Daily Brief</button>
-    </div>
-    <button class="btn-ghost" onclick="gmailSendWeeklyAudit()" id="weeklyAuditBtn" style="width:100%;font-size:12px;padding:6px 12px;display:flex;justify-content:space-between;align-items:center" title="Send end-of-week team audit to yourself">
-      <span>📊 Weekly Audit</span><span id="weeklyAuditAge" style="font-size:10px;color:var(--t3)"></span>
-    </button>
+    <button class="btn-add" onclick="gmailScanInbox()" id="gmailScanBtn" style="flex:1">Scan Inbox</button>
+    <button class="btn-ghost" onclick="gmailSendBrief()" id="gmailBriefBtn" style="font-size:12px;padding:6px 12px" title="Email today's tasks to yourself">Send Today's Brief</button>
   </div>
 </div>
 
@@ -1031,7 +1222,7 @@ textarea.fi{resize:vertical;min-height:72px}
         <label>Assignee *</label>
         <div class="sel-wrap" id="assignee-wrap">
           <div class="sel-dot" id="dot-assignee"></div>
-          <select class="fi" id="fAssignee" onchange="updateSelDots()"></select>
+          <select class="fi" id="fAssignee" onchange="updateSelDots();onAssigneeChange()"></select>
         </div>
       </div>
       <div class="mf">
@@ -1050,18 +1241,18 @@ textarea.fi{resize:vertical;min-height:72px}
         <div class="plan-row">
           <div class="plan-q">How long will this take?</div>
           <div class="plan-pills" id="planDuration">
-            <button class="plan-pill" onclick="setPlanDuration(0.25)">30 min</button>
-            <button class="plan-pill" onclick="setPlanDuration(0.5)">1 hr</button>
-            <button class="plan-pill" onclick="setPlanDuration(0.75)">2 hrs</button>
-            <button class="plan-pill" onclick="setPlanDuration(0.5)">Half day</button>
-            <button class="plan-pill" onclick="setPlanDuration(1)">Full day</button>
-            <button class="plan-pill" onclick="setPlanDuration(2)">2 days</button>
-            <button class="plan-pill" onclick="setPlanDuration(3)">3 days</button>
-            <button class="plan-pill" onclick="setPlanDuration(5)">~1 week</button>
-            <button class="plan-pill" onclick="setPlanDuration(10)">2 weeks</button>
-            <button class="plan-pill" onclick="setPlanDuration(21)">3 weeks</button>
-            <button class="plan-pill" onclick="setPlanDuration(30)">1 month</button>
-            <button class="plan-pill" onclick="setPlanDuration(60)">2 months</button>
+            <button class="plan-pill" onclick="setPlanDuration(0.0625,0.5)">30 min</button>
+            <button class="plan-pill" onclick="setPlanDuration(0.125,1)">1 hr</button>
+            <button class="plan-pill" onclick="setPlanDuration(0.25,2)">2 hrs</button>
+            <button class="plan-pill" onclick="setPlanDuration(0.5,4)">Half day</button>
+            <button class="plan-pill" onclick="setPlanDuration(1,8)">Full day</button>
+            <button class="plan-pill" onclick="setPlanDuration(2,16)">2 days</button>
+            <button class="plan-pill" onclick="setPlanDuration(3,24)">3 days</button>
+            <button class="plan-pill" onclick="setPlanDuration(5,40)">~1 week</button>
+            <button class="plan-pill" onclick="setPlanDuration(10,80)">2 weeks</button>
+            <button class="plan-pill" onclick="setPlanDuration(21,168)">3 weeks</button>
+            <button class="plan-pill" onclick="setPlanDuration(30,240)">1 month</button>
+            <button class="plan-pill" onclick="setPlanDuration(60,480)">2 months</button>
           </div>
           <div style="display:flex;align-items:center;gap:6px;margin-top:7px">
             <span style="font-size:11px;color:var(--t3)">or</span>
@@ -1109,24 +1300,22 @@ textarea.fi{resize:vertical;min-height:72px}
         </div>
       </div>
       <div id="dateError" style="display:none;color:#EF4444;font-size:11px;margin-top:-6px;padding:0 2px">Due date can't be earlier than start date.</div>
-      <div class="mfrow" style="grid-template-columns:2fr 1fr">
-        <div class="mf">
-          <label>Workstream / Project</label>
-          <select class="fi" id="fWs" onchange="this.dataset.userSet='1'">
-            <option value="">None</option>
-          </select>
-        </div>
-        <div class="mf">
-          <label>My Day Duration</label>
-          <select class="fi" id="fDurationHours">
-            <option value="1">1 hour</option>
-            <option value="2">2 hours</option>
-            <option value="3">3 hours</option>
-            <option value="4">4 hours</option>
-            <option value="5">5 hours</option>
-            <option value="6">6 hours</option>
-          </select>
-        </div>
+      <div class="mf">
+        <label>Workstream / Project</label>
+        <select class="fi" id="fWs" onchange="this.dataset.userSet='1'">
+          <option value="">None</option>
+        </select>
+      </div>
+      <hr class="notes-sep">
+      <div class="notes-hd">Notes & Handoffs</div>
+      <div class="handoff-box" id="handoffBox">
+        <div class="handoff-box-label">↗ Add a handoff note for the new assignee</div>
+        <textarea class="note-ta" id="handoffNote" rows="2" placeholder="e.g. Please check the latest term sheet before proceeding…" style="width:100%"></textarea>
+      </div>
+      <div class="note-thread" id="noteThread"></div>
+      <div class="note-input-wrap">
+        <textarea class="note-ta" id="noteInput" rows="2" placeholder="Add a comment…"></textarea>
+        <button class="note-post-btn" onclick="submitNote()">Post</button>
       </div>
     </div>
     <div class="modal-ft">
@@ -1161,13 +1350,13 @@ textarea.fi{resize:vertical;min-height:72px}
             <div class="sel-dot" id="dot-wsColor"></div>
             <select class="fi" id="wsColor" onchange="document.getElementById('dot-wsColor').style.background=this.value">
               <option value="#4F46E5">Indigo</option>
-              <option value="#0891B2">Blue</option>
-              <option value="#059669">Green</option>
-              <option value="#D97706">Amber</option>
-              <option value="#DC2626">Red</option>
+              <option value="#0891B2">Cyan</option>
+              <option value="#0369A1">Sky Blue</option>
+              <option value="#0D9488">Teal</option>
+              <option value="#1E3A8A">Navy</option>
               <option value="#7C3AED">Purple</option>
-              <option value="#DB2777">Pink</option>
-              <option value="#EA580C">Orange</option>
+              <option value="#C026D3">Fuchsia</option>
+              <option value="#92400E">Brown</option>
             </select>
           </div>
         </div>
@@ -1229,6 +1418,19 @@ textarea.fi{resize:vertical;min-height:72px}
         <button class="btn-primary" style="margin-top:10px;width:100%" onclick="addMember()">+ Add to Team</button>
       </div>
       <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+        <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Todoist Integration <span id="todoistStatus" style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;margin-left:6px"></span></div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:8px;line-height:1.5">Your tasks (assigned to the current user) will sync automatically to a <strong>Chope</strong> project in Todoist. Get your API token from <em>Todoist → Settings → Integrations → API token</em>.</div>
+        <div style="display:flex;gap:8px">
+          <input class="fi" id="todoistTokenInput" type="password" placeholder="Paste your Todoist API token" style="flex:1;font-size:12px">
+          <button class="btn-primary" style="font-size:12px;white-space:nowrap" onclick="saveTodoistToken()">Save</button>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+          <button class="btn-ghost" style="font-size:12px;white-space:nowrap" onclick="testTodoistConnection(this)">⚡ Test</button>
+          <button class="btn-ghost" style="font-size:12px;white-space:nowrap" onclick="syncAllToTodoist(this)">↑ Sync all my tasks</button>
+          <span id="todoistSyncMsg" style="font-size:11px;color:var(--t3);flex:1"></span>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
         <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Data Backup</div>
         <div style="display:flex;gap:8px">
           <button class="btn-ghost" style="flex:1;font-size:12px" onclick="exportData()">⬇ Export JSON</button>
@@ -1254,7 +1456,6 @@ textarea.fi{resize:vertical;min-height:72px}
         <div class="sc-row"><kbd>Q</kbd><span>New task</span></div>
         <div class="sc-row"><kbd>⌘</kbd><kbd>K</kbd><span>New task (anywhere)</span></div>
         <div class="sc-row"><kbd>⌘</kbd><kbd>↵</kbd><span>Save task or workstream</span></div>
-        <div class="sc-row"><kbd>B</kbd><span>Bulk import tasks</span></div>
         <div class="sc-row"><kbd>G</kbd><span>Open Gmail panel &amp; scan inbox</span></div>
         <div class="sc-row"><kbd>D</kbd><span>Duplicate hovered task</span></div>
         <div class="sc-row"><kbd>C</kbd><span>Complete / reopen hovered task</span></div>
@@ -1285,40 +1486,96 @@ textarea.fi{resize:vertical;min-height:72px}
   </div>
 </div>
 
-<!-- Bulk Import Modal -->
-<div id="bulkOverlay" onclick="if(event.target===this)closeBulkImport()">
-  <div id="bulkModal">
-    <div class="bulk-header">
-      <div class="bulk-icon">≡+</div>
-      <div class="bulk-header-text">
-        <div class="bulk-header-title">Bulk Import Tasks</div>
-        <div class="bulk-header-sub">Paste a list — one task per line. Category, priority &amp; more are auto-filled.</div>
-      </div>
-      <button class="bulk-header-close" onclick="closeBulkImport()">×</button>
+<!-- Notifications panel -->
+<div id="notifPanel">
+  <div class="np-hd">
+    <span class="np-title">Team Updates</span>
+    <button class="np-mark-all" onclick="markAllNotifRead()">Mark all read</button>
+    <button onclick="closeNotifPanel()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--t3);padding:0;line-height:1;margin-left:8px">×</button>
+  </div>
+  <div class="np-body" id="notifPanelBody"></div>
+</div>
+
+<!-- Bulk Add Modal -->
+<div class="overlay" id="bulkOverlay" onclick="overlayClick(event,'bulkOverlay')">
+  <div class="modal" style="width:620px;max-height:85vh;display:flex;flex-direction:column">
+    <div class="modal-hd">
+      <div class="modal-title">⊞ Import Tasks</div>
+      <button class="modal-close" onclick="closeBulkModal()">×</button>
     </div>
-    <div class="bulk-input-wrap">
-      <textarea id="bulkInput" placeholder="Paste your task list here, one per line:&#10;&#10;• Review LP subscription docs for Fund IV&#10;• Draft IC memo for 450 Park acquisition&#10;• Follow up with Hulic on Q3 reporting&#10;• Schedule trustee call — WHPMT compliance&#10;• Prepare quarterly performance attribution" oninput="onBulkInput()"></textarea>
-      <div class="bulk-input-hint">Tip: bullets (•  –  *), numbers (1. 2.) and dashes are stripped automatically.</div>
-    </div>
-    <div class="bulk-preview-section" id="bulkPreviewSection" style="display:none">
-      <div class="bulk-preview-hd">
-        <span class="bulk-preview-label" id="bulkPreviewCount">0 tasks</span>
-        <button class="bulk-preview-clear" onclick="clearBulkInput()">Clear all</button>
+    <div class="modal-body" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:14px">
+      <div class="mf" style="margin:0">
+        <label>Paste your list <span style="font-weight:400;color:var(--t3)">· bullets, numbers, or plain lines</span></label>
+        <textarea id="bulkPaste" rows="4" class="fi" style="resize:none;font-family:inherit;line-height:1.6"
+          placeholder="• Review Q2 financials&#10;• Send investor update&#10;1. Book valuation call&#10;Draft partnership MOU"
+          oninput="parseBulkInput()"></textarea>
       </div>
-      <div class="bulk-task-list" id="bulkTaskList"></div>
-    </div>
-    <div class="bulk-footer">
-      <span class="bulk-footer-hint" id="bulkFooterHint"></span>
-      <div style="display:flex;gap:8px">
-        <button class="btn-ghost" onclick="closeBulkImport()">Cancel</button>
-        <button class="btn-primary" id="bulkImportBtn" onclick="confirmBulkImport()" disabled>Import Tasks</button>
+      <div id="bulkTaskRows" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <span id="bulkRowCount" style="font-size:11px;font-weight:700;color:var(--t3)"></span>
+          <span style="font-size:10px;color:var(--t3)">Edit name · priority · assignee per row</span>
+        </div>
+        <div id="bulkRowList"></div>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;border-top:1px solid var(--border);padding-top:12px">
+        <div class="mf" style="margin:0">
+          <label style="font-size:10px">Category <span style="font-weight:400;color:var(--t3)">(all tasks)</span></label>
+          <select class="fi" id="bulkCat" style="font-size:11px">
+            <option value="">— none —</option>
+          </select>
+        </div>
+        <div class="mf" style="margin:0">
+          <label style="font-size:10px">Workstream <span style="font-weight:400;color:var(--t3)">(all tasks)</span></label>
+          <select class="fi" id="bulkWs" style="font-size:11px">
+            <option value="">— none —</option>
+          </select>
+        </div>
+        <div class="mf" style="margin:0">
+          <label style="font-size:10px">Deadline <span style="font-weight:400;color:var(--t3)">(all tasks)</span></label>
+          <input type="date" class="fi" id="bulkDeadline" style="font-size:11px">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeBulkModal()">Cancel</button>
+      <button class="btn-primary" id="bulkSubmitBtn" onclick="submitBulkTasks()" disabled>Add Tasks</button>
+    </div>
+  </div>
+</div>
+
+<!-- Refocus modal -->
+<div id="refocusOverlay">
+  <div id="refocusModal">
+    <div class="rfx-hd">
+      <div>
+        <div class="rfx-title" id="rfxTitle"></div>
+        <div class="rfx-sub" id="rfxSub"></div>
+      </div>
+      <button class="rfx-close" onclick="closeRefocus()">×</button>
+    </div>
+    <div class="rfx-body">
+      <div class="rfx-section-label">Your high-priority open tasks</div>
+      <div class="rfx-tasks" id="rfxTasks"></div>
+    </div>
+    <div class="rfx-ft">
+      <button class="rfx-btn-pri" onclick="focusHighPriority()">Show all my high-priority tasks</button>
+      <button class="rfx-btn-sec" onclick="closeRefocus()">I'm on it 👊</button>
     </div>
   </div>
 </div>
 
 <!-- Toasts -->
 <div id="toasts"></div>
+
+<!-- Batch selection bar -->
+<div id="selBar" style="display:none">
+  <span id="selCount"></span>
+  <span class="sel-hint">Ctrl+click or use ☑ to select more</span>
+  <span style="color:rgba(255,255,255,.4)">·</span>
+  <button class="sel-del-btn" onclick="deleteSelected()">Delete selected</button>
+  <span style="color:rgba(255,255,255,.4)">·</span>
+  <button class="sel-clear-btn" onclick="clearSelection()">Clear &nbsp;<kbd>Esc</kbd></button>
+</div>
 
 <script>
 /* Silent Gmail re-auth iframe handler — must be first */
@@ -1333,13 +1590,13 @@ if (window.self !== window.top) {
 
 const CATEGORIES = {
   portfolio:  { label: 'Portfolio',            color: '#7C3AED', bg: '#F5F3FF' },
-  asset:      { label: 'Asset Management',     color: '#059669', bg: '#ECFDF5' },
+  asset:      { label: 'Asset Management',     color: '#0369A1', bg: '#F0F9FF' },  // was green → sky blue
   debt:       { label: 'Debt & Capital',        color: '#0891B2', bg: '#ECFEFF' },
-  perf:       { label: 'Performance',           color: '#D97706', bg: '#FFFBEB' },
-  compliance: { label: 'Compliance',            color: '#DC2626', bg: '#FEF2F2' },
+  perf:       { label: 'Performance',           color: '#64748B', bg: '#F8FAFC' },  // was amber → slate
+  compliance: { label: 'Compliance',            color: '#334155', bg: '#F1F5F9' },  // was red → dark slate
   ir:         { label: 'IR & Reporting',        color: '#0D9488', bg: '#F0FDFA' },
-  acq:        { label: 'Acquisition',           color: '#EA580C', bg: '#FFF7ED' },
-  fund:       { label: 'Fund Raising',          color: '#DB2777', bg: '#FDF2F8' },
+  acq:        { label: 'Acquisition',           color: '#92400E', bg: '#FFF7ED' },  // was orange-red → dark amber-brown
+  fund:       { label: 'Fund Raising',          color: '#C026D3', bg: '#FDF4FF' },  // was pink → fuchsia
   projects:   { label: 'Projects',              color: '#4F46E5', bg: '#EEF2FF' },
   corp:       { label: 'Corporate Development', color: '#0284C7', bg: '#EFF6FF' },
   admin:      { label: 'Admin',                 color: '#6B7280', bg: '#F9FAFB' },
@@ -1369,16 +1626,15 @@ const LOW_KW  = ['draft','research','track','monitor','log','archive','note','do
 
 let tasks = [], workstreams = [], team = [];
 let state = {
-  view: 'board',
+  view: 'daily',
   cat: 'all',
   priority: 'all',
   fund: 'all',
   assignee: 'all',
   ws: 'all',
   currentUser: '',
-  doneCollapsed: JSON.parse(localStorage.getItem('chope_done_collapsed') || 'false'),
 };
-let editTaskId = null, editWsId = null, dragId = null;
+let editTaskId = null, editWsId = null, dragId = null, winsExpanded = false;
 let suggestedPrio = 'med';
 
 /* ══════════════════════════════════════════════════════════
@@ -1690,6 +1946,7 @@ function renderHeader() {
   sel.innerHTML = team.map(m => `<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('');
   sel.value = state.currentUser || team[0]?.name || '';
   state.currentUser = sel.value;
+  updateNotifBadge();
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -1830,6 +2087,25 @@ function todayQuote() {
   return QUOTES[idx];
 }
 
+function getWinsKey() {
+  const now = new Date();
+  const mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay()+6)%7));
+  return 'chope_wins_' + mon.toISOString().slice(0,10);
+}
+function loadWins() {
+  try { return JSON.parse(localStorage.getItem(getWinsKey()) || '[]'); } catch { return []; }
+}
+function saveWins(ids) { localStorage.setItem(getWinsKey(), JSON.stringify(ids)); }
+function toggleWinsExpanded() { winsExpanded = !winsExpanded; renderMyWeek(); }
+function toggleWin(taskId) {
+  const wins = loadWins();
+  const idx = wins.indexOf(taskId);
+  if (idx === -1) { if (wins.length < 3) wins.push(taskId); else { toast('Already 3 wins pinned — remove one first'); return; } }
+  else wins.splice(idx, 1);
+  saveWins(wins);
+  renderMyWeek();
+}
+
 function renderBoardBanner() {
   const todayStr = new Date().toISOString().slice(0, 10);
   const doneToday = tasks.filter(t =>
@@ -1845,6 +2121,7 @@ function renderBoardBanner() {
   else motivator = '🚀 Incredible pace today!';
 
   const q = todayQuote();
+
   document.getElementById('boardBanner').innerHTML = `
     <div class="board-progress-bar">
       <div>
@@ -1867,28 +2144,23 @@ function renderBoard() {
   const ft = filteredTasks();
   let html = '';
   Object.entries(COLS).forEach(([key, col]) => {
-    const colTasks = ft.filter(t => t.status === key);
-    const isDone = key === 'done';
-    const collapsed = isDone && state.doneCollapsed;
+    const colTasks = ft.filter(t => t.status === key).sort((a,b) => {const po={high:0,med:1,low:2}; return (po[a.priority]??1)-(po[b.priority]??1);});
     html += `
-      <div class="kol ${collapsed ? 'kol-done-collapsed' : ''}" id="kol-${key}"
+      <div class="kol" id="kol-${key}"
         ondragover="dragOver(event,'${key}')"
         ondragleave="dragLeave(event,'${key}')"
         ondrop="drop(event,'${key}')">
         <div class="kol-hd">
           <div class="kol-bar" style="background:${col.color}"></div>
-          ${!collapsed ? `<div class="kol-title">${esc(col.label)}</div>` : ''}
+          <div class="kol-title">${esc(col.label)}</div>
           <div class="kol-count">${colTasks.length}</div>
-          ${isDone ? `<button class="kol-collapse-btn" onclick="toggleDoneCollapse();event.stopPropagation()" title="${collapsed ? 'Expand' : 'Collapse'} done">${collapsed ? '▶' : '◀'}</button>` : ''}
         </div>
         <div class="kol-body" id="body-${key}">
           ${colTasks.length ? colTasks.map(cardHTML).join('') : `<div class="kol-empty">No tasks</div>`}
         </div>
       </div>`;
   });
-  const board = document.getElementById('board');
-  board.innerHTML = html;
-  board.style.gridTemplateColumns = state.doneCollapsed ? '1fr 1fr 1fr 52px' : '';
+  document.getElementById('board').innerHTML = html;
 }
 
 function cardHTML(t) {
@@ -1903,15 +2175,19 @@ function cardHTML(t) {
   const prioLabel = { high: 'High', med: 'Medium', low: 'Low' }[t.priority] || t.priority;
 
   const isDone = t.status === 'done';
+  const isSel  = selectedTaskIds.has(t.id);
   return `
-    <div class="card ${urgent||over?'urgent-card':''} ${isDone?'card-done':''}"
+    <div class="card ${urgent||over?'urgent-card':''} ${isDone?'card-done':''} ${isSel?'card-selected':''}"
       draggable="true"
       data-id="${t.id}"
       ondragstart="dragStart(event,'${t.id}')"
       ondragend="dragEnd(event)"
-      onmouseenter="hoveredCardId='${t.id}'"
       onmouseleave="hoveredCardId=null"
-      onclick="openTaskModal('${t.id}')">
+      onmouseenter="hoveredCardId='${t.id}'; if(event.ctrlKey) selectCard('${t.id}')"
+      onclick="if(event.ctrlKey){event.stopPropagation();toggleSelectCard('${t.id}')}else{openTaskModal('${t.id}')}">
+      <button class="card-sel" onclick="toggleSelectCard('${t.id}');event.stopPropagation()" title="Select for bulk delete">
+        <svg viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
+      </button>
       <button class="card-check ${isDone?'checked':''}" onclick="toggleTaskDone('${t.id}');event.stopPropagation()" title="Mark ${isDone?'incomplete':'complete'} (C)">
         <svg viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="1.5,5 4,7.5 8.5,2.5"/>
@@ -1942,94 +2218,6 @@ function cardHTML(t) {
     </div>`;
 }
 
-function toggleDoneCollapse() {
-  state.doneCollapsed = !state.doneCollapsed;
-  localStorage.setItem('chope_done_collapsed', JSON.stringify(state.doneCollapsed));
-  renderBoard();
-}
-
-/* ── My Day Time Grid ───────────────────────────────────── */
-const TG_SLOT_H = 60;   // px per hour
-const TG_START  = 8;    // 8 AM
-const TG_END    = 19;   // 7 PM
-
-function buildTimeGrid(scheduledTasks) {
-  const hours = Array.from({length: TG_END - TG_START}, (_, i) => TG_START + i);
-  const totalH = hours.length * TG_SLOT_H;
-
-  const now = new Date();
-  const curTop = (now.getHours() - TG_START) * TG_SLOT_H + now.getMinutes() / 60 * TG_SLOT_H;
-  const showNow = now.getHours() >= TG_START && now.getHours() < TG_END;
-
-  const hourLines = hours.map(h => {
-    const label = h === 12 ? '12 PM' : h < 12 ? `${h} AM` : `${h - 12} PM`;
-    return `<div style="position:absolute;top:${(h - TG_START) * TG_SLOT_H}px;left:0;right:0;height:${TG_SLOT_H}px;border-bottom:1px solid var(--border);pointer-events:none">
-      <div style="width:54px;position:absolute;left:0;top:0;bottom:0;display:flex;align-items:flex-start;justify-content:flex-end;padding:7px 8px 0;border-right:1px solid var(--border);font-size:10px;font-weight:600;color:var(--t3)">${label}</div>
-    </div>`;
-  }).join('');
-
-  const dropZones = hours.map(h =>
-    `<div class="tg-drop-zone" style="position:absolute;top:${(h - TG_START) * TG_SLOT_H}px;left:54px;right:0;height:${TG_SLOT_H}px"
-      ondragover="tgDragOver(event)" ondragleave="tgDragLeave(event)" ondrop="tgDrop(event,${h})"></div>`
-  ).join('');
-
-  const nowLine = showNow ? `<div style="position:absolute;left:54px;right:0;top:${Math.round(curTop)}px;height:2px;background:#3B82F6;z-index:4;pointer-events:none">
-    <div style="width:8px;height:8px;background:#3B82F6;border-radius:50%;position:absolute;top:-3px;left:-4px"></div></div>` : '';
-
-  const taskBlocks = scheduledTasks.map(t => {
-    const [hh, mm] = (t.scheduledTime || '08:00').split(':').map(Number);
-    const dur = t.durationHours || 1;
-    const top = (hh - TG_START) * TG_SLOT_H + (mm / 60) * TG_SLOT_H;
-    const height = dur * TG_SLOT_H - 2;
-    const cat = CATEGORIES[t.cat] || { color: '#3B82F6', bg: '#EFF6FF', label: t.cat };
-    const pCol = {high:'#EF4444', med:'#F59E0B', low:'#22C55E'}[t.priority] || '#6B7280';
-    return `<div class="tg-block" style="position:absolute;top:${Math.round(top)}px;height:${height}px;left:58px;right:5px;background:${cat.bg};border:1px solid ${cat.color}33;border-left:3px solid ${pCol}" onclick="openTaskModal('${t.id}')">
-      <div style="font-size:11px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:18px">${esc(t.name)}</div>
-      ${height > 40 ? `<div style="font-size:10px;color:var(--t2);margin-top:2px">${fmtHour(t.scheduledTime)}${dur > 1 ? ' · ' + dur + 'h' : ''}</div>` : ''}
-      <button onclick="tgUnschedule('${t.id}');event.stopPropagation()" title="Remove from schedule" style="position:absolute;top:3px;right:4px;background:none;border:none;cursor:pointer;color:var(--t3);font-size:14px;line-height:1;padding:1px 3px">×</button>
-    </div>`;
-  }).join('');
-
-  const hint = scheduledTasks.length === 0 ? `<div style="position:absolute;top:50%;left:54px;right:0;transform:translateY(-50%);text-align:center;pointer-events:none;padding:0 16px"><div style="font-size:12px;color:var(--t3)">Drag a task from "Today's Priorities" onto a time slot to schedule it</div></div>` : '';
-
-  return `<div class="tg-wrap"><div style="position:relative;height:${totalH}px">${hourLines}${dropZones}${nowLine}${taskBlocks}${hint}</div></div>`;
-}
-
-function tgDragStart(event, taskId) {
-  event.dataTransfer.setData('tg-task', taskId);
-  event.dataTransfer.effectAllowed = 'move';
-}
-
-function tgDragOver(event) {
-  if (!event.dataTransfer.types.includes('tg-task')) return;
-  event.preventDefault();
-  event.currentTarget.classList.add('tg-over');
-}
-
-function tgDragLeave(event) {
-  event.currentTarget.classList.remove('tg-over');
-}
-
-function tgDrop(event, hour) {
-  event.preventDefault();
-  event.currentTarget.classList.remove('tg-over');
-  const taskId = event.dataTransfer.getData('tg-task');
-  if (!taskId) return;
-  const t = tasks.find(x => x.id === taskId);
-  if (!t) return;
-  t.scheduledTime = String(hour).padStart(2, '0') + ':00';
-  persist();
-  renderDaily();
-}
-
-function tgUnschedule(taskId) {
-  const t = tasks.find(x => x.id === taskId);
-  if (!t) return;
-  delete t.scheduledTime;
-  persist();
-  renderDaily();
-}
-
 /* ══════════════════════════════════════════════════════════
    RENDER — DAILY VIEW
 ══════════════════════════════════════════════════════════ */
@@ -2047,7 +2235,6 @@ function renderDaily() {
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   const todayStr = now.toISOString().slice(0,10);
-  const todayScheduled = myTasks.filter(t => t.scheduledTime);
   const todayTasks = myTasks.filter(t => !t.deadline || t.deadline <= todayStr).sort((a,b) => {
     const po = {high:0,med:1,low:2};
     return (po[a.priority]||1)-(po[b.priority]||1);
@@ -2056,7 +2243,7 @@ function renderDaily() {
     if (!t.deadline) return false;
     const d7 = new Date(now); d7.setDate(d7.getDate()+7);
     return t.deadline > todayStr && t.deadline <= d7.toISOString().slice(0,10);
-  });
+  }).sort((a,b) => {const po={high:0,med:1,low:2}; return (po[a.priority]??1)-(po[b.priority]??1);});
 
   // Team efficiency
   const teamRows = team.map(m => {
@@ -2100,27 +2287,14 @@ function renderDaily() {
       </div>
     </div>
 
-    <div class="daily-section">
-      <h2>🗓 My Schedule <span style="font-size:11px;font-weight:400;color:var(--t3)">— drag tasks from below onto a time slot</span></h2>
-      ${buildTimeGrid(todayScheduled)}
-    </div>
-
-    <div class="daily-section">
-      <h2>📅 Today's Meetings</h2>
-      <div id="calSection" class="daily-card" style="padding:12px 14px"></div>
-    </div>
-
-    <div class="daily-section">
-      <h2>🎯 Today's Priorities ${todayTasks.length?`<span style="font-size:12px;color:var(--t3);font-weight:400">${todayTasks.length} task${todayTasks.length!==1?'s':''}</span>`:''}
-      </h2>
-      <div class="daily-tasks">
-        ${todayTasks.length ? todayTasks.map(dailyTaskRow).join('') :
-          `<div style="padding:20px;text-align:center;color:var(--t3);font-size:13px">
-            🎉 No urgent tasks today — you're on top of it!
-          </div>`}
+    <div class="daily-main-row">
+      <div class="daily-schedule-col">
+        <div class="daily-section">
+          <h2>🗓 Today's Schedule</h2>
+          <div id="schedGrid"></div>
+        </div>
       </div>
     </div>
-
     ${weekTasks.length ? `
     <div class="daily-section">
       <h2>📅 Coming This Week <span style="font-size:12px;color:var(--t3);font-weight:400">${weekTasks.length} tasks</span></h2>
@@ -2172,32 +2346,20 @@ function renderDaily() {
       </div>
     </div>
   `;
-}
-
-function fmtHour(timeStr) {
-  if (!timeStr) return '';
-  const [h, m] = timeStr.split(':').map(Number);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return m ? `${h12}:${String(m).padStart(2,'0')} ${ampm}` : `${h12} ${ampm}`;
+  renderScheduleGrid();
 }
 
 function dailyTaskRow(t) {
-  const cat    = CATEGORIES[t.cat] || { label: t.cat, color: '#999', bg: '#F9F9F9' };
-  const over   = isOverdue(t);
+  const cat   = CATEGORIES[t.cat] || { label: t.cat, color: '#999', bg: '#F9F9F9' };
+  const over  = isOverdue(t);
   const urgent = isUrgent(t);
-  const pCol   = {high:'#EF4444',med:'#F59E0B',low:'#94A3B8'}[t.priority];
-  const sched  = t.scheduledTime;
-  const dur    = t.durationHours || 1;
+  const pCol  = {high:'#EF4444',med:'#F59E0B',low:'#94A3B8'}[t.priority];
   return `
-    <div class="daily-task ${over||urgent?'urgent-task':''} ${sched?'dt-scheduled':''}"
-      draggable="true"
-      ondragstart="tgDragStart(event,'${t.id}')"
-      onclick="openTaskModal('${t.id}')">
+    <div class="daily-task ${over||urgent?'urgent-task':''}" onclick="openTaskModal('${t.id}')" style="cursor:pointer">
       <div class="prio-dot" style="background:${pCol};flex-shrink:0"></div>
       <div class="dt-info">
         <div class="dt-name">${esc(t.name)}</div>
-        <div class="dt-meta">${esc(cat.label)}${t.fund&&t.fund!=='none'?' · '+esc(t.fund):''}${sched?` · 🕐 ${fmtHour(sched)}`:''}${dur>1?` · ${dur}h`:''}</div>
+        <div class="dt-meta">${esc(cat.label)} ${t.fund&&t.fund!=='none'?'· '+esc(t.fund):''}</div>
       </div>
       <div class="dt-right">
         <span class="fund-chip" style="font-size:10px">${esc(COLS[t.status]?.label||t.status)}</span>
@@ -2238,8 +2400,9 @@ function renderMyWeek() {
   });
 
   const ft = filteredTasks();
-  const activeTasks = ft.filter(t => t.status !== 'done' && t.deadline && t.deadline >= todayStr && t.deadline <= week[6]);
-  const overdue = ft.filter(t => t.status !== 'done' && t.deadline && t.deadline < todayStr);
+  const _po = (t) => ({high:0,med:1,low:2}[t.priority]??1);
+  const activeTasks = ft.filter(t => t.status !== 'done' && t.deadline && t.deadline >= todayStr && t.deadline <= week[6]).sort((a,b)=>_po(a)-_po(b));
+  const overdue = ft.filter(t => t.status !== 'done' && t.deadline && t.deadline < todayStr).sort((a,b)=>_po(a)-_po(b));
 
   const totalThisWeek = activeTasks.length;
   const highCount = activeTasks.filter(t => t.priority === 'high').length;
@@ -2267,9 +2430,67 @@ function renderMyWeek() {
         </div>
       </div>
       ${overdue.length ? `
-        <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:var(--r);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:13px;color:#DC2626">
-          ⚠ <strong>${overdue.length} overdue task${overdue.length!==1?'s':''}</strong> — ${overdue.map(t=>`<span onclick="openTaskModal('${t.id}')" style="cursor:pointer;text-decoration:underline">${esc(t.name)}</span>`).join(', ')}
+        <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:var(--r);margin-bottom:16px;overflow:hidden">
+          <div style="padding:10px 14px;border-bottom:1px solid #FECACA;display:flex;align-items:center;gap:8px">
+            <span style="font-size:13px;font-weight:700;color:#DC2626">⚠ ${overdue.length} Overdue Task${overdue.length!==1?'s':''}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
+            ${overdue.map(t => {
+              const pCol = PRIO_COLORS[t.priority];
+              const aCol = avatarColor(t.assignee);
+              return `<div onclick="openTaskModal('${t.id}')" style="padding:8px 14px;border-bottom:1px solid #FECACA;border-right:1px solid #FECACA;cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .1s" onmouseover="this.style.background='#FEE2E2'" onmouseout="this.style.background='transparent'">
+                <div style="width:8px;height:8px;border-radius:50%;background:${pCol};flex-shrink:0"></div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:12px;font-weight:500;color:#DC2626;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</div>
+                  <div style="font-size:10px;color:#EF4444;margin-top:1px">Due ${fmtDate(t.deadline)}</div>
+                </div>
+                <div style="width:20px;height:20px;border-radius:50%;background:${aCol};font-size:7px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">${esc(initials(t.assignee))}</div>
+              </div>`;
+            }).join('')}
+          </div>
         </div>` : ''}
+      <div style="margin-bottom:20px" id="weekWinsSection">${(() => {
+          const pinnedIds = loadWins();
+          const wNow = new Date();
+          const wMon = new Date(wNow); wMon.setDate(wNow.getDate() - ((wNow.getDay()+6)%7));
+          const weekStartStr = wMon.toISOString().slice(0,10);
+          const allWins = tasks
+            .filter(t => t.status === 'done' && t.completedAt && t.completedAt.slice(0,10) >= weekStartStr)
+            .sort((a,b) => {
+              const ai = pinnedIds.indexOf(a.id), bi = pinnedIds.indexOf(b.id);
+              if (ai !== -1 && bi === -1) return -1;
+              if (bi !== -1 && ai === -1) return 1;
+              return new Date(b.completedAt) - new Date(a.completedAt);
+            });
+          const totalWins = allWins.length;
+          const displayWins = winsExpanded ? allWins : allWins.slice(0, 3);
+          const medals = ['🥇','🥈','🥉'];
+          const winRows = displayWins.length
+            ? displayWins.map((t, i) => {
+                const isPinned = pinnedIds.includes(t.id);
+                const pCol = PRIO_COLORS[t.priority];
+                const completedDate = t.completedAt ? new Date(t.completedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+                return `<div class="board-win-row" onclick="openTaskModal('${t.id}')">
+                  <span class="board-win-num">${!winsExpanded ? (medals[i]||'') : (isPinned ? medals[pinnedIds.indexOf(t.id)] || '📌' : '')}</span>
+                  <span style="width:7px;height:7px;border-radius:50%;background:${pCol};flex-shrink:0;display:inline-block"></span>
+                  <span class="board-win-name">${esc(t.name.length>34?t.name.slice(0,34)+'…':t.name)}</span>
+                  <span class="board-win-who">${esc(t.assignee.split(' ')[0])}</span>
+                  ${completedDate ? `<span style="font-size:10px;color:var(--t3);flex-shrink:0">${completedDate}</span>` : ''}
+                  <button class="board-win-rm" onclick="toggleWin('${t.id}');event.stopPropagation()" title="${isPinned?'Remove from top 3':'Pin to top 3'}" style="opacity:1;font-size:13px">${isPinned?'📌':'☆'}</button>
+                </div>`;
+              }).join('')
+            : `<div class="board-wins-empty">No wins yet this week.<br><span style="font-size:10px">Complete tasks to see them here.</span></div>`;
+          return `
+            <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;box-shadow:var(--sh)">
+              <div class="board-wins-hd">
+                <span class="board-wins-title">🏆 Top Wins This Week</span>
+                <span class="board-wins-badge ${totalWins===0?'zero':''}">${totalWins} completed</span>
+                ${totalWins > 0 ? `<button onclick="toggleWinsExpanded()" style="margin-left:auto;background:none;border:1px solid var(--border);border-radius:5px;padding:2px 9px;font-size:10px;color:var(--t3);cursor:pointer;font-family:inherit;transition:all .12s" onmouseover="this.style.borderColor='#3B82F6';this.style.color='#3B82F6'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--t3)'">${winsExpanded ? '▲ Show top 3' : `▼ View all (${totalWins})`}</button>` : ''}
+              </div>
+              ${winsExpanded ? `<div style="font-size:10px;color:var(--t3);margin-bottom:8px">☆ = pin to top 3 &nbsp;·&nbsp; 📌 = pinned (click to unpin)</div>` : ''}
+              <div style="${winsExpanded ? 'max-height:320px;overflow-y:auto' : ''}">${winRows}</div>
+            </div>`;
+        })()}</div>
       <div class="week-day-grid">
         <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;min-width:560px">
         ${week.map(dateStr => {
@@ -2307,15 +2528,29 @@ function renderMyWeek() {
         <div style="display:flex;flex-direction:column;gap:8px">
           ${team.map(m => {
             const myWeekTasks = activeTasks.filter(t => t.assignee === m.name);
+            const myWeekDone  = tasks.filter(t => t.assignee === m.name && t.status === 'done' && t.deadline && t.deadline >= week[0] && t.deadline <= week[6]);
+            const weekTotal   = myWeekTasks.length + myWeekDone.length;
+            const weekRate    = weekTotal ? Math.round(myWeekDone.length / weekTotal * 100) : 0;
+            const allDone     = tasks.filter(t => t.assignee === m.name && t.status === 'done').length;
+            const allTotal    = tasks.filter(t => t.assignee === m.name).length;
+            const overallRate = allTotal ? Math.round(allDone / allTotal * 100) : 0;
+            const rateColor   = overallRate >= 70 ? '#059669' : overallRate >= 40 ? '#D97706' : '#DC2626';
             const col = avatarColor(m.name);
             return `
               <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:12px">
                 <div style="width:32px;height:32px;border-radius:50%;background:${col};font-size:11px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">${esc(initials(m.name))}</div>
                 <div style="flex:1;min-width:0">
                   <div style="font-size:13px;font-weight:600">${esc(m.name)} <span style="font-size:11px;color:var(--t3);font-weight:400">${esc(m.role)}</span></div>
-                  <div style="font-size:11px;color:var(--t3);margin-top:2px">${myWeekTasks.length} task${myWeekTasks.length!==1?'s':''} this week · ${myWeekTasks.filter(t=>t.priority==='high').length} high priority</div>
+                  <div style="font-size:11px;color:var(--t3);margin-top:2px">${myWeekTasks.length} open · ${myWeekDone.length} done this week · ${myWeekTasks.filter(t=>t.priority==='high').length} high priority</div>
+                  <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+                    <div style="flex:1;height:5px;background:var(--bg);border-radius:3px;overflow:hidden">
+                      <div style="height:100%;border-radius:3px;background:${rateColor};width:${overallRate}%;transition:width .4s ease"></div>
+                    </div>
+                    <span style="font-size:10px;font-weight:700;color:${rateColor};flex-shrink:0">${overallRate}%</span>
+                    <span style="font-size:10px;color:var(--t3);flex-shrink:0">overall</span>
+                  </div>
                 </div>
-                <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:60%">
+                <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:55%">
                   ${myWeekTasks.slice(0,4).map(t=>`
                     <span onclick="openTaskModal('${t.id}')" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:2px 7px;font-size:10px;cursor:pointer;white-space:nowrap;border-left:2px solid ${PRIO_COLORS[t.priority]}">${esc(t.name.slice(0,28))}${t.name.length>28?'…':''}</span>
                   `).join('')}
@@ -2325,6 +2560,7 @@ function renderMyWeek() {
           }).join('')}
         </div>
       </div>
+
     </div>`;
 
   document.getElementById('weekContent').innerHTML = html;
@@ -2335,6 +2571,29 @@ function renderMyWeek() {
 ══════════════════════════════════════════════════════════ */
 
 function renderWsView() {
+  // Unassigned tasks zone
+  const unassigned = tasks.filter(t => !t.ws && t.status !== 'done');
+  document.getElementById('wsUnassigned').innerHTML = `
+    <div class="ws-unassigned-zone" id="wsUnassignedZone"
+      ondragover="wsDragOver(event,null)" ondragleave="wsDragLeave(event)" ondrop="wsDrop(event,null)">
+      <div class="ws-unassigned-hd">Unassigned tasks <span style="font-weight:400;font-size:10px;text-transform:none;letter-spacing:0">(drag into a workstream below)</span></div>
+      <div class="ws-drag-chips">
+        ${unassigned.length
+          ? unassigned.map(t => {
+              const pCol = {high:'#EF4444',med:'#F59E0B',low:'#94A3B8'}[t.priority] || '#94A3B8';
+              return `<div class="ws-drag-chip" draggable="true"
+                data-id="${t.id}"
+                ondragstart="dragStart(event,'${t.id}')"
+                ondragend="dragEnd(event)">
+                <span style="width:6px;height:6px;border-radius:50%;background:${pCol};flex-shrink:0;display:inline-block"></span>
+                ${esc(t.name.length>32 ? t.name.slice(0,32)+'…' : t.name)}
+              </div>`;
+            }).join('')
+          : `<span style="font-size:11px;color:var(--t3)">All tasks are assigned to a workstream</span>`
+        }
+      </div>
+    </div>`;
+
   if (!workstreams.length) {
     document.getElementById('wsGrid').innerHTML =
       `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--t3)">
@@ -2349,7 +2608,10 @@ function renderWsView() {
     const pct   = wsTasks.length ? Math.round(done / wsTasks.length * 100) : 0;
     const pctColor = pct >= 75 ? '#059669' : pct >= 40 ? '#3B82F6' : '#F59E0B';
     return `
-      <div class="ws-card">
+      <div class="ws-card" id="wscard-${ws.id}"
+        ondragover="wsDragOver(event,'${ws.id}')"
+        ondragleave="wsDragLeave(event)"
+        ondrop="wsDrop(event,'${ws.id}')">
         <div class="ws-card-hd">
           <div class="ws-dot" style="background:${ws.color}"></div>
           <div style="flex:1;min-width:0">
@@ -2368,16 +2630,19 @@ function renderWsView() {
           </div>
         </div>
         <div class="ws-card-body">
-          ${wsTasks.length ? wsTasks.map(t => {
+          ${wsTasks.length ? [...wsTasks].sort((a,b) => {const po={high:0,med:1,low:2}; return (po[a.priority]??1)-(po[b.priority]??1);}).map(t => {
             const cat  = CATEGORIES[t.cat] || { color: '#999', bg: '#F9F9F9' };
             const pCol = {high:'#EF4444',med:'#F59E0B',low:'#94A3B8'}[t.priority];
-            const done = t.status === 'done';
-            return `<div class="ws-task-row" onclick="openTaskModal('${t.id}')">
+            const isDone = t.status === 'done';
+            return `<div class="ws-task-row" draggable="true" data-id="${t.id}"
+              ondragstart="dragStart(event,'${t.id}')"
+              ondragend="dragEnd(event)"
+              onclick="openTaskModal('${t.id}')">
               <div class="prio-dot" style="background:${pCol}"></div>
-              <div class="ws-task-name" style="${done?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.name)}</div>
+              <div class="ws-task-name" style="${isDone?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.name)}</div>
               <span class="cat-badge" style="background:${cat.bg};color:${cat.color};margin-bottom:0;font-size:9px">${esc(CATEGORIES[t.cat]?.label||t.cat)}</span>
             </div>`;
-          }).join('') : `<div class="ws-empty">No tasks yet</div>`}
+          }).join('') : `<div class="ws-empty">Drop tasks here or use + below</div>`}
         </div>
         <div class="ws-existing-row">
           <select class="ws-existing-sel" id="wsExSel-${ws.id}">
@@ -2432,6 +2697,7 @@ function onUserChange() {
   state.currentUser = document.getElementById('currentUserSel').value;
   localStorage.setItem('chope_user', state.currentUser);
   localStorage.setItem('chope_user_manually_set', '1');
+  updateNotifBadge();
   if (state.view === 'daily') { renderDaily(); loadCalendarForDaily(); }
   if (state.view === 'week')  renderMyWeek();
 }
@@ -2446,8 +2712,32 @@ function dragStart(e, id) {
   setTimeout(() => document.querySelector(`[data-id="${id}"]`)?.classList.add('dragging'), 0);
 }
 function dragEnd(e) {
-  document.querySelectorAll('.card').forEach(c => c.classList.remove('dragging'));
+  document.querySelectorAll('.card,.ws-task-row,.ws-drag-chip').forEach(c => c.classList.remove('dragging'));
   document.querySelectorAll('.kol-body').forEach(b => b.classList.remove('drag-over'));
+  document.querySelectorAll('.ws-card,.ws-unassigned-zone').forEach(c => c.classList.remove('ws-drag-over'));
+}
+function wsDragOver(e, wsId) {
+  e.preventDefault(); e.stopPropagation();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.ws-card,.ws-unassigned-zone').forEach(c => c.classList.remove('ws-drag-over'));
+  if (wsId) document.getElementById('wscard-' + wsId)?.classList.add('ws-drag-over');
+  else document.getElementById('wsUnassignedZone')?.classList.add('ws-drag-over');
+}
+function wsDragLeave(e) {
+  if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('ws-drag-over');
+}
+function wsDrop(e, wsId) {
+  e.preventDefault(); e.stopPropagation();
+  document.querySelectorAll('.ws-card,.ws-unassigned-zone').forEach(c => c.classList.remove('ws-drag-over'));
+  if (!dragId) return;
+  const t = tasks.find(x => x.id === dragId);
+  const newWs = wsId || null;
+  if (t && t.ws !== newWs) {
+    t.ws = newWs;
+    persist(); renderWsView();
+    toast(`Moved to ${newWs ? (workstreams.find(w => w.id === newWs)?.name || 'workstream') : 'Unassigned'}`);
+  }
+  dragId = null;
 }
 function dragOver(e, col) {
   e.preventDefault();
@@ -2498,12 +2788,12 @@ function openTaskModal(id) {
     document.getElementById('fCat').value      = t.cat;
     document.getElementById('fFund').value     = t.fund || 'none';
     document.getElementById('fAssignee').value = t.assignee;
+    _origAssignee = t.assignee;
     document.getElementById('fPriority').value = t.priority;
     document.getElementById('fStatus').value    = t.status;
     document.getElementById('fStartDate').value = t.startDate || '';
     document.getElementById('fDeadline').value  = t.deadline || '';
-    document.getElementById('fWs').value            = t.ws || '';
-    document.getElementById('fDurationHours').value = t.durationHours || 1;
+    document.getElementById('fWs').value        = t.ws || '';
     del.style.display = 'block';
     const calBtn = document.getElementById('btnAddCal');
     if (calBtn) {
@@ -2535,13 +2825,13 @@ function openTaskModal(id) {
     document.getElementById('fCat').value      = state.cat !== 'all' ? state.cat : '';
     document.getElementById('fFund').value     = state.fund !== 'all' && state.fund !== 'none' ? state.fund : 'none';
     document.getElementById('fAssignee').value = state.currentUser || '';
+    _origAssignee = null;
     document.getElementById('fPriority').value = 'med';
     document.getElementById('fStatus').value    = 'todo';
     document.getElementById('fStartDate').value = new Date().toISOString().slice(0,10);
     const d = new Date(); d.setDate(d.getDate()+7);
     document.getElementById('fDeadline').value  = d.toISOString().slice(0,10);
-    document.getElementById('fWs').value            = state.ws !== 'all' ? (state.ws||'') : '';
-    document.getElementById('fDurationHours').value = 1;
+    document.getElementById('fWs').value       = state.ws !== 'all' ? (state.ws||'') : '';
     del.style.display = 'none';
   }
   // Reset auto-estimate flags so new task gets fresh suggestions
@@ -2553,6 +2843,17 @@ function openTaskModal(id) {
   if (calBtn) calBtn.style.display = 'none';
   updateSelDots();
   resetPlanBox();
+  if (id) { const t = tasks.find(x => x.id === id); if (t?.durationHours) _planDurationHours = t.durationHours; }
+  // Reset notes UI
+  document.getElementById('handoffBox').classList.remove('show');
+  const hn = document.getElementById('handoffNote'); if (hn) hn.value = '';
+  const ni = document.getElementById('noteInput'); if (ni) ni.value = '';
+  if (id) {
+    renderNoteThread(tasks.find(x=>x.id===id) || {});
+    markTaskNotesRead(id);
+  } else {
+    const el = document.getElementById('noteThread'); if (el) el.innerHTML = '';
+  }
   document.getElementById('taskOverlay').classList.add('open');
   setTimeout(() => document.getElementById('fName').focus(), 80);
 }
@@ -2563,6 +2864,8 @@ function openTaskModalForWs(wsId) {
 }
 
 let hoveredCardId = null;
+let selectedTaskIds = new Set();
+let focusedCardId = null;
 
 function toggleTaskDone(id) {
   const t = tasks.find(x => x.id === id);
@@ -2571,10 +2874,12 @@ function toggleTaskDone(id) {
     t.status = 'todo';
     t.completedAt = null;
     toast(`↩ Reopened: ${t.name.slice(0,30)}`);
+    _tdReopen(t);
   } else {
     t.status = 'done';
     t.completedAt = new Date().toISOString();
     toast(`✓ Done: ${t.name.slice(0,30)}`);
+    _tdClose(t);
   }
   persist(); renderAll();
 }
@@ -2603,10 +2908,9 @@ function saveTask() {
   const assignee = document.getElementById('fAssignee').value;
   const priority = document.getElementById('fPriority').value;
   const status   = document.getElementById('fStatus').value;
-  const startDate    = document.getElementById('fStartDate').value;
-  const deadline     = document.getElementById('fDeadline').value;
-  const ws           = document.getElementById('fWs').value;
-  const durationHours = parseInt(document.getElementById('fDurationHours').value) || 1;
+  const startDate = document.getElementById('fStartDate').value;
+  const deadline  = document.getElementById('fDeadline').value;
+  const ws        = document.getElementById('fWs').value;
 
   if (!name)     { flash('fName');     return; }
   if (!cat)      { flash('fCat');      return; }
@@ -2620,21 +2924,34 @@ function saveTask() {
         if (!t.deadlineHistory) t.deadlineHistory = [];
         t.deadlineHistory.push({ changedBy: state.currentUser || 'Unknown', from: t.deadline, to: deadline, at: new Date().toISOString() });
       }
+      // Add reassignment note if assignee changed
+      if (t.assignee !== assignee) {
+        if (!t.notes) t.notes = [];
+        const by = state.currentUser || 'Unknown';
+        t.notes.push({ id: uid(), author: '__system__', text: `Delegated from ${t.assignee} to ${assignee} by ${by}`, ts: new Date().toISOString(), type: 'handoff', readBy: [by] });
+        const hn = (document.getElementById('handoffNote')?.value || '').trim();
+        if (hn) t.notes.push({ id: uid(), author: by, text: hn, ts: new Date().toISOString(), type: 'handoff', readBy: [by] });
+      }
       const wasDone = t.status === 'done';
-      Object.assign(t, { name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, durationHours });
+      Object.assign(t, { name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, durationHours: _planDurationHours !== null ? _planDurationHours : t.durationHours });
       if (status === 'done' && !wasDone) t.completedAt = new Date().toISOString();
       if (status !== 'done') t.completedAt = null;
     }
     toast('Task updated');
   } else {
-    tasks.unshift({ id: uid(), name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, durationHours, createdAt: new Date().toISOString() });
+    tasks.unshift({ id: uid(), name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, ...(_planDurationHours != null && { durationHours: _planDurationHours }), createdAt: new Date().toISOString() });
     toast('Task created');
   }
+  const syncId = editTaskId || tasks[0]?.id;
   persist(); renderAll(); closeTaskModal();
+  const syncTask = tasks.find(x => x.id === syncId);
+  if (syncTask) _tdSync(syncTask);
 }
 
 function deleteTask() {
   if (!editTaskId) return;
+  const t = tasks.find(x => x.id === editTaskId);
+  if (t) _tdDelete(t.todoistId);
   tasks = tasks.filter(x => x.id !== editTaskId);
   persist(); renderAll(); closeTaskModal();
   toast('Task deleted');
@@ -2650,13 +2967,459 @@ function duplicateTask(id) {
   toast(`Duplicated: "${t.name.slice(0,28)}"`);
 }
 
+/* ══════════════════════════════════════════════════════════
+   BATCH SELECTION
+══════════════════════════════════════════════════════════ */
+
+function updateSelectionBar() {
+  const bar = document.getElementById('selBar');
+  const cnt = document.getElementById('selCount');
+  if (selectedTaskIds.size === 0) { bar.style.display = 'none'; return; }
+  cnt.textContent = selectedTaskIds.size + ' task' + (selectedTaskIds.size !== 1 ? 's' : '') + ' selected';
+  bar.style.display = 'flex';
+}
+
+function selectCard(id) {
+  selectedTaskIds.add(id);
+  focusedCardId = id;
+  const el = document.querySelector('.card[data-id="' + id + '"]');
+  if (el) { el.classList.add('card-selected'); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  updateSelectionBar();
+}
+
+function toggleSelectCard(id) {
+  if (selectedTaskIds.has(id)) {
+    selectedTaskIds.delete(id);
+    document.querySelector('.card[data-id="' + id + '"]')?.classList.remove('card-selected');
+    focusedCardId = selectedTaskIds.size > 0 ? [...selectedTaskIds].at(-1) : null;
+  } else {
+    selectCard(id);
+    return;
+  }
+  updateSelectionBar();
+}
+
+function clearSelection() {
+  selectedTaskIds.clear();
+  focusedCardId = null;
+  document.querySelectorAll('.card.card-selected').forEach(el => el.classList.remove('card-selected'));
+  updateSelectionBar();
+}
+
+function deleteSelected() {
+  if (selectedTaskIds.size === 0) return;
+  const ids = [...selectedTaskIds];
+  const count = ids.length;
+  ids.forEach(id => { const t = tasks.find(x => x.id === id); if (t) _tdDelete(t.todoistId); });
+  tasks = tasks.filter(t => !selectedTaskIds.has(t.id));
+  clearSelection();
+  persist(); renderAll();
+  toast('🗑 Deleted ' + count + ' task' + (count !== 1 ? 's' : ''));
+}
+
+/* ══════════════════════════════════════════════════════════
+   SCHEDULE GRID
+══════════════════════════════════════════════════════════ */
+
+const SCHED_HOURS = ['07','08','09','10','11','12','13','14','15','16','17','18','19','20'];
+const SCHED_LABELS = {'07':'7 AM','08':'8 AM','09':'9 AM','10':'10 AM','11':'11 AM','12':'12 PM','13':'1 PM','14':'2 PM','15':'3 PM','16':'4 PM','17':'5 PM','18':'6 PM','19':'7 PM','20':'8 PM'};
+
+let scheduleData = {};
+function loadScheduleData() {
+  try { scheduleData = JSON.parse(localStorage.getItem('chope_schedule') || '{}'); } catch { scheduleData = {}; }
+}
+function persistScheduleData() { localStorage.setItem('chope_schedule', JSON.stringify(scheduleData)); }
+function schedKey() { return new Date().toISOString().slice(0,10) + '_' + state.currentUser; }
+function getSlotIds(h) { return (scheduleData[schedKey()] || {})[h] || []; }
+function setSlotIds(h, ids) {
+  const k = schedKey();
+  if (!scheduleData[k]) scheduleData[k] = {};
+  if (ids.length) scheduleData[k][h] = ids; else delete scheduleData[k][h];
+  persistScheduleData();
+}
+
+function _calEventsForHour(h) {
+  if (!_calEvents || !Array.isArray(_calEvents)) return [];
+  const hour = parseInt(h);
+  return _calEvents.filter(ev => {
+    if (!ev.start?.dateTime) return false;
+    const start = new Date(ev.start.dateTime).getHours();
+    const end   = ev.end?.dateTime ? new Date(ev.end.dateTime).getHours() : start + 1;
+    return start <= hour && hour < end;
+  });
+}
+
+function _fmtDurHours(h) {
+  if (!h) return '';
+  if (h < 1) return Math.round(h * 60) + 'm';
+  if (h % 1 === 0) return h + 'h';
+  return h.toFixed(1) + 'h';
+}
+
+function renderScheduleGrid() {
+  const el = document.getElementById('schedGrid');
+  if (!el) return;
+  const me = state.currentUser;
+  const allScheduled = new Set(Object.values(scheduleData[schedKey()] || {}).flat());
+  const myOpen = tasks
+    .filter(t => t.assignee === me && t.status !== 'done')
+    .sort((a,b) => { const po={high:0,med:1,low:2}; return (po[a.priority]??1)-(po[b.priority]??1); });
+  const unscheduled = myOpen.filter(t => !allScheduled.has(t.id));
+  const todayStr = new Date().toISOString().slice(0,10);
+  const priorityUnscheduled = unscheduled.filter(t => !t.deadline || t.deadline <= todayStr);
+  const upcomingUnscheduled = unscheduled.filter(t => t.deadline && t.deadline > todayStr);
+  const nowHour = new Date().getHours();
+  const hasCalendar = Array.isArray(_calEvents);
+
+  const seenTasks = new Set();
+  const slotsHTML = SCHED_HOURS.map(h => {
+    const isCurrent = parseInt(h) === nowHour;
+    const slotIds = getSlotIds(h).filter(id => tasks.find(t => t.id === id && t.status !== 'done'));
+    const calEvs = _calEventsForHour(h);
+    const calColHTML = hasCalendar
+      ? `<div class="sched-cal-col">${calEvs.map(ev => `<div class="sched-cal-ev">${esc((ev.summary||'(No title)').length>22?(ev.summary||'(No title)').slice(0,22)+'…':(ev.summary||'(No title)'))}</div>`).join('')}</div>`
+      : '';
+    return `
+      <div class="sched-row${isCurrent ? ' sched-now' : ''}${hasCalendar ? ' sched-has-cal' : ''}">
+        <div class="sched-hour-label">${SCHED_LABELS[h]}</div>
+        ${calColHTML}
+        <div class="sched-slot" ondragover="schedDragOver(event)" ondragleave="schedDragLeave(event)" ondrop="schedDrop(event,'${h}')">
+          ${slotIds.map(id => {
+            const t = tasks.find(x => x.id === id); if (!t) return '';
+            const dur = t.durationHours ? `<span class="sched-dur">${_fmtDurHours(t.durationHours)}</span>` : '';
+            if (seenTasks.has(id)) {
+              return `<div class="sched-cont-block" style="border-left:3px solid ${PRIO_COLORS[t.priority]}">
+                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.6;font-size:10px">${esc(t.name.length>35?t.name.slice(0,35)+'…':t.name)}</span>
+                <button class="sched-rm" onclick="schedRemoveTask('${id}');event.stopPropagation()">×</button>
+              </div>`;
+            }
+            seenTasks.add(id);
+            return `<div class="sched-slot-chip" draggable="true" ondragstart="schedDragStart(event,'${id}','${h}')">
+              <span style="width:7px;height:7px;border-radius:50%;background:${PRIO_COLORS[t.priority]};flex-shrink:0;display:inline-block"></span>
+              <span onclick="openTaskModal('${id}')" style="cursor:pointer">${esc(t.name.length>40?t.name.slice(0,40)+'…':t.name)}</span>
+              <button class="sched-rm" onclick="schedRemoveTask('${id}');event.stopPropagation()">×</button>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="sched-wrap">
+      <div class="sched-unscheduled" ondragover="schedDragOver(event)" ondragleave="schedDragLeave(event)" ondrop="schedDrop(event,'')">
+        <div class="sched-panel-hd">🎯 Today's Priorities · ${priorityUnscheduled.length}</div>
+        ${priorityUnscheduled.map(t => {
+          const dur = t.durationHours ? `<span class="sched-dur">${_fmtDurHours(t.durationHours)}</span>` : '';
+          const isOver = t.deadline && t.deadline < todayStr;
+          const dlBadge = t.deadline ? `<span style="font-size:9px;color:${isOver?'#DC2626':'var(--t3)'};flex-shrink:0">${isOver?'⚠ ':''}${fmtDate(t.deadline)}</span>` : '';
+          return `<div class="sched-chip" draggable="true" style="border-left:3px solid ${PRIO_COLORS[t.priority]}" ondragstart="schedDragStart(event,'${t.id}','')">
+            <div style="flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column;gap:1px">
+              <span onclick="openTaskModal('${t.id}')" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer">${esc(t.name.length>26?t.name.slice(0,26)+'…':t.name)}</span>
+              ${dlBadge}
+            </div>
+            ${dur}
+          </div>`;
+        }).join('')}
+        ${priorityUnscheduled.length === 0 ? '<div class="sched-empty-hint">All priorities scheduled ✓</div>' : ''}
+        ${upcomingUnscheduled.length ? `
+          <div class="sched-panel-hd" style="margin-top:10px;opacity:.6">Upcoming · ${upcomingUnscheduled.length}</div>
+          ${upcomingUnscheduled.slice(0,5).map(t => {
+            const dur = t.durationHours ? `<span class="sched-dur">${_fmtDurHours(t.durationHours)}</span>` : '';
+            return `<div class="sched-chip" draggable="true" style="border-left:3px solid ${PRIO_COLORS[t.priority]};opacity:.65" ondragstart="schedDragStart(event,'${t.id}','')">
+              <span onclick="openTaskModal('${t.id}')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer">${esc(t.name.length>26?t.name.slice(0,26)+'…':t.name)}</span>
+              ${dur}
+            </div>`;
+          }).join('')}
+          ${upcomingUnscheduled.length > 5 ? `<div class="sched-empty-hint" style="margin-top:4px">+${upcomingUnscheduled.length-5} more</div>` : ''}
+        ` : ''}
+      </div>
+      <div class="sched-slots">${slotsHTML}</div>
+    </div>`;
+}
+
+function schedDragStart(event, taskId, fromHour) {
+  event.dataTransfer.setData('sched_task', taskId);
+  event.dataTransfer.setData('sched_from', fromHour);
+  event.dataTransfer.effectAllowed = 'move';
+  event.stopPropagation();
+}
+function schedDragOver(event) {
+  event.preventDefault(); event.stopPropagation();
+  event.dataTransfer.dropEffect = 'move';
+  event.currentTarget.classList.add('sched-drag-over');
+}
+function schedDragLeave(event) { event.currentTarget.classList.remove('sched-drag-over'); }
+function _schedRemoveFromAllSlots(taskId) {
+  SCHED_HOURS.forEach(h => {
+    const ids = getSlotIds(h);
+    if (ids.includes(taskId)) setSlotIds(h, ids.filter(id => id !== taskId));
+  });
+}
+function schedDrop(event, toHour) {
+  event.preventDefault(); event.stopPropagation();
+  event.currentTarget.classList.remove('sched-drag-over');
+  const taskId = event.dataTransfer.getData('sched_task');
+  if (!taskId) return;
+  _schedRemoveFromAllSlots(taskId);
+  if (toHour) {
+    const t = tasks.find(x => x.id === taskId);
+    const slotsNeeded = t?.durationHours ? Math.max(1, Math.ceil(t.durationHours)) : 1;
+    const startIdx = SCHED_HOURS.indexOf(toHour);
+    for (let i = 0; i < slotsNeeded && (startIdx + i) < SCHED_HOURS.length; i++) {
+      const h = SCHED_HOURS[startIdx + i];
+      const cur = getSlotIds(h);
+      if (!cur.includes(taskId)) setSlotIds(h, [...cur, taskId]);
+    }
+  }
+  renderScheduleGrid();
+}
+function schedRemoveTask(taskId) {
+  _schedRemoveFromAllSlots(taskId);
+  renderScheduleGrid();
+}
+
+/* ══════════════════════════════════════════════════════════
+   REFOCUS PROMPT
+══════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════
+   NOTES & NOTIFICATIONS
+══════════════════════════════════════════════════════════ */
+
+let _origAssignee = null;
+
+function onAssigneeChange() {
+  const sel = document.getElementById('fAssignee');
+  const box = document.getElementById('handoffBox');
+  if (!box) return;
+  if (_origAssignee && sel.value && sel.value !== _origAssignee) {
+    box.classList.add('show');
+  } else {
+    box.classList.remove('show');
+    const hn = document.getElementById('handoffNote');
+    if (hn) hn.value = '';
+  }
+}
+
+function renderNoteThread(t) {
+  const el = document.getElementById('noteThread');
+  if (!el) return;
+  const notes = t.notes || [];
+  if (!notes.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--t3);padding:6px 0 2px">No notes yet.</div>';
+    return;
+  }
+  el.innerHTML = notes.map(n => {
+    const isSys = n.author === '__system__';
+    const col = isSys ? '#6B7280' : avatarColor(n.author);
+    const av = isSys ? '⚙' : esc(initials(n.author));
+    const who = isSys ? 'System' : esc(n.author);
+    const timeStr = new Date(n.ts).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    return `<div class="note-item ${n.type==='handoff'?'is-handoff':''}">
+      <div class="note-av" style="background:${col}">${av}</div>
+      <div class="note-bubble">
+        <div class="note-who">${who}</div>
+        <div class="note-txt">${esc(n.text)}</div>
+        <div class="note-time">${timeStr}</div>
+      </div>
+    </div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function submitNote() {
+  if (!editTaskId) return;
+  const input = document.getElementById('noteInput');
+  const text = (input?.value || '').trim();
+  if (!text) return;
+  const t = tasks.find(x => x.id === editTaskId);
+  if (!t) return;
+  if (!t.notes) t.notes = [];
+  t.notes.push({ id: uid(), author: state.currentUser || 'Unknown', text, ts: new Date().toISOString(), type: 'comment', readBy: [state.currentUser || ''] });
+  if (input) input.value = '';
+  persist();
+  renderNoteThread(t);
+  updateNotifBadge();
+}
+
+function markTaskNotesRead(taskId) {
+  const me = state.currentUser;
+  if (!me || !taskId) return;
+  const t = tasks.find(x => x.id === taskId);
+  if (!t || !t.notes) return;
+  let changed = false;
+  t.notes.forEach(n => {
+    if (n.author !== me && !(n.readBy || []).includes(me)) {
+      if (!n.readBy) n.readBy = [];
+      n.readBy.push(me);
+      changed = true;
+    }
+  });
+  if (changed) { persist(); updateNotifBadge(); }
+}
+
+function getUnreadNotes() {
+  const me = state.currentUser;
+  if (!me) return [];
+  const out = [];
+  tasks.forEach(t => {
+    (t.notes || []).forEach(n => {
+      const isForMe = t.assignee === me || (n.type === 'handoff' && n.text.includes(` to ${me}`));
+      if (isForMe && n.author !== me && !(n.readBy || []).includes(me)) {
+        out.push({ taskId: t.id, taskName: t.name, note: n });
+      }
+    });
+  });
+  return out.sort((a,b) => new Date(b.note.ts) - new Date(a.note.ts));
+}
+
+function updateNotifBadge() {
+  const badge = document.getElementById('notifBadge');
+  if (!badge) return;
+  const count = getUnreadNotes().length;
+  badge.textContent = count > 9 ? '9+' : String(count);
+  badge.style.display = count > 0 ? 'block' : 'none';
+}
+
+function toggleNotifPanel() {
+  const panel = document.getElementById('notifPanel');
+  if (panel.classList.contains('open')) { closeNotifPanel(); }
+  else { renderNotifPanel(); panel.classList.add('open'); }
+}
+
+function closeNotifPanel() {
+  document.getElementById('notifPanel').classList.remove('open');
+}
+
+function renderNotifPanel() {
+  const me = state.currentUser;
+  const all = [];
+  tasks.forEach(t => {
+    (t.notes || []).forEach(n => {
+      const isForMe = t.assignee === me || (n.type === 'handoff' && n.text.includes(` to ${me}`));
+      if (!isForMe || n.author === me) return;
+      const isUnread = !(n.readBy || []).includes(me);
+      all.push({ taskId: t.id, taskName: t.name, note: n, isUnread });
+    });
+  });
+  all.sort((a,b) => new Date(b.note.ts) - new Date(a.note.ts));
+  const body = document.getElementById('notifPanelBody');
+  if (!all.length) {
+    body.innerHTML = '<div class="np-empty">No updates for you yet.<br>Handoffs and comments on your tasks appear here.</div>';
+    return;
+  }
+  body.innerHTML = all.slice(0, 30).map(item => {
+    const { note, taskName, taskId, isUnread } = item;
+    const isHandoff = note.type === 'handoff';
+    const isSys = note.author === '__system__';
+    const col = isSys ? '#6B7280' : avatarColor(note.author);
+    const av = isSys ? '⚙' : esc(initials(note.author));
+    const label = isSys ? 'System' : esc(note.author);
+    const timeStr = new Date(note.ts).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    return `<div class="np-item ${isHandoff?'handoff':''} ${isUnread?'unread':''}" onclick="openTaskModal('${taskId}');closeNotifPanel()">
+      <div class="np-task">${isHandoff?'<span class="np-handoff-tag">HANDOFF</span>':''}${esc(taskName)}</div>
+      <div class="np-text">${esc(note.text.length>90?note.text.slice(0,90)+'…':note.text)}</div>
+      <div class="np-meta">
+        <span class="np-dot" style="background:${col}">${av}</span>
+        <span>${label}</span><span>·</span><span>${timeStr}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function markAllNotifRead() {
+  const me = state.currentUser;
+  if (!me) return;
+  tasks.forEach(t => {
+    (t.notes || []).forEach(n => {
+      if (n.author !== me && !(n.readBy || []).includes(me)) {
+        if (!n.readBy) n.readBy = [];
+        n.readBy.push(me);
+      }
+    });
+  });
+  persist();
+  updateNotifBadge();
+  renderNotifPanel();
+}
+
+function checkRefocusPrompt() {
+  const me = state.currentUser;
+  if (!me) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const key = 'chope_refocus_' + today + '_' + me;
+  if (localStorage.getItem(key)) return;
+
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 3);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+  const myTasks = tasks.filter(t => t.assignee === me);
+  const myOpen  = myTasks.filter(t => t.status !== 'done');
+  const recentDone = myTasks.filter(t =>
+    t.status === 'done' && t.completedAt && t.completedAt.slice(0, 10) >= cutoffStr
+  );
+
+  if (myOpen.length === 0 || recentDone.length > 0) return;
+
+  localStorage.setItem(key, '1');
+
+  const highTasks = myOpen.filter(t => t.priority === 'high').slice(0, 4);
+  const firstName = me.split(' ')[0];
+
+  document.getElementById('rfxTitle').textContent = `Hey ${firstName}, let's refocus 🎯`;
+  document.getElementById('rfxSub').textContent =
+    `You haven't completed any tasks in the past 3 days. You have ${myOpen.length} open task${myOpen.length !== 1 ? 's' : ''} — here's what needs attention:`;
+
+  document.getElementById('rfxTasks').innerHTML = highTasks.length
+    ? highTasks.map(t => `
+        <button class="rfx-task" onclick="closeRefocus();openTaskModal('${t.id}')">
+          <span style="width:8px;height:8px;border-radius:50%;background:#EF4444;flex-shrink:0"></span>
+          <span>${esc(t.name)}</span>
+        </button>`).join('')
+    : `<div style="font-size:12px;color:var(--t3);padding:6px 0">No high-priority tasks — consider reviewing and updating your priorities.</div>`;
+
+  document.getElementById('refocusOverlay').classList.add('open');
+}
+
+function closeRefocus() {
+  document.getElementById('refocusOverlay').classList.remove('open');
+}
+
+function focusHighPriority() {
+  closeRefocus();
+  state.priority = 'high';
+  state.assignee = state.currentUser;
+  renderAll();
+}
+
+function _getBoardNavOrder() {
+  const ft = filteredTasks();
+  const ordered = [];
+  Object.keys(COLS).forEach(col => ft.filter(t => t.status === col).forEach(t => ordered.push({ id: t.id, col })));
+  return ordered;
+}
+
+function selectAdjacentCard(dir) {
+  const ordered = _getBoardNavOrder();
+  if (!ordered.length) return;
+  const curIdx = focusedCardId ? ordered.findIndex(x => x.id === focusedCardId) : -1;
+  let nextIdx;
+  if (dir === 'down' || dir === 'right') {
+    nextIdx = curIdx === -1 ? 0 : Math.min(curIdx + 1, ordered.length - 1);
+  } else {
+    nextIdx = curIdx <= 0 ? 0 : curIdx - 1;
+  }
+  selectCard(ordered[nextIdx].id);
+}
 let _lastDeleted = null;
 function deleteTaskDirect(id) {
   const t = tasks.find(x => x.id === id);
   if (!t) return;
+  _tdDelete(t.todoistId);
   _lastDeleted = { task: { ...t }, index: tasks.indexOf(t) };
   tasks = tasks.filter(x => x.id !== id);
   hoveredCardId = null;
+  selectedTaskIds.delete(id); updateSelectionBar();
   persist(); renderAll();
   const box = document.getElementById('toasts');
   const el = document.createElement('div');
@@ -2675,6 +3438,175 @@ function undoDelete() {
   _lastDeleted = null;
   persist(); renderAll();
   toast('↩ Delete undone');
+}
+
+/* ══════════════════════════════════════════════════════════
+   TODOIST INTEGRATION
+══════════════════════════════════════════════════════════ */
+
+let _todoistToken = localStorage.getItem('chope_todoist_token') || '';
+let _todoistProjectId = localStorage.getItem('chope_todoist_project_id') || '';
+const _TODOIST = '/api/todoist'; // proxied via Vercel Function to avoid CORS
+
+function _tdPriority(p) { return p === 'high' ? 4 : p === 'med' ? 3 : p === 'low' ? 2 : 1; }
+
+function _tdUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+async function _tdEnsureProject() {
+  if (_todoistProjectId) return _todoistProjectId;
+  const r = await fetch(`${_TODOIST}/projects`, { headers: { Authorization: `Bearer ${_todoistToken}` } });
+  if (!r.ok) throw new Error(`HTTP ${r.status} — ${r.statusText}`);
+  const data = await r.json();
+  const list = Array.isArray(data) ? data : (data.results || data.items || data.projects || []);
+  const found = list.find(p => p.name === 'Chope');
+  if (found) {
+    _todoistProjectId = found.id;
+    localStorage.setItem('chope_todoist_project_id', _todoistProjectId);
+    return _todoistProjectId;
+  }
+  const cr = await fetch(`${_TODOIST}/projects`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${_todoistToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Chope' })
+  });
+  if (!cr.ok) throw new Error(`Create project HTTP ${cr.status}`);
+  const proj = await cr.json();
+  _todoistProjectId = proj.id;
+  localStorage.setItem('chope_todoist_project_id', _todoistProjectId);
+  return _todoistProjectId;
+}
+
+// Silent wrapper used during auto-save
+async function _tdSync(task) {
+  try { await _tdSyncThrows(task); } catch(e) { console.warn('Todoist sync:', e.message); }
+}
+
+// Throwing version used by bulk sync for proper error reporting
+async function _tdSyncThrows(task) {
+  if (!_todoistToken || task.assignee !== state.currentUser) return;
+  const projectId = await _tdEnsureProject();
+  const body = { content: task.name, priority: _tdPriority(task.priority), project_id: projectId };
+  if (task.desc)     body.description = task.desc;
+  if (task.deadline) body.due_date    = task.deadline;
+  if (task.todoistId) {
+    const r = await fetch(`${_TODOIST}/tasks/${task.todoistId}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${_todoistToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error(`Update HTTP ${r.status}`);
+  } else {
+    const res = await fetch(`${_TODOIST}/tasks`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${_todoistToken}`, 'Content-Type': 'application/json', 'X-Request-Id': _tdUUID() },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new Error(`Create HTTP ${res.status}${detail ? ': ' + detail.slice(0,60) : ''}`);
+    }
+    const created = await res.json();
+    task.todoistId = created.id || (created.task && created.task.id);
+  }
+}
+
+async function _tdClose(task) {
+  if (!_todoistToken || !task.todoistId) return;
+  try { await fetch(`${_TODOIST}/tasks/${task.todoistId}/close`, { method: 'POST', headers: { Authorization: `Bearer ${_todoistToken}` } }); }
+  catch(e) {}
+}
+
+async function _tdReopen(task) {
+  if (!_todoistToken || !task.todoistId) return;
+  try { await fetch(`${_TODOIST}/tasks/${task.todoistId}/reopen`, { method: 'POST', headers: { Authorization: `Bearer ${_todoistToken}` } }); }
+  catch(e) {}
+}
+
+async function _tdDelete(todoistId) {
+  if (!_todoistToken || !todoistId) return;
+  try { await fetch(`${_TODOIST}/tasks/${todoistId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${_todoistToken}` } }); }
+  catch(e) {}
+}
+
+async function testTodoistConnection(btn) {
+  const msgEl = document.getElementById('todoistSyncMsg');
+  if (!_todoistToken) { msgEl.textContent = '✗ No token saved'; msgEl.style.color = '#EF4444'; return; }
+  btn.disabled = true;
+  msgEl.style.color = 'var(--t3)';
+  msgEl.textContent = 'Testing…';
+  try {
+    const r = await fetch(`${_TODOIST}/projects`, {
+      headers: { Authorization: `Bearer ${_todoistToken}` }
+    });
+    if (r.ok) {
+      const projects = await r.json();
+      msgEl.textContent = `✓ Connected — ${projects.length} project${projects.length !== 1 ? 's' : ''} found`;
+      msgEl.style.color = '#059669';
+    } else {
+      const body = await r.text();
+      msgEl.textContent = `✗ HTTP ${r.status} — ${body.slice(0, 80)}`;
+      msgEl.style.color = '#EF4444';
+    }
+  } catch(e) {
+    msgEl.textContent = `✗ ${e.message}`;
+    msgEl.style.color = '#EF4444';
+  }
+  btn.disabled = false;
+}
+
+async function syncAllToTodoist(btn) {
+  if (!_todoistToken) { toast('Paste and save your Todoist API token first'); return; }
+  const me = state.currentUser;
+  if (!me) { toast('Select a user first'); return; }
+  const myTasks = tasks.filter(t => t.assignee === me && t.status !== 'done');
+  if (!myTasks.length) { toast('No open tasks assigned to you'); return; }
+  const msgEl = document.getElementById('todoistSyncMsg');
+  btn.disabled = true;
+  msgEl.style.color = 'var(--t3)';
+  msgEl.textContent = `Syncing 0 / ${myTasks.length}…`;
+  let synced = 0; const errors = [];
+  for (const t of myTasks) {
+    try {
+      await _tdSyncThrows(t);
+      synced++;
+      msgEl.textContent = `Syncing ${synced} / ${myTasks.length}…`;
+    } catch(e) {
+      errors.push(`${t.name.slice(0,20)}: ${e.message}`);
+    }
+  }
+  persist();
+  btn.disabled = false;
+  if (errors.length) {
+    msgEl.textContent = `${synced} synced, ${errors.length} failed: ${errors[0]}`;
+    msgEl.style.color = '#EF4444';
+    console.error('Todoist sync errors:', errors);
+  } else {
+    msgEl.textContent = `✓ ${synced} task${synced !== 1 ? 's' : ''} synced`;
+    msgEl.style.color = '#059669';
+  }
+}
+
+function saveTodoistToken() {
+  const val = document.getElementById('todoistTokenInput').value.trim();
+  _todoistToken = val;
+  _todoistProjectId = '';
+  localStorage.setItem('chope_todoist_token', val);
+  localStorage.removeItem('chope_todoist_project_id');
+  if (val) toast('Todoist connected — your tasks will sync automatically');
+  else toast('Todoist disconnected');
+  renderTodoistStatus();
+}
+
+function renderTodoistStatus() {
+  const el = document.getElementById('todoistStatus');
+  if (!el) return;
+  el.textContent = _todoistToken ? '● Connected' : '○ Not connected';
+  el.style.color = _todoistToken ? '#059669' : '#9CA3AF';
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -2752,6 +3684,8 @@ function deleteWs() {
 function openTeamModal() {
   renderTeamMemberList();
   document.getElementById('newMemberName').value = '';
+  document.getElementById('todoistTokenInput').value = _todoistToken;
+  renderTodoistStatus();
   document.getElementById('teamOverlay').classList.add('open');
   setTimeout(() => document.getElementById('newMemberName').focus(), 80);
 }
@@ -2813,6 +3747,111 @@ function addMember() {
   toast(`${name} added to team`);
 }
 
+/* ══════════════════════════════════════════════════════════
+   BULK ADD
+══════════════════════════════════════════════════════════ */
+
+let _bulkRows = [];
+
+function _parseBulkLine(line) {
+  return line
+    .replace(/^\s*[•‣◦⁃∙\-\*·]\s*/, '') // bullet chars
+    .replace(/^\s*\d+[\.\)]\s*/, '')   // 1. or 1)
+    .replace(/^\s*\(\d+\)\s*/, '')     // (1)
+    .trim();
+}
+
+function parseBulkInput() {
+  const raw = document.getElementById('bulkPaste').value;
+  const lines = raw.split('\n').map(_parseBulkLine).filter(Boolean);
+  const defaultAssignee = state.currentUser || team[0]?.name || '';
+  // Preserve per-row edits by matching on original parsed name
+  const existing = {};
+  _bulkRows.forEach(r => { existing[r._key] = r; });
+  _bulkRows = lines.map(name => {
+    const prev = existing[name];
+    return prev ? { ...prev, name } : { name, priority: 'med', assignee: defaultAssignee, _key: name };
+  });
+  _renderBulkRows();
+}
+
+function _renderBulkRows() {
+  const rowsEl   = document.getElementById('bulkTaskRows');
+  const listEl   = document.getElementById('bulkRowList');
+  const countEl  = document.getElementById('bulkRowCount');
+  const submitBtn = document.getElementById('bulkSubmitBtn');
+  if (!_bulkRows.length) {
+    rowsEl.style.display = 'none';
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Add Tasks';
+    return;
+  }
+  rowsEl.style.display = 'block';
+  countEl.textContent = `${_bulkRows.length} task${_bulkRows.length !== 1 ? 's' : ''} ready to import`;
+  submitBtn.disabled = false;
+  submitBtn.textContent = `Add ${_bulkRows.length} Task${_bulkRows.length !== 1 ? 's' : ''}`;
+  listEl.innerHTML = _bulkRows.map((row, i) => `
+    <div class="bulk-row" id="bulkRow_${i}">
+      <input class="fi bulk-row-name" value="${esc(row.name)}"
+        oninput="_bulkRows[${i}].name=this.value;_bulkRows[${i}]._key=this.value">
+      <select class="fi" style="width:86px;font-size:11px;padding:5px 4px;flex-shrink:0"
+        onchange="_bulkRows[${i}].priority=this.value">
+        <option value="high" ${row.priority==='high'?'selected':''}>🔴 High</option>
+        <option value="med"  ${row.priority==='med' ?'selected':''}>🟡 Med</option>
+        <option value="low"  ${row.priority==='low' ?'selected':''}>🟢 Low</option>
+      </select>
+      <select class="fi" style="width:106px;font-size:11px;padding:5px 4px;flex-shrink:0"
+        onchange="_bulkRows[${i}].assignee=this.value">
+        ${team.map(m => `<option value="${esc(m.name)}" ${row.assignee===m.name?'selected':''}>${esc(m.name)}</option>`).join('')}
+      </select>
+      <button class="bulk-row-rm" onclick="_bulkRows.splice(${i},1);_renderBulkRows()" title="Remove">×</button>
+    </div>`).join('');
+}
+
+function openBulkModal() {
+  _bulkRows = [];
+  document.getElementById('bulkCat').innerHTML = '<option value="">— none —</option>' +
+    Object.entries(CATEGORIES).map(([k,v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
+  document.getElementById('bulkWs').innerHTML = '<option value="">— none —</option>' +
+    workstreams.map(w => `<option value="${w.id}">${esc(w.name)}</option>`).join('');
+  document.getElementById('bulkPaste').value = '';
+  document.getElementById('bulkDeadline').value = '';
+  document.getElementById('bulkTaskRows').style.display = 'none';
+  document.getElementById('bulkRowList').innerHTML = '';
+  document.getElementById('bulkSubmitBtn').disabled = true;
+  document.getElementById('bulkSubmitBtn').textContent = 'Add Tasks';
+  document.getElementById('bulkOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('bulkPaste').focus(), 80);
+}
+
+function closeBulkModal() {
+  document.getElementById('bulkOverlay').classList.remove('open');
+}
+
+function submitBulkTasks() {
+  const ready = _bulkRows.filter(r => r.name.trim());
+  if (!ready.length) { toast('Paste at least one task name'); return; }
+  const cat      = document.getElementById('bulkCat').value;
+  const ws       = document.getElementById('bulkWs').value;
+  const deadline = document.getElementById('bulkDeadline').value;
+  const now      = new Date().toISOString();
+  ready.forEach(row => {
+    tasks.unshift({
+      id: uid(), name: row.name.trim(), desc: '',
+      cat: cat || 'admin',
+      assignee: row.assignee || team[0]?.name || '',
+      priority: row.priority || 'med',
+      status: 'todo',
+      deadline: deadline || '',
+      startDate: '', ws: ws || null, fund: 'none',
+      createdAt: now, completedAt: null, notes: [],
+    });
+  });
+  _bulkRows = [];
+  persist(); renderAll(); closeBulkModal();
+  toast(`✓ ${ready.length} task${ready.length !== 1 ? 's' : ''} created`);
+}
+
 function exportData() {
   const data = JSON.stringify({ tasks, workstreams, team }, null, 2);
   const blob = new Blob([data], { type: 'application/json' });
@@ -2852,149 +3891,6 @@ function removeMember(name) {
   if (state.currentUser === name) state.currentUser = team[0]?.name || '';
   persist(); renderTeamMemberList(); renderAll();
   toast(`${name} removed from team`);
-}
-
-/* ══════════════════════════════════════════════════════════
-   BULK IMPORT
-══════════════════════════════════════════════════════════ */
-
-let _bulkItems = [];
-
-function openBulkImport() {
-  document.getElementById('bulkOverlay').classList.add('open');
-  setTimeout(() => document.getElementById('bulkInput').focus(), 80);
-}
-
-function closeBulkImport() {
-  document.getElementById('bulkOverlay').classList.remove('open');
-  document.activeElement?.blur();
-}
-
-function _parseBulkLine(line) {
-  return line
-    .replace(/^\s*[•‣◦⁃∙—–\-\*\+·•◦‣]\s+/, '')
-    .replace(/^\s*\d+[\.\)]\s+/, '')
-    .trim();
-}
-
-function onBulkInput() {
-  const raw = document.getElementById('bulkInput').value;
-  const lines = raw.split('\n').map(_parseBulkLine).filter(l => l.length > 1);
-  const defaultAssignee = state.currentUser || (team[0]?.name ?? '');
-
-  _bulkItems = lines.map((name, i) => {
-    const prev = _bulkItems[i];
-    const priority = estimatePriority(name, '');
-    const { cat, fund } = estimateCatAndFund(name);
-    return {
-      name,
-      priority,
-      cat: cat || 'admin',
-      fund: fund || 'none',
-      assignee: prev?.assignee ?? defaultAssignee,
-    };
-  });
-
-  _renderBulkPreview();
-}
-
-function _renderBulkPreview() {
-  const listEl    = document.getElementById('bulkTaskList');
-  const sectionEl = document.getElementById('bulkPreviewSection');
-  const countEl   = document.getElementById('bulkPreviewCount');
-  const hintEl    = document.getElementById('bulkFooterHint');
-  const importBtn = document.getElementById('bulkImportBtn');
-
-  if (!_bulkItems.length) {
-    sectionEl.style.display = 'none';
-    hintEl.textContent = '';
-    importBtn.disabled = true;
-    return;
-  }
-
-  sectionEl.style.display = '';
-  const n = _bulkItems.length;
-  countEl.textContent = `${n} task${n !== 1 ? 's' : ''} detected`;
-  hintEl.textContent  = `Ready to import ${n} task${n !== 1 ? 's' : ''}`;
-  importBtn.disabled  = false;
-
-  const PRIO_BG    = { high:'#FEF2F2', med:'#FFFBEB', low:'#F0FDF4' };
-  const PRIO_COLOR = { high:'#DC2626', med:'#D97706', low:'#16A34A' };
-  const PRIO_LBL   = { high:'High',    med:'Med',     low:'Low'     };
-
-  listEl.innerHTML = _bulkItems.map((item, i) => {
-    const catInfo = CATEGORIES[item.cat] || CATEGORIES.admin;
-    const assigneeOpts = team.map(m =>
-      `<option value="${esc(m.name)}"${m.name === item.assignee ? ' selected' : ''}>${esc(m.name)}</option>`
-    ).join('');
-    const fundBadge = (item.fund && item.fund !== 'none')
-      ? `<span class="bti-badge" style="background:#EEF2FF;color:#4F46E5">${esc(item.fund)}</span>`
-      : '';
-    return `<div class="bulk-task-item">
-      <div class="bti-num">${i + 1}</div>
-      <div class="bti-info">
-        <div class="bti-name" title="${esc(item.name)}">${esc(item.name)}</div>
-        <div class="bti-badges">
-          <span class="bti-badge" style="background:${PRIO_BG[item.priority]};color:${PRIO_COLOR[item.priority]}">${PRIO_LBL[item.priority]}</span>
-          <span class="bti-badge" style="background:${catInfo.bg};color:${catInfo.color}">${catInfo.label}</span>
-          ${fundBadge}
-        </div>
-      </div>
-      <select class="bti-assignee" onchange="_bulkSetAssignee(${i},this.value)">${assigneeOpts}</select>
-      <button class="bti-del" onclick="_bulkRemove(${i})" title="Remove">×</button>
-    </div>`;
-  }).join('');
-}
-
-function _bulkSetAssignee(i, name) {
-  if (_bulkItems[i]) _bulkItems[i].assignee = name;
-}
-
-function _bulkRemove(i) {
-  _bulkItems.splice(i, 1);
-  const raw = document.getElementById('bulkInput').value;
-  const lines = raw.split('\n');
-  let kept = 0;
-  const filtered = lines.filter(l => {
-    const parsed = _parseBulkLine(l);
-    if (parsed.length <= 1) return true;
-    return kept++ !== i;
-  });
-  document.getElementById('bulkInput').value = filtered.join('\n');
-  _renderBulkPreview();
-}
-
-function clearBulkInput() {
-  document.getElementById('bulkInput').value = '';
-  _bulkItems = [];
-  _renderBulkPreview();
-}
-
-function confirmBulkImport() {
-  if (!_bulkItems.length) return;
-  const now = new Date().toISOString();
-  const newTasks = _bulkItems.map(item => ({
-    id: uid(),
-    name: item.name,
-    desc: '',
-    cat: item.cat,
-    fund: item.fund,
-    assignee: item.assignee || (team[0]?.name ?? ''),
-    priority: item.priority,
-    status: 'todo',
-    startDate: '',
-    deadline: '',
-    ws: '',
-    createdAt: now,
-    completedAt: null,
-  }));
-  tasks.unshift(...newTasks);
-  persist();
-  renderAll();
-  const count = newTasks.length;
-  closeBulkImport();
-  toast(`Imported ${count} task${count !== 1 ? 's' : ''}`);
-  setTimeout(() => { document.getElementById('bulkInput').value = ''; _bulkItems = []; }, 300);
 }
 
 function overlayClick(e, id) {
@@ -3040,7 +3936,8 @@ document.addEventListener('keydown', e => {
   const anyOpen = document.querySelector('.overlay.open');
 
   if (e.key === 'Escape') {
-    closeTaskModal(); closeWsModal(); closeTeamModal(); closeShortcutsModal(); closeBulkImport();
+    if (selectedTaskIds.size > 0) { clearSelection(); return; }
+    closeTaskModal(); closeWsModal(); closeTeamModal(); closeShortcutsModal();
   }
 
   if ((e.metaKey||e.ctrlKey) && e.key === 'Enter') {
@@ -3051,6 +3948,14 @@ document.addEventListener('keydown', e => {
   }
 
   if ((e.metaKey||e.ctrlKey) && e.key === 'k') { e.preventDefault(); openTaskModal(); return; }
+
+  if (e.ctrlKey && !e.metaKey && !typing && !anyOpen) {
+    if (e.key === 'ArrowDown')  { e.preventDefault(); selectAdjacentCard('down');  return; }
+    if (e.key === 'ArrowUp')    { e.preventDefault(); selectAdjacentCard('up');    return; }
+    if (e.key === 'ArrowRight') { e.preventDefault(); selectAdjacentCard('right'); return; }
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); selectAdjacentCard('left');  return; }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedTaskIds.size > 0) { e.preventDefault(); deleteSelected(); return; }
+  }
 
   if (typing || anyOpen) return;
 
@@ -3074,7 +3979,6 @@ document.addEventListener('keydown', e => {
       state.assignee = 'all'; state.ws = 'all'; state.cat = 'all';
       renderAll(); toast('Filters cleared');
       break;
-    case 'b': case 'B': openBulkImport(); break;
     case '?': openShortcutsModal(); break;
   }
 });
@@ -3084,9 +3988,11 @@ document.addEventListener('keydown', e => {
 ══════════════════════════════════════════════════════════ */
 
 let _planDurationDays = null;
+let _planDurationHours = null;
 
-function setPlanDuration(days) {
+function setPlanDuration(days, hours) {
   _planDurationDays = days;
+  _planDurationHours = hours != null ? hours : null;
   document.querySelectorAll('#planDuration .plan-pill').forEach(b => b.classList.remove('active'));
   event.target.classList.add('active');
   document.getElementById('planDurCustom').value = '';
@@ -3097,6 +4003,7 @@ function setPlanDurCustom(val) {
   const n = parseFloat(val);
   if (!val || isNaN(n) || n <= 0) return;
   _planDurationDays = n;
+  _planDurationHours = Math.round(n * 8 * 10) / 10;
   document.querySelectorAll('#planDuration .plan-pill').forEach(b => b.classList.remove('active'));
   _recalcDeadline();
 }
@@ -3169,6 +4076,7 @@ function _recalcDeadline() {
 
 function resetPlanBox() {
   _planDurationDays = null;
+  _planDurationHours = null;
   const c = document.getElementById('planDurCustom');
   if (c) c.value = '';
   document.querySelectorAll('#planDuration .plan-pill, #planStart .plan-pill').forEach(b => b.classList.remove('active'));
@@ -3238,6 +4146,7 @@ async function loadCalendarForDaily() {
   }
   _calEvents = events;
   el.innerHTML = events.map(calEventHTML).join('');
+  renderScheduleGrid();
 }
 
 async function createCalendarEvent(taskId) {
@@ -3287,8 +4196,19 @@ async function createCalendarEvent(taskId) {
 
 const GMAIL_CLIENT_ID = '1052353371305-ibjabb8j5o8okn4ou5a05q8g1ta3s3li.apps.googleusercontent.com';
 const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events';
-let gmailToken = sessionStorage.getItem('gmailToken') || null;
+let gmailToken = null; // validated async below
 let gmailOpen  = false;
+// Discard any stored token that isn't from the correct OAuth client
+(async () => {
+  const _stored = sessionStorage.getItem('gmailToken');
+  if (!_stored) return;
+  try {
+    const _ti = await fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + _stored).then(r => r.json());
+    if ((_ti.scope||'').includes('gmail') && (_ti.aud||'').startsWith(GMAIL_CLIENT_ID.split('-')[0])) {
+      gmailToken = _stored;
+    } else { sessionStorage.removeItem('gmailToken'); }
+  } catch { sessionStorage.removeItem('gmailToken'); }
+})();
 
 // If a token was restored from sessionStorage, update the Gmail panel UI
 if (gmailToken) {
@@ -3392,7 +4312,6 @@ function toggleGmailPanel() {
   gmailOpen = !gmailOpen;
   document.getElementById('gmailPanel').classList.toggle('open', gmailOpen);
   document.getElementById('gmailHdrBtn').style.background = gmailOpen ? 'var(--bg)' : '';
-  if (gmailOpen) updateWeeklyAuditAge();
 }
 function closeGmailPanel() {
   gmailOpen = false;
@@ -3400,51 +4319,46 @@ function closeGmailPanel() {
   document.getElementById('gmailHdrBtn').style.background = '';
 }
 
-async function gmailSignIn() {
+function gmailSignIn() {
   const btn = document.getElementById('gmailSignInBtn');
   if (btn) { btn.textContent = 'Signing in…'; btn.disabled = true; }
-  // Prefer Firebase popup (no redirect, session persists forever)
-  if (window._chopeFb?.signInWithGmail) {
-    try {
-      const result = await window._chopeFb.signInWithGmail();
-      const token  = window._chopeFb.getGmailToken(result);
-      if (token) {
-        gmailToken = token;
-        sessionStorage.setItem('gmailToken', token);
-        localStorage.setItem('gmailAuthorized', '1');
-        const displayName = result.user.displayName || '';
-        const firstName   = displayName.split(' ')[0];
-        const matched = team.find(m => m.name === displayName)
-          || team.find(m => m.name.toLowerCase().startsWith(firstName.toLowerCase()))
-          || team.find(m => firstName.toLowerCase().startsWith(m.name.split(' ')[0].toLowerCase()));
-        if (matched) {
-          localStorage.removeItem('chope_user_manually_set');
-          state.currentUser = matched.name;
-          localStorage.setItem('chope_user', matched.name);
-          renderHeader();
-          toast(`Welcome, ${matched.name.split(' ')[0]}! 👋`);
-        }
-        document.getElementById('gmailBody').innerHTML = `
-          <div style="text-align:center;padding:20px 0">
-            <div style="font-size:20px;margin-bottom:6px">✅</div>
-            <div style="font-size:13px;font-weight:600">Gmail connected!</div>
-            <div style="font-size:11px;color:var(--t3);margin-top:4px">Click "Scan Inbox" to find actionable emails.</div>
-          </div>`;
-        document.getElementById('gmailFooter').style.display = 'flex';
-      } else {
-        // Firebase popup gave no token — fall back to OAuth redirect (always works)
-        _gmailOAuthRedirect();
+
+  function _onToken(token) {
+    gmailToken = token;
+    sessionStorage.setItem('gmailToken', token);
+    localStorage.setItem('gmailAuthorized', '1');
+    document.getElementById('gmailBody').innerHTML = `
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:20px;margin-bottom:6px">✅</div>
+        <div style="font-size:13px;font-weight:600">Gmail connected!</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:4px">Click "Scan Inbox" to find actionable emails.</div>
+      </div>`;
+    document.getElementById('gmailFooter').style.display = 'flex';
+    if (btn) { btn.textContent = 'Sign in with Google'; btn.disabled = false; }
+  }
+
+  // Use Google Identity Services token client — works from any origin, no redirect needed
+  if (window.google?.accounts?.oauth2) {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: GMAIL_CLIENT_ID,
+      scope: GMAIL_SCOPES,
+      prompt: 'consent',
+      callback: (resp) => {
+        if (resp.access_token) { _onToken(resp.access_token); }
+        else { if (btn) { btn.textContent = 'Sign in with Google'; btn.disabled = false; } toast('Sign in failed — try again'); }
+      },
+      error_callback: (err) => {
+        if (btn) { btn.textContent = 'Sign in with Google'; btn.disabled = false; }
+        if (err.type !== 'popup_closed') toast('Sign in failed — try again');
       }
-    } catch(e) {
-      if (btn) { btn.textContent = 'Sign in with Google'; btn.disabled = false; }
-      if (e.code !== 'auth/popup-closed-by-user') toast('Sign in failed — try again');
-    }
+    });
+    client.requestAccessToken();
     return;
   }
-  // Fallback: redirect flow (no Firebase)
+
+  // Fallback: page redirect (works on deployed origins)
   _gmailOAuthRedirect();
 }
-
 function _gmailOAuthRedirect() {
   const params = new URLSearchParams({
     client_id: GMAIL_CLIENT_ID,
@@ -3499,16 +4413,32 @@ async function gmailScanInbox() {
   const btn = document.getElementById('gmailScanBtn');
   btn.textContent = 'Scanning…'; btn.disabled = true;
   try {
+    // Check token has Gmail scopes
+    const _ti = await fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + gmailToken).then(r => r.json());
+    // Wrong OAuth client (old Firebase token) or missing scope — wipe and force reconnect
+    const _hasScope = (_ti.scope || '').includes('gmail');
+    const _rightClient = (_ti.aud || '').startsWith(GMAIL_CLIENT_ID.split('-')[0]);
+    if (!_hasScope || !_rightClient) {
+      gmailToken = null; sessionStorage.removeItem('gmailToken');
+      document.getElementById('gmailBody').innerHTML = '<div style="text-align:center;padding:24px 16px"><p style="color:#EF4444;font-size:12px;margin-bottom:12px">⚠️ Please reconnect Gmail to continue.</p><button class="btn-add" onclick="gmailSignIn()" style="width:100%">Reconnect Gmail</button></div>';
+      document.getElementById('gmailFooter').style.display = 'none';
+      return;
+    }
     const listRes = await fetch(
       'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q=is:unread -category:promotions -category:social',
       { headers: { Authorization: 'Bearer ' + gmailToken } }
     );
-    if (listRes.status === 401) {
-      gmailToken = null;
-      sessionStorage.removeItem('gmailToken');
-      await gmailSignIn();
-      if (gmailToken) { await gmailScanInbox(); }
-      return;
+    if (!listRes.ok) {
+      const errBody = await listRes.json().catch(() => ({}));
+      const errMsg  = errBody.error?.message || ('HTTP ' + listRes.status);
+      if (listRes.status === 401) {
+        gmailToken = null;
+        sessionStorage.removeItem('gmailToken');
+        document.getElementById('gmailBody').innerHTML = "<div style='text-align:center;padding:30px 20px'><div style='font-size:20px;margin-bottom:8px'>🔑</div><div style='font-size:13px;font-weight:600;margin-bottom:8px'>Session expired — reconnect Gmail</div><button class='btn-add' onclick='gmailSignIn()' style='width:100%'>Reconnect Gmail</button></div>";
+        document.getElementById('gmailFooter').style.display = 'none';
+        return;
+      }
+      throw new Error('Gmail API error (' + listRes.status + '): ' + errMsg);
     }
     const listData = await listRes.json();
     const messages = listData.messages || [];
@@ -3616,152 +4546,6 @@ async function gmailSendBrief() {
   }
 }
 
-function updateWeeklyAuditAge() {
-  const el = document.getElementById('weeklyAuditAge');
-  if (!el) return;
-  const last = localStorage.getItem('chope_weekly_audit_sent');
-  if (!last) { el.textContent = 'never sent'; return; }
-  const days = Math.floor((Date.now() - new Date(last)) / 864e5);
-  el.textContent = days === 0 ? 'sent today' : days === 1 ? 'sent yesterday' : `sent ${days}d ago`;
-  const btn = document.getElementById('weeklyAuditBtn');
-  if (btn) btn.style.color = days >= 7 ? 'var(--col-ip)' : '';
-}
-
-async function gmailSendWeeklyAudit() {
-  if (!gmailToken) { gmailSignIn(); return; }
-  const btn = document.getElementById('weeklyAuditBtn');
-  if (btn) { btn.disabled = true; btn.querySelector('span').textContent = '📊 Sending…'; }
-
-  const now = new Date();
-  const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
-  const weekAgoStr = weekAgo.toISOString();
-  const todayStr = now.toISOString().slice(0, 10);
-  const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const weekLabel = `${fmt(weekAgo)} – ${fmt(now)}`;
-
-  // Deadline changes this week
-  const dlChanges = [];
-  tasks.forEach(t => {
-    if (!t.deadlineHistory?.length) return;
-    const recent = t.deadlineHistory.filter(h => h.at >= weekAgoStr);
-    if (recent.length) dlChanges.push({ task: t, changes: recent });
-  });
-
-  // Completions this week
-  const completed = tasks.filter(t => t.status === 'done' && t.completedAt && t.completedAt >= weekAgoStr);
-
-  // Open tasks and overdue
-  const openTasks = tasks.filter(t => t.status !== 'done');
-  const overdue = openTasks.filter(t => t.deadline && t.deadline < todayStr);
-
-  // ── Email sections ─────────────────────────────────────
-  const card = (body, accent) =>
-    `<div style="background:#fff;border-radius:10px;padding:20px 22px;margin-bottom:14px;border:1px solid ${accent||'#E0E0DA'}">${body}</div>`;
-  const h2 = t => `<div style="font-size:14px;font-weight:700;margin-bottom:10px;color:#181816">${t}</div>`;
-  const muted = t => `<p style="color:#9A9A92;font-size:13px;margin:0">${t}</p>`;
-  const row = (main, sub) =>
-    `<div style="font-size:13px;padding:6px 0;border-bottom:1px solid #F0F0EC;display:flex;justify-content:space-between;align-items:center">
-      <span>${main}</span><span style="font-size:11px;color:#9A9A92;white-space:nowrap;margin-left:12px">${sub}</span></div>`;
-
-  const dlSection = dlChanges.length === 0 ? muted('No deadline changes this week.') :
-    dlChanges.map(({ task, changes }) =>
-      `<div style="margin-bottom:12px;padding:10px 12px;background:#F9F9F7;border-radius:8px">
-        <div style="font-size:13px;font-weight:600;margin-bottom:5px">${esc(task.name)}</div>
-        ${changes.map(h =>
-          `<div style="font-size:12px;color:#62625C;margin-top:3px">
-            <b>${esc(h.changedBy)}</b> moved deadline
-            ${h.from ? `from <b>${h.from}</b>` : ''}
-            → <b>${h.to || 'removed'}</b>
-            <span style="color:#9A9A92"> · ${new Date(h.at).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</span>
-          </div>`).join('')}
-      </div>`).join('');
-
-  const completedSection = completed.length === 0 ? muted('No tasks completed this week.') :
-    completed.map(t => row(esc(t.name), `${esc(t.assignee)}`)).join('');
-
-  const workloadRows = team.map(m => {
-    const mine = openTasks.filter(t => t.assignee === m.name);
-    const doneWk = tasks.filter(t => t.assignee === m.name && t.status === 'done' && t.completedAt && t.completedAt >= weekAgoStr).length;
-    const cell = (n, color) => `<td style="padding:7px 10px;font-size:13px;text-align:center;color:${color};border-bottom:1px solid #F0F0EC">${n}</td>`;
-    return `<tr>
-      <td style="padding:7px 10px;font-size:13px;font-weight:500;border-bottom:1px solid #F0F0EC">${esc(m.name)} <span style="font-size:10px;color:#9A9A92;font-weight:400">${esc(m.role)}</span></td>
-      ${cell(mine.filter(t=>t.status==='todo').length,'#6B7280')}
-      ${cell(mine.filter(t=>t.status==='inprogress').length,'#3B82F6')}
-      ${cell(mine.filter(t=>t.status==='review').length,'#F59E0B')}
-      ${cell(doneWk,'#22C55E')}
-    </tr>`;
-  }).join('');
-
-  const overdueSection = overdue.length === 0 ? muted('No overdue tasks — great work!') :
-    overdue.map(t => row(esc(t.name), `${esc(t.assignee)} · was ${t.deadline}`)).join('');
-
-  const html = `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#F2F2EF;padding:20px;color:#181816;margin:0">
-<div style="max-width:620px;margin:0 auto">
-
-${card(`
-  <div style="font-size:20px;font-weight:700;margin-bottom:4px">📊 Chope Weekly Audit</div>
-  <div style="font-size:13px;color:#62625C">${weekLabel} &nbsp;·&nbsp; ${now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
-  <div style="display:flex;gap:20px;margin-top:14px">
-    <div><span style="font-size:22px;font-weight:700;color:#3B82F6">${openTasks.length}</span> <span style="font-size:12px;color:#62625C">open</span></div>
-    <div><span style="font-size:22px;font-weight:700;color:#22C55E">${completed.length}</span> <span style="font-size:12px;color:#62625C">done this wk</span></div>
-    <div><span style="font-size:22px;font-weight:700;color:#EF4444">${overdue.length}</span> <span style="font-size:12px;color:#62625C">overdue</span></div>
-    <div><span style="font-size:22px;font-weight:700;color:#F59E0B">${dlChanges.length}</span> <span style="font-size:12px;color:#62625C">deadline moves</span></div>
-  </div>`)}
-
-${card(h2('⏱ Deadline Changes') + dlSection)}
-
-${card(h2('✅ Completed This Week') + completedSection)}
-
-${card(`
-  ${h2('👥 Team Workload')}
-  <table style="width:100%;border-collapse:collapse">
-    <thead><tr style="background:#F9F9F7">
-      <th style="padding:7px 10px;font-size:10px;font-weight:600;color:#9A9A92;text-align:left;text-transform:uppercase;letter-spacing:.5px">Member</th>
-      <th style="padding:7px 10px;font-size:10px;font-weight:600;color:#6B7280;text-align:center;text-transform:uppercase;letter-spacing:.5px">Todo</th>
-      <th style="padding:7px 10px;font-size:10px;font-weight:600;color:#3B82F6;text-align:center;text-transform:uppercase;letter-spacing:.5px">In Progress</th>
-      <th style="padding:7px 10px;font-size:10px;font-weight:600;color:#F59E0B;text-align:center;text-transform:uppercase;letter-spacing:.5px">Review</th>
-      <th style="padding:7px 10px;font-size:10px;font-weight:600;color:#22C55E;text-align:center;text-transform:uppercase;letter-spacing:.5px">Done Wk</th>
-    </tr></thead>
-    <tbody>${workloadRows}</tbody>
-  </table>`)}
-
-${overdue.length > 0 ? card(h2('⚠️ Overdue Tasks') + overdueSection, '#FECACA') : ''}
-
-<div style="font-size:11px;color:#9A9A92;text-align:center;margin-top:4px;padding-bottom:8px">Sent from Chope · ${location.href}</div>
-</div></body></html>`;
-
-  const rawEmail = [
-    `To: me`,
-    `Subject: Chope Weekly Audit — ${weekLabel}`,
-    `MIME-Version: 1.0`,
-    `Content-Type: text/html; charset=utf-8`,
-    ``,
-    html
-  ].join('\r\n');
-  const encoded = btoa(unescape(encodeURIComponent(rawEmail))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-
-  try {
-    const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-      method: 'POST',
-      headers: { Authorization: 'Bearer ' + gmailToken, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ raw: encoded })
-    });
-    if (res.ok) {
-      localStorage.setItem('chope_weekly_audit_sent', now.toISOString());
-      updateWeeklyAuditAge();
-      toast('Weekly audit sent to your Gmail!');
-    } else {
-      toast('Failed to send — check Gmail permissions');
-    }
-  } catch {
-    toast('Error sending weekly audit');
-  } finally {
-    if (btn) { btn.disabled = false; btn.querySelector('span').textContent = '📊 Weekly Audit'; }
-  }
-}
-
 /* ══════════════════════════════════════════════════════════
    INIT
 ══════════════════════════════════════════════════════════ */
@@ -3769,6 +4553,7 @@ ${overdue.length > 0 ? card(h2('⚠️ Overdue Tasks') + overdueSection, '#FECAC
 if (window.self === window.top) {
   async function init() {
     await load();
+    loadScheduleData();
     gmailHandleCallback();
 
     // Wire workstream IDs to seed tasks after workstreams are seeded
@@ -3786,7 +4571,7 @@ if (window.self === window.top) {
     }
 
     renderAll();
-    updateWeeklyAuditAge();
+    setTimeout(checkRefocusPrompt, 1200);
     setInterval(renderAll, 60000);
     setupGmailAuth();
   }
@@ -3804,7 +4589,7 @@ if (window.self === window.top) {
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
   import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-analytics.js";
   import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
-  import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-auth.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, reauthenticateWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyD6I9vLBzuMdRLCeral6IZ-daH4gTDnUzU",
@@ -3838,7 +4623,7 @@ if (window.self === window.top) {
     // Identity sign-in (no warning)
     signInWithGoogle:  ()     => signInWithPopup(auth, identityProvider),
     // Gmail sign-in (warning appears, but only for Gmail, not for app login)
-    signInWithGmail:   ()     => signInWithPopup(auth, gmailProvider),
+    signInWithGmail:   ()     => auth.currentUser ? reauthenticateWithPopup(auth.currentUser, gmailProvider) : signInWithPopup(auth, gmailProvider),
     getGmailToken:     result => GoogleAuthProvider.credentialFromResult(result)?.accessToken
                               || result?._tokenResponse?.oauthAccessToken
                               || null,
