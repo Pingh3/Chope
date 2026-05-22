@@ -1244,6 +1244,7 @@ textarea.fi{resize:vertical;min-height:72px}
             <button class="plan-pill" onclick="setPlanDuration(0.0625,0.5)">30 min</button>
             <button class="plan-pill" onclick="setPlanDuration(0.125,1)">1 hr</button>
             <button class="plan-pill" onclick="setPlanDuration(0.25,2)">2 hrs</button>
+            <button class="plan-pill" onclick="setPlanDuration(0.5,4)">4 hrs</button>
             <button class="plan-pill" onclick="setPlanDuration(0.5,4)">Half day</button>
             <button class="plan-pill" onclick="setPlanDuration(1,8)">Full day</button>
             <button class="plan-pill" onclick="setPlanDuration(2,16)">2 days</button>
@@ -1270,6 +1271,7 @@ textarea.fi{resize:vertical;min-height:72px}
             <button class="plan-pill" onclick="setPlanStart(2)">In 2 days</button>
             <button class="plan-pill" onclick="setPlanStart(3)">In 3 days</button>
             <button class="plan-pill" onclick="setPlanStartFriday()">This Friday</button>
+            <button class="plan-pill" onclick="setPlanStartNextMon()">Next week (Mon)</button>
             <button class="plan-pill" onclick="setPlanStartNextWed()">Next week (Wed)</button>
             <button class="plan-pill" onclick="setPlanStart(14)">In 2 weeks</button>
             <button class="plan-pill" onclick="setPlanStart(30)">Next month</button>
@@ -1315,6 +1317,8 @@ textarea.fi{resize:vertical;min-height:72px}
       <div class="note-thread" id="noteThread"></div>
       <div class="note-input-wrap">
         <textarea class="note-ta" id="noteInput" rows="2" placeholder="Add a comment…"></textarea>
+        <input type="file" id="noteFileInput" accept=".txt,.md,.pdf,.doc,.docx,.csv,.xlsx,.png,.jpg,.jpeg" style="display:none" onchange="importNoteFile(event)">
+        <button class="btn-ghost" style="font-size:11px;padding:4px 8px;white-space:nowrap;flex-shrink:0" onclick="document.getElementById('noteFileInput').click()" title="Import file content as note">📎 Import</button>
         <button class="note-post-btn" onclick="submitNote()">Post</button>
       </div>
     </div>
@@ -1460,6 +1464,7 @@ textarea.fi{resize:vertical;min-height:72px}
         <div class="sc-row"><kbd>D</kbd><span>Duplicate hovered task</span></div>
         <div class="sc-row"><kbd>C</kbd><span>Complete / reopen hovered task</span></div>
         <div class="sc-row"><kbd>Del</kbd><span>Delete hovered task (with undo)</span></div>
+        <div class="sc-row"><kbd>Ctrl</kbd><kbd>Z</kbd><span>Undo last action</span></div>
         <div class="sc-row"><kbd>E</kbd><span>New workstream</span></div>
         <div class="sc-row"><kbd>T</kbd><span>Manage team</span></div>
       </div>
@@ -1634,8 +1639,21 @@ let state = {
   ws: 'all',
   currentUser: '',
 };
-let editTaskId = null, editWsId = null, dragId = null, winsExpanded = false;
+let editTaskId = null, editWsId = null, dragId = null, winsExpanded = false, hideDone = false;
 let suggestedPrio = 'med';
+let _undoStack = [];
+
+function _pushUndo() {
+  _undoStack.push(JSON.stringify(tasks));
+  if (_undoStack.length > 30) _undoStack.shift();
+}
+
+function undo() {
+  if (!_undoStack.length) { toast('Nothing to undo'); return; }
+  tasks = JSON.parse(_undoStack.pop());
+  persist(); renderAll();
+  toast('Undone ↩');
+}
 
 /* ══════════════════════════════════════════════════════════
    PERSISTENCE + REALTIME
@@ -2139,11 +2157,19 @@ function renderBoardBanner() {
     </div>`;
 }
 
+function toggleHideDone() { hideDone = !hideDone; renderBoard(); }
+
 function renderBoard() {
   renderBoardBanner();
   const ft = filteredTasks();
-  let html = '';
+  const doneCount = ft.filter(t => t.status === 'done').length;
+  let html = `<div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+    <button onclick="toggleHideDone()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:11px;color:var(--t3);cursor:pointer;font-family:inherit;transition:all .12s" onmouseover="this.style.borderColor='#22C55E';this.style.color='#22C55E'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--t3)'">
+      ${hideDone ? `▶ Show Done (${doneCount})` : `▼ Hide Done (${doneCount})`}
+    </button>
+  </div>`;
   Object.entries(COLS).forEach(([key, col]) => {
+    if (key === 'done' && hideDone) return;
     const colTasks = ft.filter(t => t.status === key).sort((a,b) => {const po={high:0,med:1,low:2}; return (po[a.priority]??1)-(po[b.priority]??1);});
     html += `
       <div class="kol" id="kol-${key}"
@@ -2670,6 +2696,7 @@ function renderAll() {
   if (state.view === 'daily')  { renderDaily(); loadCalendarForDaily(); }
   if (state.view === 'week')   renderMyWeek();
   if (state.view === 'ws')     renderWsView();
+  updateNotifBadge();
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -2753,6 +2780,7 @@ function drop(e, col) {
   if (!dragId) return;
   const t = tasks.find(x => x.id === dragId);
   if (t && t.status !== col) {
+    _pushUndo();
     t.status = col;
     if (col === 'done') t.completedAt = new Date().toISOString();
     persist(); renderAll();
@@ -2932,6 +2960,7 @@ function saveTask() {
         const hn = (document.getElementById('handoffNote')?.value || '').trim();
         if (hn) t.notes.push({ id: uid(), author: by, text: hn, ts: new Date().toISOString(), type: 'handoff', readBy: [by] });
       }
+      _pushUndo();
       const wasDone = t.status === 'done';
       Object.assign(t, { name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, durationHours: _planDurationHours !== null ? _planDurationHours : t.durationHours });
       if (status === 'done' && !wasDone) t.completedAt = new Date().toISOString();
@@ -2939,17 +2968,24 @@ function saveTask() {
     }
     toast('Task updated');
   } else {
+    _pushUndo();
     tasks.unshift({ id: uid(), name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, ...(_planDurationHours != null && { durationHours: _planDurationHours }), createdAt: new Date().toISOString() });
     toast('Task created');
   }
   const syncId = editTaskId || tasks[0]?.id;
-  persist(); renderAll(); closeTaskModal();
   const syncTask = tasks.find(x => x.id === syncId);
+  const todayStr = new Date().toISOString().slice(0,10);
+  if (syncTask && syncTask.durationHours && syncTask.assignee === state.currentUser &&
+      (!syncTask.startDate || syncTask.startDate === todayStr)) {
+    autoScheduleTask(syncTask.id, syncTask.durationHours);
+  }
+  persist(); renderAll(); closeTaskModal();
   if (syncTask) _tdSync(syncTask);
 }
 
 function deleteTask() {
   if (!editTaskId) return;
+  _pushUndo();
   const t = tasks.find(x => x.id === editTaskId);
   if (t) _tdDelete(t.todoistId);
   tasks = tasks.filter(x => x.id !== editTaskId);
@@ -3008,6 +3044,7 @@ function clearSelection() {
 
 function deleteSelected() {
   if (selectedTaskIds.size === 0) return;
+  _pushUndo();
   const ids = [...selectedTaskIds];
   const count = ids.length;
   ids.forEach(id => { const t = tasks.find(x => x.id === id); if (t) _tdDelete(t.todoistId); });
@@ -3056,6 +3093,36 @@ function _fmtDurHours(h) {
   return h.toFixed(1) + 'h';
 }
 
+function autoScheduleTask(taskId, durationHours) {
+  const todayStr = new Date().toISOString().slice(0,10);
+  const key = schedKey();
+  const allSlotIds = Object.values(scheduleData[key] || {}).flat();
+  if (allSlotIds.includes(taskId)) return; // already scheduled
+  const slotsNeeded = durationHours < 1 ? 1 : Math.ceil(durationHours);
+  const startHour = Math.max(new Date().getHours(), 9);
+  const startIdx = SCHED_HOURS.findIndex(h => parseInt(h) >= startHour);
+  if (startIdx === -1) return;
+  for (let i = startIdx; i < SCHED_HOURS.length; i++) {
+    const slotsFree = slotsNeeded <= (SCHED_HOURS.length - i);
+    if (!slotsFree) return;
+    let canFit = true;
+    for (let j = 0; j < slotsNeeded; j++) {
+      const ids = getSlotIds(SCHED_HOURS[i + j]);
+      if (ids.length > 0) { canFit = false; break; }
+    }
+    if (canFit) {
+      for (let j = 0; j < slotsNeeded && (i + j) < SCHED_HOURS.length; j++) {
+        const h = SCHED_HOURS[i + j];
+        setSlotIds(h, [...getSlotIds(h), taskId]);
+      }
+      return;
+    }
+  }
+  // No clean gap — just append to first available slot from startIdx
+  const h = SCHED_HOURS[startIdx];
+  if (h) setSlotIds(h, [...getSlotIds(h), taskId]);
+}
+
 function renderScheduleGrid() {
   const el = document.getElementById('schedGrid');
   if (!el) return;
@@ -3096,7 +3163,8 @@ function renderScheduleGrid() {
             seenTasks.add(id);
             return `<div class="sched-slot-chip" draggable="true" ondragstart="schedDragStart(event,'${id}','${h}')">
               <span style="width:7px;height:7px;border-radius:50%;background:${PRIO_COLORS[t.priority]};flex-shrink:0;display:inline-block"></span>
-              <span onclick="openTaskModal('${id}')" style="cursor:pointer">${esc(t.name.length>40?t.name.slice(0,40)+'…':t.name)}</span>
+              <span onclick="openTaskModal('${id}')" style="cursor:pointer">${esc(t.name.length>36?t.name.slice(0,36)+'…':t.name)}</span>
+              ${dur}
               <button class="sched-rm" onclick="schedRemoveTask('${id}');event.stopPropagation()">×</button>
             </div>`;
           }).join('')}
@@ -3227,6 +3295,28 @@ function renderNoteThread(t) {
   el.scrollTop = el.scrollHeight;
 }
 
+function importNoteFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const isText = file.type.startsWith('text/') || /\.(txt|md|csv)$/i.test(file.name);
+  if (!isText) {
+    toast(`📎 Attached: ${file.name}`);
+    const input = document.getElementById('noteInput');
+    if (input) input.value = (input.value ? input.value + '\n' : '') + `[Attachment: ${file.name}]`;
+    event.target.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result.slice(0, 2000);
+    const input = document.getElementById('noteInput');
+    if (input) input.value = (input.value ? input.value + '\n' : '') + `[${file.name}]\n${text}`;
+    toast(`📎 "${file.name}" loaded into note`);
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
 function submitNote() {
   if (!editTaskId) return;
   const input = document.getElementById('noteInput');
@@ -3264,7 +3354,8 @@ function getUnreadNotes() {
   const out = [];
   tasks.forEach(t => {
     (t.notes || []).forEach(n => {
-      const isForMe = t.assignee === me || (n.type === 'handoff' && n.text.includes(` to ${me}`));
+      const isForMe = t.assignee === me ||
+        (n.type === 'handoff' && (n.text.includes(` to ${me}`) || n.text.includes(`from ${me} to `)));
       if (isForMe && n.author !== me && !(n.readBy || []).includes(me)) {
         out.push({ taskId: t.id, taskName: t.name, note: n });
       }
@@ -3296,7 +3387,8 @@ function renderNotifPanel() {
   const all = [];
   tasks.forEach(t => {
     (t.notes || []).forEach(n => {
-      const isForMe = t.assignee === me || (n.type === 'handoff' && n.text.includes(` to ${me}`));
+      const isForMe = t.assignee === me ||
+        (n.type === 'handoff' && (n.text.includes(` to ${me}`) || n.text.includes(`from ${me} to `)));
       if (!isForMe || n.author === me) return;
       const isUnread = !(n.readBy || []).includes(me);
       all.push({ taskId: t.id, taskName: t.name, note: n, isUnread });
@@ -3940,6 +4032,8 @@ document.addEventListener('keydown', e => {
     closeTaskModal(); closeWsModal(); closeTeamModal(); closeShortcutsModal();
   }
 
+  if ((e.ctrlKey||e.metaKey) && e.key === 'z' && !typing) { e.preventDefault(); undo(); return; }
+
   if ((e.metaKey||e.ctrlKey) && e.key === 'Enter') {
     e.preventDefault();
     if (document.getElementById('taskOverlay').classList.contains('open')) saveTask();
@@ -4033,8 +4127,18 @@ function setPlanStartFriday() {
   _recalcDeadline();
 }
 
+function setPlanStartNextMon() {
+  const today = new Date();
+  const daysToNextMonday = (1 - today.getDay() + 7) % 7 || 7;
+  const d = new Date();
+  d.setDate(d.getDate() + daysToNextMonday);
+  document.getElementById('fStartDate').value = _localDateStr(d);
+  document.querySelectorAll('#planStart .plan-pill').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  _recalcDeadline();
+}
+
 function setPlanStartNextWed() {
-  // Always lands on the Wednesday of next calendar week
   const today = new Date();
   const daysToNextMonday = (1 - today.getDay() + 7) % 7 || 7;
   const d = new Date();
