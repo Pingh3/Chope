@@ -473,12 +473,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .dt-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
 
 /* ── My Day main layout ──────────────────────────────── */
-.daily-main-row{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+.daily-main-row{display:block}
 .daily-schedule-col{min-width:0}
 .daily-tasks-col{min-width:0;display:flex;flex-direction:column;gap:0}
 
 /* ── Schedule grid ───────────────────────────────────── */
-.sched-wrap{display:grid;grid-template-columns:210px 1fr;gap:14px;align-items:start}
+.sched-wrap{display:grid;grid-template-columns:240px 1fr;gap:14px;align-items:start}
 .sched-unscheduled{
   background:var(--bg);border:1px solid var(--border);border-radius:10px;
   padding:11px 12px;min-height:180px;transition:background .12s,border-color .12s;
@@ -2294,26 +2294,14 @@ function renderDaily() {
           <div id="schedGrid"></div>
         </div>
       </div>
-      <div class="daily-tasks-col">
-        <div class="daily-section">
-          <h2>🎯 Today's Priorities ${todayTasks.length?`<span style="font-size:12px;color:var(--t3);font-weight:400">${todayTasks.length} task${todayTasks.length!==1?'s':''}</span>`:''}
-          </h2>
-          <div class="daily-tasks">
-            ${todayTasks.length ? todayTasks.map(dailyTaskRow).join('') :
-              `<div style="padding:20px;text-align:center;color:var(--t3);font-size:13px">
-                🎉 No urgent tasks today — you're on top of it!
-              </div>`}
-          </div>
-        </div>
-        ${weekTasks.length ? `
-        <div class="daily-section">
-          <h2>📅 Coming This Week <span style="font-size:12px;color:var(--t3);font-weight:400">${weekTasks.length} tasks</span></h2>
-          <div class="daily-tasks">
-            ${weekTasks.map(dailyTaskRow).join('')}
-          </div>
-        </div>` : ''}
-      </div>
     </div>
+    ${weekTasks.length ? `
+    <div class="daily-section">
+      <h2>📅 Coming This Week <span style="font-size:12px;color:var(--t3);font-weight:400">${weekTasks.length} tasks</span></h2>
+      <div class="daily-tasks">
+        ${weekTasks.map(dailyTaskRow).join('')}
+      </div>
+    </div>` : ''}
 
     <div class="daily-section">
       <h2>📊 Team Progress</h2>
@@ -2442,8 +2430,24 @@ function renderMyWeek() {
         </div>
       </div>
       ${overdue.length ? `
-        <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:var(--r);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:13px;color:#DC2626">
-          ⚠ <strong>${overdue.length} overdue task${overdue.length!==1?'s':''}</strong> — ${overdue.map(t=>`<span onclick="openTaskModal('${t.id}')" style="cursor:pointer;text-decoration:underline">${esc(t.name)}</span>`).join(', ')}
+        <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:var(--r);margin-bottom:16px;overflow:hidden">
+          <div style="padding:10px 14px;border-bottom:1px solid #FECACA;display:flex;align-items:center;gap:8px">
+            <span style="font-size:13px;font-weight:700;color:#DC2626">⚠ ${overdue.length} Overdue Task${overdue.length!==1?'s':''}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
+            ${overdue.map(t => {
+              const pCol = PRIO_COLORS[t.priority];
+              const aCol = avatarColor(t.assignee);
+              return `<div onclick="openTaskModal('${t.id}')" style="padding:8px 14px;border-bottom:1px solid #FECACA;border-right:1px solid #FECACA;cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .1s" onmouseover="this.style.background='#FEE2E2'" onmouseout="this.style.background='transparent'">
+                <div style="width:8px;height:8px;border-radius:50%;background:${pCol};flex-shrink:0"></div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:12px;font-weight:500;color:#DC2626;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</div>
+                  <div style="font-size:10px;color:#EF4444;margin-top:1px">Due ${fmtDate(t.deadline)}</div>
+                </div>
+                <div style="width:20px;height:20px;border-radius:50%;background:${aCol};font-size:7px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">${esc(initials(t.assignee))}</div>
+              </div>`;
+            }).join('')}
+          </div>
         </div>` : ''}
       <div style="margin-bottom:20px" id="weekWinsSection">${(() => {
           const pinnedIds = loadWins();
@@ -3061,6 +3065,9 @@ function renderScheduleGrid() {
     .filter(t => t.assignee === me && t.status !== 'done')
     .sort((a,b) => { const po={high:0,med:1,low:2}; return (po[a.priority]??1)-(po[b.priority]??1); });
   const unscheduled = myOpen.filter(t => !allScheduled.has(t.id));
+  const todayStr = new Date().toISOString().slice(0,10);
+  const priorityUnscheduled = unscheduled.filter(t => !t.deadline || t.deadline <= todayStr);
+  const upcomingUnscheduled = unscheduled.filter(t => t.deadline && t.deadline > todayStr);
   const nowHour = new Date().getHours();
   const hasCalendar = Array.isArray(_calEvents);
 
@@ -3100,15 +3107,31 @@ function renderScheduleGrid() {
   el.innerHTML = `
     <div class="sched-wrap">
       <div class="sched-unscheduled" ondragover="schedDragOver(event)" ondragleave="schedDragLeave(event)" ondrop="schedDrop(event,'')">
-        <div class="sched-panel-hd">Unscheduled · ${unscheduled.length}</div>
-        ${unscheduled.map(t => {
+        <div class="sched-panel-hd">🎯 Today's Priorities · ${priorityUnscheduled.length}</div>
+        ${priorityUnscheduled.map(t => {
           const dur = t.durationHours ? `<span class="sched-dur">${_fmtDurHours(t.durationHours)}</span>` : '';
+          const isOver = t.deadline && t.deadline < todayStr;
+          const dlBadge = t.deadline ? `<span style="font-size:9px;color:${isOver?'#DC2626':'var(--t3)'};flex-shrink:0">${isOver?'⚠ ':''}${fmtDate(t.deadline)}</span>` : '';
           return `<div class="sched-chip" draggable="true" style="border-left:3px solid ${PRIO_COLORS[t.priority]}" ondragstart="schedDragStart(event,'${t.id}','')">
-            <span onclick="openTaskModal('${t.id}')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer">${esc(t.name.length>28?t.name.slice(0,28)+'…':t.name)}</span>
+            <div style="flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column;gap:1px">
+              <span onclick="openTaskModal('${t.id}')" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer">${esc(t.name.length>26?t.name.slice(0,26)+'…':t.name)}</span>
+              ${dlBadge}
+            </div>
             ${dur}
           </div>`;
         }).join('')}
-        ${unscheduled.length === 0 ? '<div class="sched-empty-hint">All tasks scheduled ✓</div>' : ''}
+        ${priorityUnscheduled.length === 0 ? '<div class="sched-empty-hint">All priorities scheduled ✓</div>' : ''}
+        ${upcomingUnscheduled.length ? `
+          <div class="sched-panel-hd" style="margin-top:10px;opacity:.6">Upcoming · ${upcomingUnscheduled.length}</div>
+          ${upcomingUnscheduled.slice(0,5).map(t => {
+            const dur = t.durationHours ? `<span class="sched-dur">${_fmtDurHours(t.durationHours)}</span>` : '';
+            return `<div class="sched-chip" draggable="true" style="border-left:3px solid ${PRIO_COLORS[t.priority]};opacity:.65" ondragstart="schedDragStart(event,'${t.id}','')">
+              <span onclick="openTaskModal('${t.id}')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer">${esc(t.name.length>26?t.name.slice(0,26)+'…':t.name)}</span>
+              ${dur}
+            </div>`;
+          }).join('')}
+          ${upcomingUnscheduled.length > 5 ? `<div class="sched-empty-hint" style="margin-top:4px">+${upcomingUnscheduled.length-5} more</div>` : ''}
+        ` : ''}
       </div>
       <div class="sched-slots">${slotsHTML}</div>
     </div>`;
