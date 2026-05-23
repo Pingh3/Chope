@@ -2640,9 +2640,9 @@ function renderDaily() {
         <div class="daily-section">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
             <h2 style="margin:0">🗓 Today's Schedule</h2>
-            ${gmailToken
-              ? `<span style="font-size:11px;color:#059669;display:flex;align-items:center;gap:4px">✓ Calendar synced</span>`
-              : `<button class="btn-ghost" style="font-size:11px;padding:4px 10px;display:flex;align-items:center;gap:5px" onclick="gmailSignIn()">📅 Connect Calendar</button>`}
+            <span id="calStatusBadge">${gmailToken
+              ? `<span style="font-size:11px;color:#059669;display:flex;align-items:center;gap:6px">✓ Calendar synced <button class="btn-ghost" style="font-size:10px;padding:2px 7px" onclick="gmailSignIn()" title="Reconnect to refresh events">↻ Reconnect</button></span>`
+              : `<button class="btn-ghost" style="font-size:11px;padding:4px 10px;display:flex;align-items:center;gap:5px" onclick="gmailSignIn()">📅 Connect Calendar</button>`}</span>
           </div>
           <div id="schedGrid"></div>
         </div>
@@ -4908,15 +4908,19 @@ async function loadCalendarForDaily() {
   if (!gmailToken) return;
   const events = await fetchTodayCalendarEvents();
   if (events === 'no-scope') {
-    // Token exists but lacks calendar scope — wipe it so the connect button reappears
     gmailToken = null;
     sessionStorage.removeItem('gmailToken');
     renderDaily();
+    toast('Calendar access not granted — please reconnect and allow Calendar access');
     return;
   }
-  if (!events || !events.length) return;
-  _calEvents = events;
+  if (events === null) {
+    toast('Could not load calendar events — try reconnecting');
+    return;
+  }
+  _calEvents = events; // set even if empty so the calendar column renders
   renderScheduleGrid();
+  if (events.length === 0) toast('Calendar connected — no events found for today');
 }
 
 async function createCalendarEvent(taskId) {
