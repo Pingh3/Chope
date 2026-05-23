@@ -496,7 +496,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .daily-tasks-col{min-width:0;display:flex;flex-direction:column;gap:0}
 
 /* ── Schedule grid ───────────────────────────────────── */
-.sched-wrap{display:grid;grid-template-columns:240px 1fr;gap:14px;align-items:start}
+.sched-wrap{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.sched-date-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px}
+.sched-date-nav-btn{background:none;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:16px;cursor:pointer;color:var(--t2);line-height:1;transition:background .12s}
+.sched-date-nav-btn:hover{background:var(--bg)}
+.sched-date-nav-label{font-size:13px;font-weight:600;color:var(--t1);text-align:center;flex:1}
 .sched-unscheduled{
   background:var(--bg);border:1px solid var(--border);border-radius:10px;
   padding:11px 12px;min-height:180px;transition:background .12s,border-color .12s;
@@ -933,11 +937,12 @@ textarea.fi{resize:vertical;min-height:72px}
   .daily-card{flex:0 0 150px;padding:14px;border-radius:10px}
   .daily-card-value{font-size:24px}
 
-  /* Schedule — contained scrollable box */
+  /* Schedule — stack task list above grid on mobile */
+  .sched-wrap{grid-template-columns:1fr!important}
+  .sched-unscheduled{max-height:180px;overflow-y:auto}
   .sched-slots{max-height:52vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
   .sched-row{grid-template-columns:40px 1fr!important;min-height:40px}
-  .sched-row.sched-has-cal{grid-template-columns:40px 1fr!important}
-  .sched-cal-col{display:none}
+  .sched-row.sched-has-cal{grid-template-columns:40px 100px 1fr!important}
   .sched-hour-label{font-size:9px;padding:8px 3px}
   .sched-slot{padding:4px 6px;min-height:40px}
   .sched-slot-chip{font-size:11px;padding:5px 7px;gap:4px}
@@ -3533,7 +3538,16 @@ function loadScheduleData() {
   try { scheduleData = JSON.parse(localStorage.getItem('chope_schedule') || '{}'); } catch { scheduleData = {}; }
 }
 function persistScheduleData() { localStorage.setItem('chope_schedule', JSON.stringify(scheduleData)); }
-function schedKey() { return new Date().toISOString().slice(0,10) + '_' + state.currentUser; }
+let _schedDate = new Date().toISOString().slice(0,10);
+function schedKey() { return _schedDate + '_' + state.currentUser; }
+function schedNavDay(delta) {
+  const d = new Date(_schedDate + 'T12:00:00');
+  d.setDate(d.getDate() + delta);
+  _schedDate = d.toISOString().slice(0,10);
+  _calEvents = null;
+  renderScheduleGrid();
+  loadCalendarForDaily();
+}
 function getSlotIds(h) { return (scheduleData[schedKey()] || {})[h] || []; }
 function setSlotIds(h, ids) {
   const k = schedKey();
@@ -3603,7 +3617,9 @@ function renderScheduleGrid() {
   const priorityUnscheduled = unscheduled.filter(t => !t.deadline || t.deadline <= todayStr);
   const upcomingUnscheduled = unscheduled.filter(t => t.deadline && t.deadline > todayStr);
   const nowHour = new Date().getHours();
-  const hasCalendar = Array.isArray(_calEvents);
+  const hasCalendar = Array.isArray(_calEvents) && _calEvents.length > 0;
+  const isToday = _schedDate === new Date().toISOString().slice(0,10);
+  const schedDateLabel = isToday ? 'Today' : new Date(_schedDate + 'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
 
   const seenTasks = new Set();
   const slotsHTML = SCHED_HOURS.map(h => {
@@ -3640,9 +3656,14 @@ function renderScheduleGrid() {
   }).join('');
 
   el.innerHTML = `
+    <div class="sched-date-nav">
+      <button class="sched-date-nav-btn" onclick="schedNavDay(-1)">‹</button>
+      <span class="sched-date-nav-label">${schedDateLabel}</span>
+      <button class="sched-date-nav-btn" onclick="schedNavDay(1)">›</button>
+    </div>
     <div class="sched-wrap">
       <div class="sched-unscheduled" ondragover="schedDragOver(event)" ondragleave="schedDragLeave(event)" ondrop="schedDrop(event,'')">
-        <div class="sched-panel-hd">🎯 Today's Priorities · ${priorityUnscheduled.length}</div>
+        <div class="sched-panel-hd">🎯 ${isToday ? "Today's" : schedDateLabel+"'s"} Priorities · ${priorityUnscheduled.length}</div>
         ${priorityUnscheduled.map(t => {
           const dur = t.durationHours ? `<span class="sched-dur">${_fmtDurHours(t.durationHours)}</span>` : '';
           const isOver = t.deadline && t.deadline < todayStr;
@@ -4868,11 +4889,11 @@ function resetPlanBox() {
 
 let _calEvents = null; // cached for current day
 
-async function fetchTodayCalendarEvents() {
+async function fetchTodayCalendarEvents(dateStr) {
   if (!gmailToken) return null;
-  const now = new Date();
-  const tMin = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-  const tMax = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+  const base = dateStr ? new Date(dateStr + 'T12:00:00') : new Date();
+  const tMin = new Date(base.getFullYear(), base.getMonth(), base.getDate()).toISOString();
+  const tMax = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 23, 59, 59).toISOString();
   try {
     const res = await fetch(
       `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(tMin)}&timeMax=${encodeURIComponent(tMax)}&singleEvents=true&orderBy=startTime&maxResults=20`,
@@ -4906,7 +4927,7 @@ function calEventHTML(ev) {
 
 async function loadCalendarForDaily() {
   if (!gmailToken) return;
-  const events = await fetchTodayCalendarEvents();
+  const events = await fetchTodayCalendarEvents(_schedDate);
   if (events === 'no-scope') {
     gmailToken = null;
     sessionStorage.removeItem('gmailToken');
