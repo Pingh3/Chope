@@ -1127,6 +1127,26 @@ textarea.fi{resize:vertical;min-height:72px}
 .login-google-btn:disabled{opacity:.6;cursor:not-allowed}
 .login-error{font-size:12px;color:#DC2626;margin-top:14px;min-height:18px;line-height:1.4}
 .login-footer{font-size:11px;color:var(--t3);margin-top:28px;line-height:1.5}
+
+/* ── Victor Team Pulse ───────────────────────────────────── */
+.victor-pulse{padding:0 0 32px}
+.pulse-section{margin-bottom:24px}
+.pulse-section h2{font-size:14px;font-weight:700;color:var(--t1);margin:0 0 12px}
+.pulse-members{display:flex;flex-wrap:wrap;gap:10px}
+.pulse-member-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;min-width:160px;display:flex;flex-direction:column;gap:4px}
+.pulse-member-name{font-size:13px;font-weight:700;color:var(--t1)}
+.pulse-member-stat{font-size:11px;color:var(--t3)}
+.pulse-member-rate{font-size:18px;font-weight:800;margin:2px 0}
+.pulse-nudge-btn{margin-top:6px;font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:none;cursor:pointer;color:var(--t2);font-family:inherit}
+.pulse-nudge-btn:hover{background:var(--bg);color:var(--t1)}
+.pulse-stale-row{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:12px}
+.pulse-activity-row{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
+.pulse-activity-row:last-child{border-bottom:none}
+.pulse-act-icon{font-size:14px;flex-shrink:0;width:20px;text-align:center}
+.pulse-act-text{flex:1;color:var(--t2);line-height:1.4}
+.pulse-act-text strong{color:var(--t1)}
+.pulse-act-time{font-size:10px;color:var(--t3);flex-shrink:0}
+.pulse-activity-box{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;max-height:320px;overflow-y:auto}
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -1711,6 +1731,12 @@ let state = {
 let editTaskId = null, editWsId = null, dragId = null, winsExpanded = false, hideDone = false;
 let suggestedPrio = 'med';
 let _undoStack = [];
+let activityLog = [];
+
+function _logActivity(type, taskId, taskName, extra) {
+  activityLog.unshift({ type, taskId, taskName, by: state.currentUser || '?', ts: new Date().toISOString(), ...extra });
+  if (activityLog.length > 200) activityLog.length = 200;
+}
 
 function _pushUndo() {
   _undoStack.push(JSON.stringify(tasks));
@@ -1734,7 +1760,7 @@ async function load() {
   // localStorage first — instant paint while Firestore loads
   try {
     const d = JSON.parse(localStorage.getItem('chope_v2') || 'null');
-    if (d) { tasks = d.tasks || []; workstreams = d.workstreams || []; team = d.team || DEFAULT_TEAM; }
+    if (d) { tasks = d.tasks || []; workstreams = d.workstreams || []; team = d.team || DEFAULT_TEAM; if (Array.isArray(d.activityLog)) activityLog = d.activityLog; }
     else   { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; }
   } catch { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; }
 
@@ -1753,10 +1779,11 @@ async function load() {
         tasks = d.tasks || tasks;
         workstreams = d.workstreams || workstreams;
         team = d.team || team;
-        localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team }));
+        if (Array.isArray(d.activityLog)) activityLog = d.activityLog;
+        localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, activityLog }));
       } else {
         // First ever load — push local data to Firestore
-        await setDoc(ref, { tasks, workstreams, team });
+        await setDoc(ref, { tasks, workstreams, team, activityLog });
       }
     } catch(e) { console.warn('Firestore load failed, falling back to localStorage', e); }
 
@@ -1767,7 +1794,8 @@ async function load() {
       tasks = d.tasks || [];
       workstreams = d.workstreams || [];
       team = d.team || DEFAULT_TEAM;
-      localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team }));
+      if (Array.isArray(d.activityLog)) activityLog = d.activityLog;
+      localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, activityLog }));
       renderAll();
       toast('🔄 Board updated by a colleague');
     });
@@ -1775,13 +1803,13 @@ async function load() {
 }
 
 function persist() {
-  localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team }));
-  try { bc.postMessage({ tasks, workstreams, team }); } catch {}
+  localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, activityLog }));
+  try { bc.postMessage({ tasks, workstreams, team, activityLog }); } catch {}
   // Firestore write — fire and forget
   if (window._chopeFb) {
     _lastLocalWrite = Date.now();
     const { db, doc, setDoc } = window._chopeFb;
-    setDoc(doc(db, 'chope', 'main'), { tasks, workstreams, team })
+    setDoc(doc(db, 'chope', 'main'), { tasks, workstreams, team, activityLog })
       .catch(e => console.warn('Firestore write failed:', e));
   }
 }
@@ -1790,6 +1818,7 @@ const bc = new BroadcastChannel('chope_v2');
 bc.onmessage = e => {
   if (!e.data) return;
   tasks = e.data.tasks; workstreams = e.data.workstreams; team = e.data.team;
+  if (Array.isArray(e.data.activityLog)) activityLog = e.data.activityLog;
   renderAll(); toast('Board updated by a colleague');
 };
 
@@ -2397,7 +2426,7 @@ function cardHTML(t) {
         </div>
         <div class="card-row">
           ${t.fund && t.fund !== 'none' ? `<div class="fund-chip">${esc(t.fund)}</div>` : '<span style="font-size:10px;color:var(--t3)">No fund</span>'}
-          ${dl ? `<div class="card-dl ${dlCls}" style="margin-left:auto">📅 ${dl}${state.currentUser==='Victor'&&t.deadlineHistory?.length?`<span class="dl-moved-badge">↻${t.deadlineHistory.length}</span>`:''}</div>` : ''}
+          ${dl ? `<div class="card-dl ${dlCls}" style="margin-left:auto">📅 ${dl}${t.deadlineHistory?.length?`<span class="dl-moved-badge">↻${t.deadlineHistory.length}</span>`:''}</div>` : ''}
           ${wsObj ? `<div class="ws-chip">${esc(wsObj.name)}</div>` : ''}
         </div>
         <div class="card-row">
@@ -2534,6 +2563,8 @@ function renderDaily() {
         </div>
       </div>
     </div>
+
+    ${state.currentUser === 'Victor' ? renderTeamPulse() : ''}
   `;
   renderScheduleGrid();
 }
@@ -2571,6 +2602,121 @@ function donutSVG(pct, size) {
       <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central"
         style="font-size:14px;font-weight:700;fill:${color}">${pct}%</text>
     </svg>`;
+}
+
+function _relTime(isoStr) {
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + 'm ago';
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + 'h ago';
+  const d = Math.floor(h / 24);
+  return d + 'd ago';
+}
+
+function renderTeamPulse() {
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  const fiveDaysAgo = new Date(now); fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+
+  // A. Team efficiency cards
+  const memberCards = team.filter(m => m.name !== 'Victor').map(m => {
+    const assigned = tasks.filter(t => t.assignee === m.name);
+    const done = assigned.filter(t => t.status === 'done').length;
+    const open = assigned.filter(t => t.status !== 'done').length;
+    const overdue = assigned.filter(t => t.status !== 'done' && t.deadline && t.deadline < todayStr).length;
+    const rate = assigned.length ? Math.round(done / assigned.length * 100) : 0;
+    const rateColor = rate >= 70 ? '#059669' : rate >= 40 ? '#D97706' : '#DC2626';
+    return `
+      <div class="pulse-member-card">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:28px;height:28px;border-radius:50%;background:${avatarColor(m.name)};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${esc(initials(m.name))}</div>
+          <div class="pulse-member-name">${esc(m.name)}</div>
+        </div>
+        <div class="pulse-member-rate" style="color:${rateColor}">${rate}%</div>
+        <div class="pulse-member-stat">${open} open · ${overdue ? `<span style="color:#DC2626">${overdue} overdue</span>` : '0 overdue'}</div>
+        <button class="pulse-nudge-btn" onclick="nudgeMember('${esc(m.name)}')">Nudge</button>
+      </div>`;
+  }).join('');
+
+  // B. Stale tasks (in-progress > 5 days, not done)
+  const staleTasks = tasks.filter(t =>
+    t.status === 'inprogress' && t.createdAt && new Date(t.createdAt) < fiveDaysAgo
+  );
+  const staleRows = staleTasks.length
+    ? staleTasks.map(t => {
+        const ageDays = Math.floor((now - new Date(t.createdAt)) / 86400000);
+        return `<div class="pulse-stale-row">
+          <span style="flex:1;font-weight:600;color:var(--t1)">${esc(t.name.slice(0, 50))}</span>
+          <span style="color:var(--t3)">${esc(t.assignee)}</span>
+          <span style="color:#D97706;font-weight:600">${ageDays}d</span>
+          <button class="pulse-nudge-btn" style="margin-top:0" onclick="nudgeTask('${t.id}')">Nudge</button>
+        </div>`;
+      }).join('')
+    : '<div style="font-size:12px;color:var(--t3);padding:8px 0">No stale tasks — team is moving fast.</div>';
+
+  // C. Activity feed
+  const actIcons = { create: '➕', status: '🔄', priority: '⚡', deadline: '📅', assign: '👤' };
+  const actDesc = e => {
+    if (e.type === 'create') return `<strong>${esc(e.by)}</strong> created task`;
+    if (e.type === 'status') return `<strong>${esc(e.by)}</strong> moved to <strong>${esc(e.to)}</strong>`;
+    if (e.type === 'priority') return `<strong>${esc(e.by)}</strong> changed priority to <strong>${esc(e.to)}</strong>`;
+    if (e.type === 'deadline') return `<strong>${esc(e.by)}</strong> moved deadline ${esc(e.from)} → <strong>${esc(e.to)}</strong>`;
+    if (e.type === 'assign') return `<strong>${esc(e.by)}</strong> reassigned to <strong>${esc(e.to)}</strong>`;
+    return `<strong>${esc(e.by)}</strong> updated task`;
+  };
+  const feedRows = activityLog.slice(0, 30).map(e => `
+    <div class="pulse-activity-row">
+      <span class="pulse-act-icon">${actIcons[e.type] || '📝'}</span>
+      <span class="pulse-act-text">${actDesc(e)} — ${esc((e.taskName || '').slice(0, 40))}</span>
+      <span class="pulse-act-time">${_relTime(e.ts)}</span>
+    </div>`).join('');
+  const feedHtml = activityLog.length
+    ? `<div class="pulse-activity-box">${feedRows}</div>`
+    : '<div style="font-size:12px;color:var(--t3);padding:8px 0">No activity recorded yet — activity logs as tasks are created and edited.</div>';
+
+  return `
+    <div class="victor-pulse">
+      <div class="pulse-section">
+        <h2>Team Efficiency</h2>
+        <div class="pulse-members">${memberCards}</div>
+      </div>
+      <div class="pulse-section">
+        <h2>Stale In-Progress Tasks <span style="font-size:11px;font-weight:400;color:var(--t3)">(stuck &gt; 5 days)</span></h2>
+        ${staleRows}
+      </div>
+      <div class="pulse-section">
+        <h2>Activity Feed <span style="font-size:11px;font-weight:400;color:var(--t3)">last 30 events</span></h2>
+        ${feedHtml}
+      </div>
+    </div>`;
+}
+
+function nudgeMember(memberName) {
+  const msg = prompt(`Nudge message to ${memberName} (will appear in their notifications):`);
+  if (!msg || !msg.trim()) return;
+  const target = tasks.find(t => t.assignee === memberName && t.status !== 'done' && t.priority === 'high')
+               || tasks.find(t => t.assignee === memberName && t.status !== 'done');
+  if (target) {
+    if (!target.notes) target.notes = [];
+    target.notes.push({ id: uid(), author: 'Victor', text: `[Nudge] ${msg.trim()}`, ts: new Date().toISOString(), type: 'nudge', readBy: ['Victor'] });
+    persist(); renderAll();
+    toast(`Nudge sent to ${memberName}`);
+  } else {
+    toast(`${memberName} has no open tasks`);
+  }
+}
+
+function nudgeTask(taskId) {
+  const t = tasks.find(x => x.id === taskId);
+  if (!t) return;
+  const msg = prompt(`Nudge ${t.assignee} on "${t.name.slice(0, 40)}":`);
+  if (!msg || !msg.trim()) return;
+  if (!t.notes) t.notes = [];
+  t.notes.push({ id: uid(), author: 'Victor', text: `[Nudge] ${msg.trim()}`, ts: new Date().toISOString(), type: 'nudge', readBy: ['Victor'] });
+  persist(); renderAll();
+  toast(`Nudge sent to ${t.assignee}`);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -2997,7 +3143,7 @@ function openTaskModal(id) {
     }
     // Deadline history — Victor only
     const dlH = document.getElementById('dlHistory');
-    if (state.currentUser === 'Victor' && t.deadlineHistory?.length) {
+    if (t.deadlineHistory?.length) {
       dlH.className = 'dl-history visible';
       dlH.innerHTML = `<div class="dl-history-title">⏱ Deadline moved ${t.deadlineHistory.length}×</div>` +
         t.deadlineHistory.map(h => `
@@ -3129,15 +3275,21 @@ function saveTask() {
         if (hn) t.notes.push({ id: uid(), author: by, text: hn, ts: new Date().toISOString(), type: 'handoff', readBy: [by] });
       }
       _pushUndo();
+      const oldStatus = t.status, oldPriority = t.priority, oldDeadline = t.deadline, oldAssignee = t.assignee;
       const wasDone = t.status === 'done';
       Object.assign(t, { name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, durationHours: _planDurationHours !== null ? _planDurationHours : t.durationHours });
       if (status === 'done' && !wasDone) t.completedAt = new Date().toISOString();
       if (status !== 'done') t.completedAt = null;
+      if (status !== oldStatus) _logActivity('status', editTaskId, name, { from: oldStatus, to: status });
+      if (priority !== oldPriority) _logActivity('priority', editTaskId, name, { from: oldPriority, to: priority });
+      if (deadline && oldDeadline && deadline !== oldDeadline) _logActivity('deadline', editTaskId, name, { from: oldDeadline, to: deadline });
+      if (assignee !== oldAssignee) _logActivity('assign', editTaskId, name, { from: oldAssignee, to: assignee });
     }
     toast('Task updated');
   } else {
     _pushUndo();
     tasks.unshift({ id: uid(), name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, ...(_planDurationHours != null && { durationHours: _planDurationHours }), createdAt: new Date().toISOString() });
+    _logActivity('create', tasks[0].id, name, {});
     toast('Task created');
   }
   const syncId = editTaskId || tasks[0]?.id;
@@ -4623,6 +4775,7 @@ function setupGmailAuth() {
             }
           });
         }
+        state.assignee = state.currentUser;
         renderAll();
         setInterval(renderAll, 60000);
         setTimeout(checkRefocusPrompt, 1200);
