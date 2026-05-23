@@ -1209,6 +1209,23 @@ textarea.fi{resize:vertical;min-height:72px}
 .pulse-act-text strong{color:var(--t1)}
 .pulse-act-time{font-size:10px;color:var(--t3);flex-shrink:0}
 .pulse-activity-box{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;max-height:320px;overflow-y:auto}
+
+/* ── Profile Modal ───────────────────────────────────────── */
+.profile-header{display:flex;align-items:center;gap:16px;margin-bottom:20px}
+.profile-avatar-wrap{position:relative;flex-shrink:0}
+.profile-avatar-wrap img,.profile-avatar-init{width:72px;height:72px;border-radius:50%;object-fit:cover;border:2px solid var(--border)}
+.profile-avatar-init{display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;color:#fff}
+.profile-name{font-size:20px;font-weight:700;color:var(--t1);margin-bottom:2px}
+.profile-role{font-size:12px;color:var(--t3);font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+.profile-bio{font-size:13px;color:var(--t2);line-height:1.55;margin-bottom:16px;min-height:20px}
+.profile-trivia{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:20px}
+.profile-trivia-pill{background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:4px 11px;font-size:12px;color:var(--t2)}
+.profile-stats-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px}
+.profile-stat{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;text-align:center}
+.profile-stat-val{font-size:22px;font-weight:700;color:var(--t1)}
+.profile-stat-lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.profile-edit-form{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:4px;display:flex;flex-direction:column;gap:10px}
+.profile-edit-label{font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -2143,6 +2160,17 @@ function avatarColor(name) {
 function initials(name) {
   return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
 }
+function avatarEl(name, size, onclick) {
+  const m = getMember(name);
+  const col = avatarColor(name);
+  const fs = Math.round(size * 0.36);
+  const style = `width:${size}px;height:${size}px;border-radius:50%;flex-shrink:0;cursor:${onclick?'pointer':'default'}`;
+  const clickAttr = onclick ? `onclick="${onclick}"` : '';
+  if (m?.photo) {
+    return `<img src="${esc(m.photo)}" ${clickAttr} style="${style};object-fit:cover;border:1.5px solid var(--border)" onerror="this.outerHTML='<div ${clickAttr} style=\\'${style};background:${col};font-size:${fs}px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center\\'>${esc(initials(name))}</div>'">`;
+  }
+  return `<div ${clickAttr} style="${style};background:${col};font-size:${fs}px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center">${esc(initials(name))}</div>`;
+}
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -2493,7 +2521,7 @@ function cardHTML(t) {
           ${wsObj ? `<div class="ws-chip">${esc(wsObj.name)}</div>` : ''}
         </div>
         <div class="card-row">
-          <div class="card-avatar" style="background:${aCol}">${esc(initials(t.assignee))}</div>
+          <div class="card-avatar" style="background:${aCol};cursor:pointer" onclick="event.stopPropagation();openProfileModal('${esc(t.assignee)}')" title="${esc(t.assignee)}">${esc(initials(t.assignee))}</div>
           <span class="card-assignee-name">${esc(t.assignee.split(' ')[0])}</span>
         </div>
       </div>
@@ -2552,7 +2580,7 @@ function renderDaily() {
   document.getElementById('dailyContent').innerHTML = `
     <div class="daily-greeting">
       <h1>${esc(greeting)}, ${esc(me)} 👋</h1>
-      <p>${now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</p>
+      <p>${now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}<span style="font-size:12px;color:var(--p);cursor:pointer;margin-left:8px" onclick="openProfileModal('${esc(me)}')">✎ My Profile</span></p>
     </div>
 
     ${isMonday && myOverdue.length ? renderMondayBanner(myOverdue) : ''}
@@ -2577,7 +2605,10 @@ function renderDaily() {
     <div class="daily-main-row">
       <div class="daily-schedule-col">
         <div class="daily-section">
-          <h2>🗓 Today's Schedule</h2>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <h2 style="margin:0">🗓 Today's Schedule</h2>
+            ${!gmailToken ? `<button class="btn-ghost" style="font-size:11px;padding:4px 10px;display:flex;align-items:center;gap:5px" onclick="gmailSignIn()" title="Connect Google Calendar">📅 Connect Calendar</button>` : ''}
+          </div>
           <div id="schedGrid"></div>
         </div>
       </div>
@@ -2603,8 +2634,8 @@ function renderDaily() {
             <div class="team-rows">
               ${teamRows.map(r => `
                 <div class="team-row">
-                  <div class="tr-avatar" style="background:${avatarColor(r.name)}">${esc(initials(r.name))}</div>
-                  <div class="tr-name">${esc(r.name)}</div>
+                  <div class="tr-avatar" style="background:${avatarColor(r.name)};cursor:pointer" onclick="openProfileModal('${esc(r.name)}')">${esc(initials(r.name))}</div>
+                  <div class="tr-name" style="cursor:pointer" onclick="openProfileModal('${esc(r.name)}')">${esc(r.name)}</div>
                   <div class="tr-bar"><div class="tr-fill" style="width:${r.pct}%"></div></div>
                   <div class="tr-pct">${r.pct}%</div>
                 </div>`).join('')}
@@ -4227,6 +4258,90 @@ function deleteWs() {
    TEAM MANAGEMENT
 ══════════════════════════════════════════════════════════ */
 
+let _profileViewName = null;
+
+function openProfileModal(name) {
+  _profileViewName = name;
+  renderProfileModal();
+  document.getElementById('profileOverlay').classList.add('open');
+}
+
+function closeProfileModal() {
+  document.getElementById('profileOverlay').classList.remove('open');
+}
+
+function renderProfileModal() {
+  const name = _profileViewName;
+  const m = getMember(name) || { name, role: '', color: '', bio: '', trivia: '' };
+  const isMe = name === state.currentUser;
+
+  const total = tasks.filter(t => t.assignee === name).length;
+  const done  = tasks.filter(t => t.assignee === name && t.status === 'done').length;
+  const open  = tasks.filter(t => t.assignee === name && t.status !== 'done').length;
+  const over  = tasks.filter(t => t.assignee === name && t.status !== 'done' && t.deadline && t.deadline < new Date().toISOString().slice(0,10)).length;
+  const rate  = total ? Math.round(done / total * 100) : 0;
+  const rateColor = rate >= 70 ? '#059669' : rate >= 40 ? '#D97706' : '#DC2626';
+
+  const col = m.color || avatarColor(name);
+  const photoHTML = m.photo
+    ? `<img src="${esc(m.photo)}" class="profile-avatar-init" style="border:2px solid var(--border)" onerror="this.outerHTML='<div class=\\'profile-avatar-init\\' style=\\'background:${col}\\'>${esc(initials(name))}</div>'">`
+    : `<div class="profile-avatar-init" style="background:${col}">${esc(initials(name))}</div>`;
+
+  const triviaList = (m.trivia || '').split(',').map(s => s.trim()).filter(Boolean);
+  const triviaHTML = triviaList.length
+    ? triviaList.map(t => `<span class="profile-trivia-pill">${esc(t)}</span>`).join('')
+    : (isMe ? `<span style="font-size:12px;color:var(--t3)">Add some fun facts below ↓</span>` : `<span style="font-size:12px;color:var(--t3)">No trivia yet</span>`);
+
+  document.getElementById('profileModalTitle').textContent = isMe ? 'My Profile' : name + "'s Profile";
+  document.getElementById('profileModalBody').innerHTML = `
+    <div class="profile-header">
+      <div class="profile-avatar-wrap">${photoHTML}</div>
+      <div>
+        <div class="profile-name">${esc(name)}</div>
+        <div class="profile-role">${esc(m.role || 'Team Member')}</div>
+      </div>
+    </div>
+    ${m.bio ? `<div class="profile-bio">${esc(m.bio)}</div>` : (isMe ? `<div class="profile-bio" style="color:var(--t3);font-style:italic">Tell the team a little about yourself…</div>` : '')}
+    <div class="profile-trivia">${triviaHTML}</div>
+    <div class="profile-stats-grid">
+      <div class="profile-stat">
+        <div class="profile-stat-val" style="color:${rateColor}">${rate}%</div>
+        <div class="profile-stat-lbl">Completion</div>
+      </div>
+      <div class="profile-stat">
+        <div class="profile-stat-val">${open}</div>
+        <div class="profile-stat-lbl">Open tasks</div>
+      </div>
+      <div class="profile-stat">
+        <div class="profile-stat-val" style="color:${over?'#DC2626':'#059669'}">${over}</div>
+        <div class="profile-stat-lbl">Overdue</div>
+      </div>
+    </div>
+    ${isMe ? `
+    <div class="profile-edit-form">
+      <div>
+        <div class="profile-edit-label">About me</div>
+        <textarea class="fi" id="profileBio" rows="2" placeholder="e.g. Based in Singapore · Love long-distance running" style="resize:none">${esc(m.bio||'')}</textarea>
+      </div>
+      <div>
+        <div class="profile-edit-label">Fun facts <span style="font-weight:400;color:var(--t3)">(comma-separated)</span></div>
+        <input class="fi" id="profileTrivia" value="${esc(m.trivia||'')}" placeholder="e.g. Loves hiking, Fluent in 3 languages, Spurs fan">
+      </div>
+      <button class="btn-add" style="align-self:flex-start" onclick="saveMyProfile()">Save profile</button>
+    </div>` : ''}
+  `;
+}
+
+function saveMyProfile() {
+  const m = getMember(state.currentUser);
+  if (!m) return;
+  m.bio    = (document.getElementById('profileBio')?.value  || '').trim();
+  m.trivia = (document.getElementById('profileTrivia')?.value || '').trim();
+  persist();
+  renderProfileModal();
+  toast('Profile saved ✓');
+}
+
 function openTeamModal() {
   renderTeamMemberList();
   document.getElementById('newMemberName').value = '';
@@ -4445,6 +4560,7 @@ function overlayClick(e, id) {
     else if (id === 'wsOverlay')   closeWsModal();
     else if (id === 'teamOverlay')      closeTeamModal();
     else if (id === 'shortcutsOverlay') closeShortcutsModal();
+    else if (id === 'profileOverlay') closeProfileModal();
   }
 }
 
@@ -4889,6 +5005,15 @@ function setupGmailAuth() {
       localStorage.setItem('chope_user', name);
       localStorage.removeItem('chope_user_manually_set');
 
+      // Store Google profile photo into team member record
+      if (user.photoURL) {
+        const member = team.find(m => m.name === name);
+        if (member && !member.photo) {
+          member.photo = user.photoURL;
+          // Don't persist here — will happen naturally on next save
+        }
+      }
+
       if (!_appLoaded) {
         _appLoaded = true;
         await load();
@@ -5205,6 +5330,17 @@ if (window.self === window.top) {
   }
 }
 </script>
+<!-- Profile Modal -->
+<div class="overlay" id="profileOverlay" onclick="overlayClick(event,'profileOverlay')">
+  <div class="modal" style="width:460px" id="profileModal">
+    <div class="modal-hd">
+      <div class="modal-title" id="profileModalTitle">Profile</div>
+      <button class="mclose" onclick="closeProfileModal()">×</button>
+    </div>
+    <div class="modal-body" id="profileModalBody"></div>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
   import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-analytics.js";
