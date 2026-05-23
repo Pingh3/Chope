@@ -4974,9 +4974,14 @@ let gmailOpen  = false;
   if (!_stored) return;
   try {
     const _ti = await fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + _stored).then(r => r.json());
-    if ((_ti.scope||'').includes('gmail') && (_ti.aud||'').startsWith(GMAIL_CLIENT_ID.split('-')[0])) {
+    const _scope = _ti.scope || '';
+    const _hasGmail = _scope.includes('gmail');
+    const _hasCal   = _scope.includes('calendar');
+    const _rightClient = (_ti.aud||'').startsWith(GMAIL_CLIENT_ID.split('-')[0]);
+    if (_hasGmail && _rightClient) {
       gmailToken = _stored;
-      if (state.view === 'daily') { renderDaily(); loadCalendarForDaily(); }
+      if (_hasCal && state.view === 'daily') { renderDaily(); loadCalendarForDaily(); }
+      else if (state.view === 'daily') renderDaily();
     } else { sessionStorage.removeItem('gmailToken'); }
   } catch { sessionStorage.removeItem('gmailToken'); }
 })();
