@@ -1586,6 +1586,10 @@ textarea.fi{resize:vertical;min-height:72px}
             <label>Avatar Color</label>
             <input type="color" class="fi" id="newMemberColor" value="#4F46E5" style="padding:4px;height:36px;cursor:pointer">
           </div>
+          <div class="mf">
+            <label>Birthday <span style="font-weight:400;color:var(--t3)">(optional)</span></label>
+            <input type="date" class="fi" id="newMemberBirthday" title="Birthday">
+          </div>
         </div>
         <button class="btn-primary" style="margin-top:10px;width:100%" onclick="addMember()">+ Add to Team</button>
       </div>
@@ -2535,8 +2539,11 @@ function cardHTML(t) {
 function renderDaily() {
   const me = state.currentUser;
   const base    = applyFilters(tasks, {ignoreAssignee: true, ignoreWs: true});
-  const myTasks = base.filter(t => t.assignee === me && t.status !== 'done');
-  const myDone  = base.filter(t => t.assignee === me && t.status === 'done');
+  // Subject: follow assignee filter when viewing someone else, else default to self
+  const subject = (state.assignee !== 'all' && state.assignee) ? state.assignee : me;
+  const isMe = subject === me;
+  const myTasks = base.filter(t => t.assignee === subject && t.status !== 'done');
+  const myDone  = base.filter(t => t.assignee === subject && t.status === 'done');
   const myTotal = myTasks.length + myDone.length;
   const myRate  = myTotal ? Math.round(myDone.length / myTotal * 100) : 0;
 
@@ -2584,20 +2591,44 @@ function renderDaily() {
     </div>
 
     ${isMonday && myOverdue.length ? renderMondayBanner(myOverdue) : ''}
+    ${(() => {
+      const mmdd = todayStr.slice(5);
+      const upcoming = team.filter(m => {
+        if (!m.birthday) return false;
+        const bmmdd = m.birthday.slice(5);
+        // days until birthday this year
+        const thisYear = new Date(now.getFullYear() + '-' + bmmdd + 'T00:00:00');
+        if (isNaN(thisYear)) return false;
+        const diff = Math.round((thisYear - new Date(todayStr + 'T00:00:00')) / 86400000);
+        m._bdayDiff = diff >= 0 ? diff : Math.round((new Date((now.getFullYear()+1) + '-' + bmmdd + 'T00:00:00') - new Date(todayStr + 'T00:00:00')) / 86400000);
+        return m._bdayDiff <= 3;
+      }).filter(m => m.name !== me).sort((a,b) => a._bdayDiff - b._bdayDiff);
+      if (!upcoming.length) return '';
+      return upcoming.map(m => {
+        const label = m._bdayDiff === 0 ? "🎂 Today is <strong>" + esc(m.name) + "</strong>'s birthday! Wish them well 🎉"
+          : m._bdayDiff === 1 ? "🎂 <strong>" + esc(m.name) + "</strong>'s birthday is <strong>tomorrow</strong>!"
+          : "🎂 <strong>" + esc(m.name) + "</strong>'s birthday is in <strong>" + m._bdayDiff + " days</strong>.";
+        const bg = m._bdayDiff === 0 ? '#FDF2F8' : '#FFF';
+        const border = m._bdayDiff === 0 ? '#F9A8D4' : '#FBCFE8';
+        return `<div style="background:${bg};border:1px solid ${border};border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:13px;color:#9D174D;display:flex;align-items:center;gap:10px">
+          <span>${label}</span>
+        </div>`;
+      }).join('');
+    })()}
 
     <div class="daily-grid">
       <div class="daily-card">
-        <div class="daily-card-label">My Open Tasks</div>
+        <div class="daily-card-label">${isMe ? 'My Open Tasks' : esc(subject.split(' ')[0]) + "'s Open Tasks"}</div>
         <div class="daily-card-value">${myTasks.length}</div>
         <div class="daily-card-sub">${myDone.length} completed</div>
       </div>
       <div class="daily-card">
-        <div class="daily-card-label">My Completion Rate</div>
+        <div class="daily-card-label">${isMe ? 'My Completion Rate' : 'Completion Rate'}</div>
         <div class="daily-card-value" style="color:${myRate>=70?'#059669':'#D97706'}">${myRate}%</div>
         <div class="daily-card-sub">${myTotal} total tasks assigned</div>
       </div>
       <div class="daily-card">
-        <div class="daily-card-label">My Overdue</div>
+        <div class="daily-card-label">${isMe ? 'My Overdue' : 'Overdue'}</div>
         ${(() => { const myOver = myTasks.filter(t => t.deadline && t.deadline < todayStr).length; return `<div class="daily-card-value" style="color:${myOver?'#DC2626':'#059669'}">${myOver}</div><div class="daily-card-sub">${myOver ? myOver + ' past deadline' : 'All on track ✓'}</div>`; })()}
       </div>
     </div>
@@ -2828,15 +2859,17 @@ function renderMyWeek() {
   const todayStr = now.toISOString().slice(0,10);
   const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-  // Build next 7 days
-  const week = Array.from({length:7}, (_,i) => {
+  // Build next 14 days split into two weeks
+  const fortnight = Array.from({length:14}, (_,i) => {
     const d = new Date(now); d.setDate(d.getDate()+i);
     return d.toISOString().slice(0,10);
   });
+  const week1 = fortnight.slice(0,7);
+  const week2 = fortnight.slice(7,14);
 
   const ft = filteredTasks();
   const _po = (t) => ({high:0,med:1,low:2}[t.priority]??1);
-  const activeTasks = ft.filter(t => t.status !== 'done' && t.deadline && t.deadline >= todayStr && t.deadline <= week[6]).sort((a,b)=>_po(a)-_po(b));
+  const activeTasks = ft.filter(t => t.status !== 'done' && t.deadline && t.deadline >= todayStr && t.deadline <= fortnight[13]).sort((a,b)=>_po(a)-_po(b));
   const overdue = ft.filter(t => t.status !== 'done' && t.deadline && t.deadline < todayStr).sort((a,b)=>_po(a)-_po(b));
 
   const totalThisWeek = activeTasks.length;
@@ -2846,8 +2879,8 @@ function renderMyWeek() {
     <div style="max-width:960px;margin:0 auto">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
         <div>
-          <h1 style="font-size:20px;font-weight:700">Our Week Ahead</h1>
-          <p style="font-size:13px;color:var(--t2);margin-top:3px">${now.toLocaleDateString('en-US',{month:'long',day:'numeric'})} — ${new Date(week[6]+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</p>
+          <h1 style="font-size:20px;font-weight:700">Our Next Two Weeks</h1>
+          <p style="font-size:13px;color:var(--t2);margin-top:3px">${now.toLocaleDateString('en-US',{month:'long',day:'numeric'})} — ${new Date(fortnight[13]+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</p>
         </div>
         <div style="display:flex;gap:10px">
           <div class="stat-card" style="padding:10px 16px;text-align:center">
@@ -2926,21 +2959,25 @@ function renderMyWeek() {
               <div style="${winsExpanded ? 'max-height:320px;overflow-y:auto' : ''}">${winRows}</div>
             </div>`;
         })()}</div>
-      <div class="week-day-grid">
-        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;min-width:560px">
-        ${week.map(dateStr => {
+      ${[week1, week2].map((weekDays, wi) => {
+        const weekLabel = wi === 0 ? 'This Week' : 'Next Week';
+        const w2start = new Date(weekDays[0]+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+        const w2end   = new Date(weekDays[6]+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+        const dayCells = weekDays.map(dateStr => {
           const d = new Date(dateStr+'T12:00:00');
           const dayTasks = activeTasks.filter(t => t.deadline === dateStr).sort((a,b)=>{const po={high:0,med:1,low:2};return po[a.priority]-po[b.priority];});
+          const bdays = team.filter(m => m.birthday && m.birthday.slice(5) === dateStr.slice(5));
           const isToday = dateStr === todayStr;
           const isWeekend = d.getDay()===0||d.getDay()===6;
           return `
-            <div class="week-day-cell" style="background:${isToday?'#EFF6FF':isWeekend?'#FAFAF8':'var(--card)'};border:${isToday?'2px solid #3B82F6':'1px solid var(--border)'};border-radius:var(--r);min-height:160px;overflow:hidden">
+            <div class="week-day-cell" style="background:${isToday?'#EFF6FF':isWeekend?'#FAFAF8':'var(--card)'};border:${isToday?'2px solid #3B82F6':'1px solid var(--border)'};border-radius:var(--r);min-height:140px;overflow:hidden">
               <div style="padding:8px 10px 6px;border-bottom:1px solid var(--border);background:${isToday?'#DBEAFE':'var(--col)'}">
                 <div style="font-size:10px;font-weight:700;color:${isToday?'#1D4ED8':'var(--t3)'};text-transform:uppercase;letter-spacing:.5px">${days[d.getDay()]}</div>
                 <div style="font-size:16px;font-weight:700;color:${isToday?'#1D4ED8':'var(--t1)'}">${d.getDate()}</div>
                 ${dayTasks.length ? `<div style="font-size:9px;color:${isToday?'#3B82F6':'var(--t3)'}">${dayTasks.length} task${dayTasks.length!==1?'s':''}</div>` : ''}
               </div>
               <div style="padding:6px">
+                ${bdays.map(m => `<div style="font-size:10px;color:#DB2777;background:#FCE7F3;border-radius:4px;padding:2px 6px;margin-bottom:4px;display:flex;align-items:center;gap:4px">🎂 <span>${esc(m.name.split(' ')[0])}</span></div>`).join('')}
                 ${dayTasks.length ? dayTasks.map(t => {
                   const pCol = PRIO_COLORS[t.priority];
                   const aCol = avatarColor(t.assignee);
@@ -2951,19 +2988,25 @@ function renderMyWeek() {
                       <span style="font-size:9px;color:var(--t3)">${esc(t.assignee.split(' ')[0])}</span>
                     </div>
                   </div>`;
-                }).join('') : `<div style="font-size:11px;color:var(--t3);text-align:center;padding:12px 4px">—</div>`}
+                }).join('') : (bdays.length ? '' : `<div style="font-size:11px;color:var(--t3);text-align:center;padding:12px 4px">—</div>`)}
               </div>
             </div>`;
-        }).join('')}
-        </div>
-      </div>
+        }).join('');
+        return `
+          <div style="margin-bottom:16px">
+            <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">${weekLabel} <span style="font-weight:400;text-transform:none;letter-spacing:0">${w2start} – ${w2end}</span></div>
+            <div class="week-day-grid">
+              <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;min-width:560px">${dayCells}</div>
+            </div>
+          </div>`;
+      }).join('')}
 
       <div style="margin-top:20px">
         <h2 style="font-size:14px;font-weight:700;margin-bottom:12px">By Team Member</h2>
         <div style="display:flex;flex-direction:column;gap:8px">
           ${team.map(m => {
             const myWeekTasks = activeTasks.filter(t => t.assignee === m.name);
-            const myWeekDone  = tasks.filter(t => t.assignee === m.name && t.status === 'done' && t.deadline && t.deadline >= week[0] && t.deadline <= week[6]);
+            const myWeekDone  = tasks.filter(t => t.assignee === m.name && t.status === 'done' && t.deadline && t.deadline >= fortnight[0] && t.deadline <= fortnight[13]);
             const weekTotal   = myWeekTasks.length + myWeekDone.length;
             const weekRate    = weekTotal ? Math.round(myWeekDone.length / weekTotal * 100) : 0;
             const allDone     = tasks.filter(t => t.assignee === m.name && t.status === 'done').length;
@@ -4372,6 +4415,8 @@ function renderTeamMemberList() {
         ${['VP','AVP','Senior Associate','Associate','Senior Analyst','Analyst','Intern','Others'].map(r =>
           `<option ${m.role===r?'selected':''}>${r}</option>`).join('')}
       </select>
+      <input class="fi" type="date" title="Birthday (year ignored)" style="width:130px;padding:4px 8px;height:28px"
+        value="${esc(m.birthday||'')}" onchange="updateMemberField('${esc(m.name)}','birthday',this.value)">
       ${team.length > 1
         ? `<button class="btn-sm" style="color:#EF4444;border-color:#FECACA;flex-shrink:0" onclick="removeMember('${esc(m.name)}')">✕</button>`
         : ''}
@@ -4402,7 +4447,8 @@ function addMember() {
   if (team.find(m => m.name.toLowerCase() === name.toLowerCase())) {
     toast('A member with that name already exists'); return;
   }
-  team.push({ name, role, color, initials: name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() });
+  const birthday = document.getElementById('newMemberBirthday')?.value || '';
+  team.push({ name, role, color, birthday, initials: name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() });
   document.getElementById('newMemberName').value = '';
   persist(); renderTeamMemberList(); renderAll();
   toast(`${name} added to team`);
