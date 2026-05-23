@@ -883,43 +883,74 @@ textarea.fi{resize:vertical;min-height:72px}
 
 /* ── Phone ────────────────────────────────────────────────── */
 @media(max-width:480px){
+  /* Prevent whole-page horizontal scroll */
+  html,body{overflow-x:hidden;max-width:100vw}
+
   .board{grid-template-columns:1fr}
-  .daily-grid{grid-template-columns:1fr 1fr}
   .mfrow,.mfrow3{grid-template-columns:1fr}
   .ws-grid{grid-template-columns:1fr}
-  .daily-greeting h1{font-size:18px}
+
   /* Hide secondary header buttons on phone */
   .btn-ghost-team,.btn-ghost-shortcuts,#googleAuthBtn,.notif-btn-label{display:none}
-  /* Keep bulk icon-only */
-  .btn-ghost[onclick*="Bulk"] span{display:none}
-  /* Bigger tap targets */
+  .btn-add{margin-left:auto;padding:7px 14px;font-size:13px}
   .notif-btn{padding:6px 10px;font-size:16px}
-  .btn-add{padding:7px 14px;font-size:13px}
-  /* Full-width modal */
+
+  /* Full-width bottom-sheet modal */
   .modal{width:100vw;max-width:100vw;border-radius:12px 12px 0 0;position:fixed;bottom:0;left:0;top:auto;margin:0;max-height:90vh}
   .overlay{align-items:flex-end}
-  /* Our Week day grid scrolls horizontally */
+
+  /* Our Week scrolls horizontally */
   .week-day-grid{overflow-x:auto;padding-bottom:8px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .week-day-grid::-webkit-scrollbar{display:none}
-  /* Daily view padding */
-  #dailyView{padding:0}
-  .view{padding:12px}
-  /* Gmail panel full screen on phone */
+
+  /* Gmail panel full-screen */
   #gmailPanel{width:100vw;top:88px}
-  /* Ws header */
+
+  /* Workstreams */
   .ws-header{flex-direction:column;align-items:flex-start;gap:8px}
-  /* Collapsible filter bar on phone */
+
+  /* Collapsible filter bar */
   .fb-toggle-row{display:flex!important}
   #filterBar:not(.fb-expanded) .fb-row{display:none}
-  /* Schedule grid more readable on phone */
-  .sched-row{grid-template-columns:44px 1fr!important}
-  .sched-hour-label{font-size:9px;padding:10px 4px}
-  .sched-slot-chip{font-size:12px;padding:6px 8px}
-  /* Cards more spaced on phone */
+
+  /* ── My Day mobile layout ── */
+  #dailyView{padding:0}
+  .view{padding:0 12px 20px}
+
+  /* Greeting tighter */
+  .daily-greeting{margin-bottom:16px;padding-top:14px}
+  .daily-greeting h1{font-size:17px}
+  .daily-greeting p{font-size:12px}
+
+  /* Stat cards — horizontal scroll strip */
+  .daily-grid{
+    display:flex;overflow-x:auto;gap:10px;
+    padding:0 0 8px;margin-bottom:16px;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch;
+    touch-action:pan-x;
+  }
+  .daily-grid::-webkit-scrollbar{display:none}
+  .daily-card{flex:0 0 150px;padding:14px;border-radius:10px}
+  .daily-card-value{font-size:24px}
+
+  /* Schedule — contained scrollable box */
+  .sched-slots{max-height:52vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .sched-row{grid-template-columns:40px 1fr!important;min-height:40px}
+  .sched-row.sched-has-cal{grid-template-columns:40px 1fr!important}
+  .sched-cal-col{display:none}
+  .sched-hour-label{font-size:9px;padding:8px 3px}
+  .sched-slot{padding:4px 6px;min-height:40px}
+  .sched-slot-chip{font-size:11px;padding:5px 7px;gap:4px}
+
+  /* Coming this week — compact rows */
+  .daily-task{padding:8px 10px;font-size:12px}
+  .daily-section h2{font-size:13px}
+
+  /* Board cards */
   .task-card{padding:10px 12px}
-  /* Daily cards row scrollable */
-  .daily-grid{display:flex;overflow-x:auto;gap:10px;padding-bottom:4px;scrollbar-width:none}
-  .daily-card{flex:0 0 140px}
+
+  /* Victor pulse — hidden on phone to keep it clean */
+  .victor-pulse{display:none}
 }
 .fb-toggle-row{
   display:none;
@@ -1566,10 +1597,11 @@ textarea.fi{resize:vertical;min-height:72px}
       </div>
       <div class="sc-group">
         <div class="sc-group-label">Filters</div>
+        <div class="sc-row"><kbd>A</kbd><span>Show all team tasks</span></div>
+        <div class="sc-row"><kbd>X</kbd><span>Show only my tasks</span></div>
         <div class="sc-row"><kbd>H</kbd><span>Filter High priority</span></div>
         <div class="sc-row"><kbd>M</kbd><span>Filter Medium priority</span></div>
         <div class="sc-row"><kbd>L</kbd><span>Filter Low priority</span></div>
-        <div class="sc-row"><kbd>X</kbd><span>Clear all filters</span></div>
       </div>
       <div class="sc-group" style="border-bottom:none">
         <div class="sc-group-label">General</div>
@@ -4385,14 +4417,11 @@ document.addEventListener('keydown', e => {
     case 'd': case 'D': if (hoveredCardId) duplicateTask(hoveredCardId); break;
     case 'c': case 'C': if (hoveredCardId) toggleTaskDone(hoveredCardId); break;
     case 'Delete': case 'Backspace': if (hoveredCardId) { e.preventDefault(); deleteTaskDirect(hoveredCardId); } break;
+    case 'a': case 'A': setFilter('assignee', 'all'); renderAll(); toast('Showing all team tasks'); break;
+    case 'x': case 'X': setFilter('assignee', state.currentUser); renderAll(); toast('Showing my tasks'); break;
     case 'h': case 'H': setFilter('priority', state.priority === 'high' ? 'all' : 'high'); renderAll(); break;
     case 'm': case 'M': setFilter('priority', state.priority === 'med'  ? 'all' : 'med');  renderAll(); break;
     case 'l': case 'L': setFilter('priority', state.priority === 'low'  ? 'all' : 'low');  renderAll(); break;
-    case 'x': case 'X':
-      state.priority = 'all'; state.fund = 'all';
-      state.assignee = 'all'; state.ws = 'all'; state.cat = 'all';
-      renderAll(); toast('Filters cleared');
-      break;
     case '?': openShortcutsModal(); break;
   }
 });
