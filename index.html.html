@@ -1159,6 +1159,37 @@ textarea.fi{resize:vertical;min-height:72px}
 .login-error{font-size:12px;color:#DC2626;margin-top:14px;min-height:18px;line-height:1.4}
 .login-footer{font-size:11px;color:var(--t3);margin-top:28px;line-height:1.5}
 
+/* ── Monday Check-in Banner ─────────────────────────────── */
+.mon-banner{
+  background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;
+  padding:18px 20px;margin-bottom:22px;position:relative;
+}
+.mon-banner-top{display:flex;align-items:flex-start;gap:12px}
+.mon-banner-icon{font-size:22px;flex-shrink:0;margin-top:1px}
+.mon-banner-body{flex:1}
+.mon-banner-title{font-size:14px;font-weight:700;color:#92400E;margin-bottom:5px}
+.mon-banner-msg{font-size:13px;color:#78350F;line-height:1.55}
+.mon-banner-tasks{margin:10px 0 0;display:flex;flex-direction:column;gap:4px}
+.mon-banner-task{
+  display:flex;align-items:center;gap:7px;font-size:12px;color:#92400E;
+  background:#FEF3C7;border-radius:6px;padding:5px 10px;cursor:pointer;
+}
+.mon-banner-task:hover{background:#FDE68A}
+.mon-banner-task-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.mon-banner-more{font-size:11px;color:#B45309;margin-top:4px;padding-left:2px}
+.mon-banner-actions{display:flex;gap:8px;margin-top:14px}
+.mon-banner-btn-primary{
+  font-size:12px;font-weight:600;padding:6px 14px;border-radius:7px;cursor:pointer;
+  background:#D97706;color:#fff;border:none;font-family:inherit;
+}
+.mon-banner-btn-primary:hover{background:#B45309}
+.mon-banner-btn-ghost{
+  font-size:12px;font-weight:500;padding:6px 12px;border-radius:7px;cursor:pointer;
+  background:none;border:1px solid #FCD34D;color:#92400E;font-family:inherit;
+}
+.mon-banner-btn-ghost:hover{background:#FEF3C7}
+.mon-banner-dismiss{position:absolute;top:10px;right:12px;background:none;border:none;cursor:pointer;font-size:16px;color:#B45309;line-height:1;padding:2px}
+
 /* ── Victor Team Pulse ───────────────────────────────────── */
 .victor-pulse{padding:0 0 32px}
 .pulse-section{margin-bottom:24px}
@@ -2514,11 +2545,17 @@ function renderDaily() {
 
   const s = getStats();
 
+  const isMonday = now.getDay() === 1;
+  const myOverdue = myTasks.filter(t => t.deadline && t.deadline < todayStr)
+    .sort((a,b) => a.deadline.localeCompare(b.deadline));
+
   document.getElementById('dailyContent').innerHTML = `
     <div class="daily-greeting">
       <h1>${esc(greeting)}, ${esc(me)} 👋</h1>
       <p>${now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</p>
     </div>
+
+    ${isMonday && myOverdue.length ? renderMondayBanner(myOverdue) : ''}
 
     <div class="daily-grid">
       <div class="daily-card">
@@ -3827,6 +3864,71 @@ function checkRefocusPrompt() {
 
 function closeRefocus() {
   document.getElementById('refocusOverlay').classList.remove('open');
+}
+
+/* ── Monday Check-in Banner ────────────────────────────────── */
+
+function _mondayBannerKey() {
+  const d = new Date();
+  const jan1 = new Date(d.getFullYear(), 0, 1);
+  const week = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+  return `chope_mon_ack_${d.getFullYear()}_w${week}_${state.currentUser}`;
+}
+
+const MON_MSGS = [
+  { intro: "A new week, a fresh start.", body: "Before the week picks up pace, it's worth taking a moment to review what's carried over. Keeping the right people informed — even with a brief update — builds trust and makes it easier to reprioritise together." },
+  { intro: "Good morning — it's Monday.", body: "Overdue tasks happen to everyone, but what sets great teams apart is how they communicate about them. A quick heads-up to your manager or stakeholders goes a long way toward keeping everyone aligned." },
+  { intro: "New week, new opportunity to reset.", body: "Before diving into today's work, take a look at what's past its deadline. If timelines have shifted, a short update to the relevant parties keeps the team ahead of surprises rather than reacting to them." },
+  { intro: "It's the start of another week.", body: "Deadlines don't always go to plan — and that's okay. What matters is proactive communication. Consider sending a brief update on anything overdue so your team can reprioritise or offer support." },
+  { intro: "Week's just beginning — a good moment to reflect.", body: "If something has slipped past its deadline, the best move is a timely, honest update. Your teammates and leads would rather know early than be caught off guard." },
+];
+
+function renderMondayBanner(overdueTasks) {
+  if (localStorage.getItem(_mondayBannerKey())) return '';
+  const week = Math.ceil(((new Date() - new Date(new Date().getFullYear(), 0, 1)) / 86400000 + new Date(new Date().getFullYear(), 0, 1).getDay() + 1) / 7);
+  const msg = MON_MSGS[week % MON_MSGS.length];
+  const topTasks = overdueTasks.slice(0, 3);
+  const remaining = overdueTasks.length - topTasks.length;
+  const taskRows = topTasks.map(t => `
+    <div class="mon-banner-task" onclick="openTaskModal('${t.id}')">
+      <span class="mon-banner-task-dot" style="background:${PRIO_COLORS[t.priority]}"></span>
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</span>
+      <span style="font-size:10px;color:#B45309;flex-shrink:0">${fmtDate(t.deadline)}</span>
+    </div>`).join('');
+  return `
+    <div class="mon-banner" id="monBanner">
+      <button class="mon-banner-dismiss" onclick="dismissMondayBanner()" title="Dismiss">×</button>
+      <div class="mon-banner-top">
+        <div class="mon-banner-icon">🌅</div>
+        <div class="mon-banner-body">
+          <div class="mon-banner-title">${esc(msg.intro)}</div>
+          <div class="mon-banner-msg">${esc(msg.body)}</div>
+          ${overdueTasks.length ? `
+          <div class="mon-banner-tasks">
+            ${taskRows}
+            ${remaining > 0 ? `<div class="mon-banner-more">+ ${remaining} more overdue task${remaining > 1 ? 's' : ''}</div>` : ''}
+          </div>` : ''}
+          <div class="mon-banner-actions">
+            <button class="mon-banner-btn-primary" onclick="reviewOverdueTasks()">Review overdue tasks</button>
+            <button class="mon-banner-btn-ghost" onclick="dismissMondayBanner()">I'm on it ✓</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function dismissMondayBanner() {
+  localStorage.setItem(_mondayBannerKey(), '1');
+  const el = document.getElementById('monBanner');
+  if (el) { el.style.opacity = '0'; el.style.transition = 'opacity .25s'; setTimeout(() => el.remove(), 250); }
+}
+
+function reviewOverdueTasks() {
+  dismissMondayBanner();
+  switchView('board', document.querySelector('[data-view="board"]'));
+  setFilter('assignee', state.currentUser);
+  renderAll();
+  toast('Showing your overdue tasks on the board');
 }
 
 function focusHighPriority() {
