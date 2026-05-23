@@ -1089,10 +1089,48 @@ textarea.fi{resize:vertical;min-height:72px}
   transition:all .12s;
 }
 .rfx-btn-sec:hover{color:var(--t1);border-color:var(--t2)}
+#loginGate{
+  position:fixed;inset:0;z-index:9999;
+  background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+}
+.login-card{
+  background:var(--card);border:1px solid var(--border);border-radius:16px;
+  padding:52px 44px 40px;width:380px;text-align:center;
+  box-shadow:0 8px 40px rgba(0,0,0,.09);
+}
+.login-logo{font-size:34px;font-weight:800;letter-spacing:-1px;color:var(--t1);margin-bottom:6px}
+.login-logo em{font-style:normal;color:#3B82F6}
+.login-tagline{font-size:13px;color:var(--t3);margin-bottom:36px}
+.login-google-btn{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  width:100%;padding:12px 16px;
+  background:#fff;border:1px solid var(--border);border-radius:8px;
+  font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;color:#1f1f1f;
+  transition:all .15s;box-shadow:0 1px 3px rgba(0,0,0,.08);
+}
+.login-google-btn:hover{box-shadow:0 2px 10px rgba(0,0,0,.13);border-color:#3B82F6}
+.login-google-btn:disabled{opacity:.6;cursor:not-allowed}
+.login-error{font-size:12px;color:#DC2626;margin-top:14px;min-height:18px;line-height:1.4}
+.login-footer{font-size:11px;color:var(--t3);margin-top:28px;line-height:1.5}
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
+
+<!-- Login Gate -->
+<div id="loginGate">
+  <div class="login-card">
+    <div class="login-logo">Cho<em>pe</em></div>
+    <div class="login-tagline">Team Workstream Tracker</div>
+    <button class="login-google-btn" id="loginBtn" onclick="gateSignIn()">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/></svg>
+      Sign in with Google
+    </button>
+    <div id="loginError" class="login-error"></div>
+    <div class="login-footer">Access restricted to authorised team members only</div>
+  </div>
+</div>
 
 <!-- Header -->
 <header id="hdr">
@@ -4413,12 +4451,12 @@ function _updateGoogleAuthBtn(user) {
   const lbl = document.getElementById('googleAuthLabel');
   if (!btn || !lbl) return;
   if (user) {
-    const first = (user.displayName || 'You').split(' ')[0];
-    lbl.textContent = '✓ ' + first;
+    const first = (user.displayName || state.currentUser || 'You').split(' ')[0];
+    lbl.textContent = first + ' · Sign out';
     btn.disabled = false;
-    btn.title = `Signed in as ${user.displayName || user.email}`;
-    btn.onclick = null; // signed in, button is just an indicator
-    btn.style.cursor = 'default';
+    btn.title = `Signed in as ${user.email || user.displayName} — click to sign out`;
+    btn.onclick = () => appSignOut();
+    btn.style.cursor = 'pointer';
   } else {
     lbl.textContent = 'Sign in';
     btn.disabled = false;
@@ -4427,32 +4465,105 @@ function _updateGoogleAuthBtn(user) {
   }
 }
 
+function showLoginGate(errorMsg) {
+  const gate = document.getElementById('loginGate');
+  if (gate) gate.style.display = 'flex';
+  const errEl = document.getElementById('loginError');
+  if (errEl) errEl.textContent = errorMsg || '';
+  const btn = document.getElementById('loginBtn');
+  if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/></svg> Sign in with Google'; }
+}
+
+function hideLoginGate() {
+  const gate = document.getElementById('loginGate');
+  if (gate) gate.style.display = 'none';
+}
+
+async function gateSignIn() {
+  if (!window._chopeFb?.signInWithGoogle) { document.getElementById('loginError').textContent = 'Auth not ready — please refresh'; return; }
+  const btn = document.getElementById('loginBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
+  try {
+    await window._chopeFb.signInWithGoogle();
+    // onAuthStateChanged fires next and handles the rest
+  } catch(e) {
+    showLoginGate(e.code !== 'auth/popup-closed-by-user' ? 'Sign in failed — please try again' : '');
+  }
+}
+
+async function appSignOut() {
+  if (!window._chopeFb?.signOut) return;
+  await window._chopeFb.signOut();
+  // onAuthStateChanged fires → showLoginGate()
+}
+
+let _appLoaded = false;
+
 function setupGmailAuth() {
   if (!window._chopeFb?.onAuthStateChanged) return;
-  window._chopeFb.onAuthStateChanged(user => {
+  window._chopeFb.onAuthStateChanged(async user => {
     _updateGoogleAuthBtn(user);
-    if (!user) return;
-    // Auto-identify from Firebase profile
-    const displayName = user.displayName || '';
-    const firstName   = displayName.split(' ')[0];
-    const matched = team.find(m => m.name === displayName)
-      || team.find(m => m.name.toLowerCase().startsWith(firstName.toLowerCase()))
-      || team.find(m => firstName.toLowerCase().startsWith(m.name.split(' ')[0].toLowerCase()));
-    if (matched && state.currentUser !== matched.name && !localStorage.getItem('chope_user_manually_set')) {
-      state.currentUser = matched.name;
-      localStorage.setItem('chope_user', matched.name);
-      renderHeader();
+
+    if (!user) {
+      showLoginGate();
+      return;
     }
-    // Gmail token gone (browser restarted / 1h expiry) — show one-tap reconnect
-    if (!gmailToken) {
-      const body = document.getElementById('gmailBody');
-      if (body) body.innerHTML = `
-        <div style="text-align:center;padding:30px 20px">
-          <div style="font-size:20px;margin-bottom:8px">📧</div>
-          <div style="font-size:13px;font-weight:600;margin-bottom:4px">Connect Gmail</div>
-          <div style="font-size:11px;color:var(--t3);margin-bottom:16px">Grant Gmail access to scan your inbox for tasks.</div>
-          <button class="btn-add" onclick="gmailSignIn()" style="width:100%">Connect Gmail</button>
-        </div>`;
+
+    // Check Firestore allowlist
+    try {
+      const { db, doc, getDoc } = window._chopeFb;
+      const snap = await getDoc(doc(db, 'chope_allowlist', user.email));
+      if (!snap.exists()) {
+        await window._chopeFb.signOut();
+        showLoginGate(`Account (${user.email}) is not authorised. Contact your admin.`);
+        return;
+      }
+
+      const data = snap.data();
+      const name = data.name || user.displayName?.split(' ')[0] || user.email;
+      state.currentUser = name;
+      localStorage.setItem('chope_user', name);
+      localStorage.removeItem('chope_user_manually_set');
+
+      if (!_appLoaded) {
+        _appLoaded = true;
+        await load();
+        loadScheduleData();
+        // Wire workstream IDs to seed tasks on first load
+        if (workstreams.length && tasks.length) {
+          const wsMap = {};
+          workstreams.forEach(w => { wsMap[w.name] = w.id; });
+          tasks.forEach(t => {
+            if (!t.ws) {
+              if (t.cat === 'acq')  t.ws = wsMap['450 Park Ave Acquisition'] || '';
+              if (t.cat === 'fund') t.ws = wsMap['Fund III Capital Raise'] || '';
+              if (t.cat === 'ir')   t.ws = wsMap['Q2 Investor Relations'] || '';
+              if (t.fund === 'WHPMT' && t.cat === 'debt') t.ws = wsMap['WHPMT Refinancing'] || '';
+            }
+          });
+        }
+        renderAll();
+        setInterval(renderAll, 60000);
+        setTimeout(checkRefocusPrompt, 1200);
+      } else {
+        renderHeader();
+      }
+      hideLoginGate();
+
+      // Gmail reconnect prompt if token expired
+      if (!gmailToken) {
+        const body = document.getElementById('gmailBody');
+        if (body) body.innerHTML = `
+          <div style="text-align:center;padding:30px 20px">
+            <div style="font-size:20px;margin-bottom:8px">📧</div>
+            <div style="font-size:13px;font-weight:600;margin-bottom:4px">Connect Gmail</div>
+            <div style="font-size:11px;color:var(--t3);margin-bottom:16px">Grant Gmail access to scan your inbox for tasks.</div>
+            <button class="btn-add" onclick="gmailSignIn()" style="width:100%">Connect Gmail</button>
+          </div>`;
+      }
+    } catch(e) {
+      console.error('Allowlist check failed:', e);
+      showLoginGate('Error checking access — please try again');
     }
   });
 }
@@ -4705,27 +4816,18 @@ async function gmailSendBrief() {
 
 if (window.self === window.top) {
   async function init() {
-    await load();
-    loadScheduleData();
     gmailHandleCallback();
-
-    // Wire workstream IDs to seed tasks after workstreams are seeded
-    if (workstreams.length && tasks.length) {
-      const wsMap = {};
-      workstreams.forEach(w => { wsMap[w.name] = w.id; });
-      tasks.forEach(t => {
-        if (!t.ws) {
-          if (t.cat === 'acq')  t.ws = wsMap['450 Park Ave Acquisition'] || '';
-          if (t.cat === 'fund') t.ws = wsMap['Fund III Capital Raise'] || '';
-          if (t.cat === 'ir')   t.ws = wsMap['Q2 Investor Relations'] || '';
-          if (t.fund === 'WHPMT' && t.cat === 'debt') t.ws = wsMap['WHPMT Refinancing'] || '';
-        }
-      });
+    if (!window._chopeFb) {
+      // Firebase unavailable — load directly without auth gate
+      await load();
+      loadScheduleData();
+      renderAll();
+      setInterval(renderAll, 60000);
+      setTimeout(checkRefocusPrompt, 1200);
+      hideLoginGate();
+      return;
     }
-
-    renderAll();
-    setTimeout(checkRefocusPrompt, 1200);
-    setInterval(renderAll, 60000);
+    // Auth gate: setupGmailAuth handles load() + renderAll() after allowlist check
     setupGmailAuth();
   }
 
@@ -4742,7 +4844,7 @@ if (window.self === window.top) {
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
   import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-analytics.js";
   import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
-  import { getAuth, GoogleAuthProvider, signInWithPopup, reauthenticateWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-auth.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, reauthenticateWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyD6I9vLBzuMdRLCeral6IZ-daH4gTDnUzU",
@@ -4781,6 +4883,7 @@ if (window.self === window.top) {
                               || result?._tokenResponse?.oauthAccessToken
                               || null,
     onAuthStateChanged: cb    => onAuthStateChanged(auth, cb),
+    signOut:            ()    => signOut(auth),
   };
   window.dispatchEvent(new CustomEvent('chopeFbReady'));
 </script>
