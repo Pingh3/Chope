@@ -497,6 +497,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 
 /* ── Schedule grid ───────────────────────────────────── */
 .sched-wrap{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.sched-wrap > *{min-width:0}
 .sched-date-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px}
 .sched-date-nav-btn{background:none;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:16px;cursor:pointer;color:var(--t2);line-height:1;transition:background .12s}
 .sched-date-nav-btn:hover{background:var(--bg)}
@@ -890,7 +891,18 @@ textarea.fi{resize:vertical;min-height:72px}
   /* Prevent whole-page horizontal scroll */
   html,body{overflow-x:hidden;max-width:100vw}
 
-  .board{grid-template-columns:1fr}
+  .board{
+    display:flex;flex-direction:row;
+    overflow-x:auto;-webkit-overflow-scrolling:touch;
+    gap:10px;padding:12px;
+    scroll-snap-type:x mandatory;
+    scrollbar-width:none;
+  }
+  .board::-webkit-scrollbar{display:none}
+  .board > *{
+    flex:0 0 82vw;max-width:340px;
+    scroll-snap-align:start;
+  }
   .mfrow,.mfrow3{grid-template-columns:1fr}
   .ws-grid{grid-template-columns:1fr}
 
@@ -4729,6 +4741,7 @@ document.addEventListener('keydown', e => {
 
   if (e.key === 'Escape') {
     if (selectedTaskIds.size > 0) { clearSelection(); return; }
+    if (gmailOpen) { closeGmailPanel(); return; }
     closeTaskModal(); closeWsModal(); closeTeamModal(); closeShortcutsModal();
   }
 
@@ -4895,15 +4908,45 @@ async function fetchTodayCalendarEvents(dateStr) {
   const tMin = new Date(base.getFullYear(), base.getMonth(), base.getDate()).toISOString();
   const tMax = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 23, 59, 59).toISOString();
   try {
-    const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(tMin)}&timeMax=${encodeURIComponent(tMax)}&singleEvents=true&orderBy=startTime&maxResults=20`,
+    // Get all calendars the user has access to
+    const calListRes = await fetch(
+      'https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=50',
       { headers: { Authorization: 'Bearer ' + gmailToken } }
     );
-    if (res.status === 401) { gmailToken = null; sessionStorage.removeItem('gmailToken'); return null; }
-    if (res.status === 403) return 'no-scope'; // signed in but missing calendar scope
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.items || [];
+    if (calListRes.status === 401) { gmailToken = null; sessionStorage.removeItem('gmailToken'); return null; }
+    if (calListRes.status === 403) return 'no-scope';
+    if (!calListRes.ok) return null;
+    const calList = await calListRes.json();
+    const calIds = (calList.items || [])
+      .filter(c => c.selected !== false && c.accessRole !== 'freeBusyReader')
+      .map(c => c.id);
+
+    // Fetch events from all calendars in parallel
+    const results = await Promise.all(calIds.map(async calId => {
+      try {
+        const r = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?timeMin=${encodeURIComponent(tMin)}&timeMax=${encodeURIComponent(tMax)}&singleEvents=true&orderBy=startTime&maxResults=50`,
+          { headers: { Authorization: 'Bearer ' + gmailToken } }
+        );
+        if (!r.ok) return [];
+        const d = await r.json();
+        return (d.items || []).map(ev => ({ ...ev, _calId: calId }));
+      } catch { return []; }
+    }));
+
+    // Merge, deduplicate by id, sort by start time
+    const seen = new Set();
+    const all = results.flat().filter(ev => {
+      if (seen.has(ev.id)) return false;
+      seen.add(ev.id);
+      return ev.status !== 'cancelled';
+    });
+    all.sort((a, b) => {
+      const at = a.start?.dateTime || a.start?.date || '';
+      const bt = b.start?.dateTime || b.start?.date || '';
+      return at < bt ? -1 : 1;
+    });
+    return all;
   } catch { return null; }
 }
 
