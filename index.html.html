@@ -1226,6 +1226,8 @@ textarea.fi{resize:vertical;min-height:72px}
 .profile-stat-lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
 .profile-edit-form{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:4px;display:flex;flex-direction:column;gap:10px}
 .profile-edit-label{font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.profile-detail-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+.profile-detail-chip{display:flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;color:var(--t2)}
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -1586,7 +1588,7 @@ textarea.fi{resize:vertical;min-height:72px}
             <label>Avatar Color</label>
             <input type="color" class="fi" id="newMemberColor" value="#4F46E5" style="padding:4px;height:36px;cursor:pointer">
           </div>
-          <div class="mf">
+          <div class="mf" id="newMemberBirthdayWrap" style="display:none">
             <label>Birthday <span style="font-weight:400;color:var(--t3)">(optional)</span></label>
             <input type="date" class="fi" id="newMemberBirthday" title="Birthday">
           </div>
@@ -2638,7 +2640,9 @@ function renderDaily() {
         <div class="daily-section">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
             <h2 style="margin:0">🗓 Today's Schedule</h2>
-            ${!gmailToken ? `<button class="btn-ghost" style="font-size:11px;padding:4px 10px;display:flex;align-items:center;gap:5px" onclick="gmailSignIn()" title="Connect Google Calendar">📅 Connect Calendar</button>` : ''}
+            ${gmailToken
+              ? `<span style="font-size:11px;color:#059669;display:flex;align-items:center;gap:4px">✓ Calendar synced</span>`
+              : `<button class="btn-ghost" style="font-size:11px;padding:4px 10px;display:flex;align-items:center;gap:5px" onclick="gmailSignIn()">📅 Connect Calendar</button>`}
           </div>
           <div id="schedGrid"></div>
         </div>
@@ -2762,8 +2766,8 @@ function renderTeamPulse() {
     return `
       <div class="pulse-member-card">
         <div style="display:flex;align-items:center;gap:8px">
-          <div style="width:28px;height:28px;border-radius:50%;background:${avatarColor(m.name)};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${esc(initials(m.name))}</div>
-          <div class="pulse-member-name">${esc(m.name)}</div>
+          <div style="width:28px;height:28px;border-radius:50%;background:${avatarColor(m.name)};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;cursor:pointer" onclick="openProfileModal('${esc(m.name)}')">${esc(initials(m.name))}</div>
+          <div class="pulse-member-name" style="cursor:pointer" onclick="openProfileModal('${esc(m.name)}')">${esc(m.name)}</div>
         </div>
         <div class="pulse-member-rate" style="color:${rateColor}">${rate}%</div>
         <div class="pulse-member-stat">${open} open · ${overdue ? `<span style="color:#DC2626">${overdue} overdue</span>` : '0 overdue'}</div>
@@ -2780,7 +2784,7 @@ function renderTeamPulse() {
         const ageDays = Math.floor((now - new Date(t.createdAt)) / 86400000);
         return `<div class="pulse-stale-row">
           <span style="flex:1;font-weight:600;color:var(--t1)">${esc(t.name.slice(0, 50))}</span>
-          <span style="color:var(--t3)">${esc(t.assignee)}</span>
+          <span style="color:var(--t3);cursor:pointer" onclick="openProfileModal('${esc(t.assignee)}')">${esc(t.assignee)}</span>
           <span style="color:#D97706;font-weight:600">${ageDays}d</span>
           <button class="pulse-nudge-btn" style="margin-top:0" onclick="nudgeTask('${t.id}')">Nudge</button>
         </div>`;
@@ -4313,6 +4317,14 @@ function closeProfileModal() {
   document.getElementById('profileOverlay').classList.remove('open');
 }
 
+function _fmtBirthday(bd) {
+  if (!bd) return '';
+  try {
+    const d = new Date(bd + 'T12:00:00');
+    return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+  } catch { return ''; }
+}
+
 function renderProfileModal() {
   const name = _profileViewName;
   const m = getMember(name) || { name, role: '', color: '', bio: '', trivia: '' };
@@ -4332,8 +4344,13 @@ function renderProfileModal() {
 
   const triviaList = (m.trivia || '').split(',').map(s => s.trim()).filter(Boolean);
   const triviaHTML = triviaList.length
-    ? triviaList.map(t => `<span class="profile-trivia-pill">${esc(t)}</span>`).join('')
-    : (isMe ? `<span style="font-size:12px;color:var(--t3)">Add some fun facts below ↓</span>` : `<span style="font-size:12px;color:var(--t3)">No trivia yet</span>`);
+    ? triviaList.map(t => `<span class="profile-trivia-pill">😤 ${esc(t)}</span>`).join('')
+    : (isMe ? `<span style="font-size:12px;color:var(--t3)">Add your pet peeves below ↓</span>` : `<span style="font-size:12px;color:var(--t3)">No pet peeves listed</span>`);
+
+  const bdFmt = _fmtBirthday(m.birthday);
+  const detailChips = [
+    bdFmt ? `<span class="profile-detail-chip">🎂 ${esc(bdFmt)}</span>` : ''
+  ].filter(Boolean).join('');
 
   document.getElementById('profileModalTitle').textContent = isMe ? 'My Profile' : name + "'s Profile";
   document.getElementById('profileModalBody').innerHTML = `
@@ -4344,8 +4361,9 @@ function renderProfileModal() {
         <div class="profile-role">${esc(m.role || 'Team Member')}</div>
       </div>
     </div>
-    ${m.bio ? `<div class="profile-bio">${esc(m.bio)}</div>` : (isMe ? `<div class="profile-bio" style="color:var(--t3);font-style:italic">Tell the team a little about yourself…</div>` : '')}
-    <div class="profile-trivia">${triviaHTML}</div>
+    ${m.bio ? `<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">🍜 Favourite Food</div><div class="profile-bio" style="margin:0">${esc(m.bio)}</div></div>` : (isMe ? `<div class="profile-bio" style="color:var(--t3);font-style:italic">Add your favourite food below ↓</div>` : '')}
+    ${detailChips ? `<div class="profile-detail-row">${detailChips}</div>` : (isMe ? `<div class="profile-detail-row"><span style="font-size:12px;color:var(--t3)">Add your birthday below ↓</span></div>` : '')}
+    ${triviaList.length ? `<div style="margin-bottom:16px"><div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">😤 Pet Peeves</div><div class="profile-trivia" style="margin:0">${triviaHTML}</div></div>` : `<div class="profile-trivia">${triviaHTML}</div>`}
     <div class="profile-stats-grid">
       <div class="profile-stat">
         <div class="profile-stat-val" style="color:${rateColor}">${rate}%</div>
@@ -4362,24 +4380,68 @@ function renderProfileModal() {
     </div>
     ${isMe ? `
     <div class="profile-edit-form">
-      <div>
-        <div class="profile-edit-label">About me</div>
-        <textarea class="fi" id="profileBio" rows="2" placeholder="e.g. Based in Singapore · Love long-distance running" style="resize:none">${esc(m.bio||'')}</textarea>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+        <div class="profile-edit-label" style="align-self:flex-start">Profile photo</div>
+        <div style="position:relative;width:80px;height:80px;cursor:pointer" onclick="document.getElementById('profilePhotoFile').click()" title="Tap to change photo">
+          ${m.photo
+            ? `<img id="profilePhotoPreview" src="${esc(m.photo)}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid var(--border)" onerror="this.outerHTML='<div id=profilePhotoPreview style=\\'width:80px;height:80px;border-radius:50%;background:${col};display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff\\'>${esc(initials(name))}</div>'">`
+            : `<div id="profilePhotoPreview" style="width:80px;height:80px;border-radius:50%;background:${col};display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff">${esc(initials(name))}</div>`}
+          <div style="position:absolute;bottom:0;right:0;width:26px;height:26px;background:#6366F1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;border:2px solid var(--card)">📷</div>
+        </div>
+        <span style="font-size:11px;color:var(--t3)">Tap photo to upload</span>
+        <input type="file" id="profilePhotoFile" accept="image/*" style="display:none" onchange="profilePhotoUpload(this)">
+        <input type="hidden" id="profilePhotoData" value="">
       </div>
       <div>
-        <div class="profile-edit-label">Fun facts <span style="font-weight:400;color:var(--t3)">(comma-separated)</span></div>
-        <input class="fi" id="profileTrivia" value="${esc(m.trivia||'')}" placeholder="e.g. Loves hiking, Fluent in 3 languages, Spurs fan">
+        <div class="profile-edit-label">My Favourite Food</div>
+        <textarea class="fi" id="profileBio" rows="2" placeholder="e.g. Hainanese chicken rice, anything spicy" style="resize:none">${esc(m.bio||'')}</textarea>
+      </div>
+      <div>
+        <div class="profile-edit-label">Birthday</div>
+        <input class="fi" id="profileBirthday" type="date" value="${esc(m.birthday||'')}">
+      </div>
+      <div>
+        <div class="profile-edit-label">Pet Peeves <span style="font-weight:400;color:var(--t3)">(comma-separated)</span></div>
+        <input class="fi" id="profileTrivia" value="${esc(m.trivia||'')}" placeholder="e.g. Slow Wi-Fi, Late replies, Noisy chewing">
       </div>
       <button class="btn-add" style="align-self:flex-start" onclick="saveMyProfile()">Save profile</button>
     </div>` : ''}
   `;
 }
 
+function profilePhotoUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      const max = 200;
+      let w = img.width, h = img.height;
+      if (w > h) { if (w > max) { h = Math.round(h * max / w); w = max; } }
+      else        { if (h > max) { w = Math.round(w * max / h); h = max; } }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const data = canvas.toDataURL('image/jpeg', 0.82);
+      document.getElementById('profilePhotoData').value = data;
+      const preview = document.getElementById('profilePhotoPreview');
+      if (preview.tagName === 'IMG') { preview.src = data; }
+      else { preview.outerHTML = `<img id="profilePhotoPreview" src="${data}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid var(--border)">`; }
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function saveMyProfile() {
   const m = getMember(state.currentUser);
   if (!m) return;
-  m.bio    = (document.getElementById('profileBio')?.value  || '').trim();
-  m.trivia = (document.getElementById('profileTrivia')?.value || '').trim();
+  const photoData = (document.getElementById('profilePhotoData')?.value || '').trim();
+  if (photoData) m.photo = photoData;
+  m.bio      = (document.getElementById('profileBio')?.value      || '').trim();
+  m.birthday = (document.getElementById('profileBirthday')?.value || '').trim();
+  m.trivia   = (document.getElementById('profileTrivia')?.value   || '').trim();
   persist();
   renderProfileModal();
   toast('Profile saved ✓');
@@ -4390,6 +4452,7 @@ function openTeamModal() {
   document.getElementById('newMemberName').value = '';
   document.getElementById('todoistTokenInput').value = _todoistToken;
   renderTodoistStatus();
+  document.getElementById('newMemberBirthdayWrap').style.display = state.currentUser === 'Victor' ? '' : 'none';
   document.getElementById('teamOverlay').classList.add('open');
   setTimeout(() => document.getElementById('newMemberName').focus(), 80);
 }
@@ -4415,8 +4478,8 @@ function renderTeamMemberList() {
         ${['VP','AVP','Senior Associate','Associate','Senior Analyst','Analyst','Intern','Others'].map(r =>
           `<option ${m.role===r?'selected':''}>${r}</option>`).join('')}
       </select>
-      <input class="fi" type="date" title="Birthday (year ignored)" style="width:130px;padding:4px 8px;height:28px"
-        value="${esc(m.birthday||'')}" onchange="updateMemberField('${esc(m.name)}','birthday',this.value)">
+      ${state.currentUser === 'Victor' ? `<input class="fi" type="date" title="Birthday (year ignored)" style="width:130px;padding:4px 8px;height:28px"
+        value="${esc(m.birthday||'')}" onchange="updateMemberField('${esc(m.name)}','birthday',this.value)">` : ''}
       ${team.length > 1
         ? `<button class="btn-sm" style="color:#EF4444;border-color:#FECACA;flex-shrink:0" onclick="removeMember('${esc(m.name)}')">✕</button>`
         : ''}
@@ -4842,27 +4905,10 @@ function calEventHTML(ev) {
 }
 
 async function loadCalendarForDaily() {
-  const el = document.getElementById('calSection');
-  if (!el) return;
-  if (!gmailToken) {
-    el.innerHTML = `<div class="cal-connect-hint">Connect Gmail + Calendar above to see today's schedule here.</div>`;
-    return;
-  }
-  el.innerHTML = `<div class="cal-connect-hint" style="color:var(--t3)">Loading schedule…</div>`;
+  if (!gmailToken) return;
   const events = await fetchTodayCalendarEvents();
-  if (events === 'no-scope') {
-    el.innerHTML = `<div class="cal-connect-hint">
-      Calendar access not granted yet.
-      <button class="btn-cal" style="margin-top:8px;display:inline-flex" onclick="gmailSignIn()">Grant Calendar Access</button>
-    </div>`;
-    return;
-  }
-  if (!events || !events.length) {
-    el.innerHTML = `<div class="cal-connect-hint">No events today — enjoy the clear schedule!</div>`;
-    return;
-  }
+  if (!events || events === 'no-scope' || !events.length) return;
   _calEvents = events;
-  el.innerHTML = events.map(calEventHTML).join('');
   renderScheduleGrid();
 }
 
@@ -4923,6 +4969,7 @@ let gmailOpen  = false;
     const _ti = await fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + _stored).then(r => r.json());
     if ((_ti.scope||'').includes('gmail') && (_ti.aud||'').startsWith(GMAIL_CLIENT_ID.split('-')[0])) {
       gmailToken = _stored;
+      if (state.view === 'daily') { renderDaily(); loadCalendarForDaily(); }
     } else { sessionStorage.removeItem('gmailToken'); }
   } catch { sessionStorage.removeItem('gmailToken'); }
 })();
@@ -5135,6 +5182,7 @@ function gmailSignIn() {
       </div>`;
     document.getElementById('gmailFooter').style.display = 'flex';
     if (btn) { btn.textContent = 'Sign in with Google'; btn.disabled = false; }
+    if (state.view === 'daily') { renderDaily(); loadCalendarForDaily(); }
   }
 
   // Use Google Identity Services token client — works from any origin, no redirect needed
@@ -5206,6 +5254,7 @@ async function gmailHandleCallback() {
     </div>`;
   document.getElementById('gmailFooter').style.display = 'flex';
   toggleGmailPanel();
+  if (state.view === 'daily') { renderDaily(); loadCalendarForDaily(); }
 }
 
 async function gmailScanInbox() {
