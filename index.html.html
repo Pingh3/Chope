@@ -3573,9 +3573,14 @@ function _calEventsForHour(h) {
   const hour = parseInt(h);
   return _calEvents.filter(ev => {
     if (!ev.start?.dateTime) return false;
-    const start = new Date(ev.start.dateTime).getHours();
-    const end   = ev.end?.dateTime ? new Date(ev.end.dateTime).getHours() : start + 1;
-    return start <= hour && hour < end;
+    const startDt = new Date(ev.start.dateTime);
+    const endDt   = ev.end?.dateTime ? new Date(ev.end.dateTime) : null;
+    const start = startDt.getHours();
+    // Use ceiling of end minutes so a 3:00–3:30 meeting shows at hour 15, not dropped
+    const end = endDt
+      ? Math.ceil((endDt.getHours() * 60 + endDt.getMinutes()) / 60)
+      : start + 1;
+    return start <= hour && hour < Math.max(end, start + 1);
   });
 }
 
