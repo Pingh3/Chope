@@ -92,6 +92,40 @@
 /* Plan pills */
 [data-theme="dark"] .plan-pill{background:var(--col);border-color:var(--border);color:var(--t2)}
 [data-theme="dark"] .plan-pill:hover{background:#2A2A28}
+/* ── Dark mode: elements using var(--t1) as bg (invisible when t1=near-white) ── */
+[data-theme="dark"] .btn-add{background:var(--p);color:#fff}
+[data-theme="dark"] .btn-add:hover{background:var(--p-hover)}
+[data-theme="dark"] .fpill.active{background:var(--p);color:#fff;border-color:var(--p)}
+[data-theme="dark"] .fpill:hover:not(.active){background:var(--col);color:var(--t1)}
+[data-theme="dark"] .fb-active-pill{background:var(--p);color:#fff}
+[data-theme="dark"] .fpill{color:var(--t2);border-color:var(--border)}
+/* Feedback panel */
+[data-theme="dark"] .fb-submit{background:var(--p);color:#fff}
+[data-theme="dark"] .fb-submit:hover{background:var(--p-hover)}
+[data-theme="dark"] .fb-item-reply{background:var(--col);border-color:var(--p)}
+/* Schedule duration pill */
+[data-theme="dark"] .sched-dur{background:rgba(99,102,241,.2);color:#A5B4FC}
+[data-theme="dark"] .sched-row.sched-now .sched-cal-ev{background:rgba(99,102,241,.15)}
+/* Carry-over schedule chip */
+[data-theme="dark"] .sched-chip[style*="background:#FFFBEB"]{background:#2D2000!important}
+/* Moved badge */
+[data-theme="dark"] .dl-moved-badge{background:#2D1C00;border-color:#78350F;color:#FDE68A}
+/* Priority pills */
+[data-theme="dark"] .prio-pill.high{background:#3B0F0F;color:#F87171;border-color:#7F1D1D}
+[data-theme="dark"] .prio-pill.med{background:#2D1E00;color:#FBBF24;border-color:#92400E}
+[data-theme="dark"] .prio-pill.low{background:#052E16;color:#4ADE80;border-color:#14532D}
+/* Workstream chip */
+[data-theme="dark"] .ws-chip{background:rgba(99,102,241,.18);color:#A5B4FC}
+/* Duplicate warning */
+[data-theme="dark"] .dup-warn{background:#2D1E00;border-color:#92400E;color:#FDE68A}
+[data-theme="dark"] .card-dup-flag{background:#2D1C00;color:#FDE68A;border-color:#78350F}
+/* Notification panel */
+[data-theme="dark"] .np-item.handoff.unread{background:#2A1800}
+[data-theme="dark"] .np-item.handoff.unread:hover{background:#3A2200}
+[data-theme="dark"] .np-item.nudge.unread{background:#1E1530}
+[data-theme="dark"] .np-item.nudge.unread:hover{background:#2A1E40}
+/* Handoff note bubble */
+[data-theme="dark"] .note-item.is-handoff .note-bubble{background:#2A1800;border-color:#92400E}
 
 /* ── Theme toggle button ──────────────────────────────────── */
 .theme-toggle{
