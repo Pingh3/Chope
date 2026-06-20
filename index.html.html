@@ -49,25 +49,25 @@
 
 /* ── Dark mode ────────────────────────────────────────────── */
 [data-theme="dark"] {
-  --bg:#111110;
-  --col:#1C1C1A;
-  --card:#1A1A18;
-  --hdr:#161614;
-  --border:#2E2E2A;
-  --t1:#EEECEA;
-  --t2:#8A8A82;
-  --t3:#5A5A54;
-  --accent:#EEECEA;
-  --sh:0 1px 4px rgba(0,0,0,.5);
-  --sh-md:0 4px 14px rgba(0,0,0,.65);
-  --sh-lg:0 12px 36px rgba(0,0,0,.85);
+  --bg:#202020;
+  --col:#2A2A2A;
+  --card:#303030;
+  --hdr:#252525;
+  --border:#424242;
+  --t1:#F0EDEA;
+  --t2:#B0ADA8;
+  --t3:#888480;
+  --accent:#F0EDEA;
+  --sh:0 1px 4px rgba(0,0,0,.35);
+  --sh-md:0 4px 14px rgba(0,0,0,.45);
+  --sh-lg:0 12px 36px rgba(0,0,0,.6);
 }
 /* Primary button uses accent colour in dark mode (--t1 is near-white → invisible on white button) */
 [data-theme="dark"] .btn-primary{background:var(--p);color:#fff}
 [data-theme="dark"] .btn-primary:hover{filter:brightness(1.18);background:var(--p)}
 /* Danger button */
-[data-theme="dark"] .btn-danger{background:#3A1010;color:#FCA5A5;border-color:#7F1D1D}
-[data-theme="dark"] .btn-danger:hover{background:#4A1A1A}
+[data-theme="dark"] .btn-danger{background:#4A1A1A;color:#FCA5A5;border-color:#9B2222}
+[data-theme="dark"] .btn-danger:hover{background:#5A2020}
 /* Inputs get col background so they read distinct from card */
 [data-theme="dark"] .fi{background:var(--col);color:var(--t1)}
 [data-theme="dark"] .fi option{background:var(--col)}
@@ -76,17 +76,17 @@
 /* Column count badge (was rgba black, invisible on dark bg) */
 [data-theme="dark"] .kol-count{background:rgba(255,255,255,.08);color:var(--t3)}
 /* Login card */
-[data-theme="dark"] .login-google-btn{background:#1F1F1D;color:var(--t1);border-color:var(--border)}
+[data-theme="dark"] .login-google-btn{background:#2A2A2A;color:var(--t1);border-color:var(--border)}
 [data-theme="dark"] .login-google-btn:hover{background:var(--col);border-color:var(--p)}
 /* Monday banner */
-[data-theme="dark"] .mon-banner{background:#1C1500;border-color:#92400E}
+[data-theme="dark"] .mon-banner{background:#2E2200;border-color:#A0500E}
 [data-theme="dark"] .mon-banner-title{color:#FDE68A}
-[data-theme="dark"] .mon-banner-msg{color:#FCD34D}
-[data-theme="dark"] .mon-banner-task{background:#2A1D00;color:#FDE68A}
-[data-theme="dark"] .mon-banner-task:hover{background:#3A2800}
-[data-theme="dark"] .mon-banner-btn-ghost{border-color:#78350F;color:#FDE68A}
+[data-theme="dark"] .mon-banner-msg{color:#FDE68A}
+[data-theme="dark"] .mon-banner-task{background:#3A2C00;color:#FDE68A}
+[data-theme="dark"] .mon-banner-task:hover{background:#4A3800}
+[data-theme="dark"] .mon-banner-btn-ghost{border-color:#92400E;color:#FDE68A}
 /* Handoff note bubble */
-[data-theme="dark"] .note-item.is-handoff .note-bubble{background:#1A1000;border-color:#92400E}
+[data-theme="dark"] .note-item.is-handoff .note-bubble{background:#2E2200;border-color:#A0500E}
 /* Board quote */
 [data-theme="dark"] .board-quote{background:var(--card);border-color:var(--border)}
 /* Plan pills */
