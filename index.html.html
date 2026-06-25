@@ -1906,7 +1906,7 @@ async function load() {
 function persist() {
   const savedAt = Date.now();
   _lastLocalWrite = savedAt;
-  localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, activityLog, savedAt }));
+  try { localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, activityLog, savedAt })); } catch(e) { console.warn('localStorage write failed:', e); }
   try { bc.postMessage({ tasks, workstreams, team, activityLog, savedAt }); } catch {}
   // Firestore write — fire and forget
   if (window._chopeFb) {
@@ -3463,7 +3463,9 @@ function saveTask() {
       (!syncTask.startDate || syncTask.startDate === todayStr)) {
     autoScheduleTask(syncTask.id, syncTask.durationHours);
   }
-  persist(); renderAll(); closeTaskModal();
+  try { persist(); } catch(e) { console.error('persist error:', e); }
+  try { renderAll(); } catch(e) { console.error('renderAll error:', e); }
+  closeTaskModal();
   if (syncTask) _tdSync(syncTask);
 }
 
