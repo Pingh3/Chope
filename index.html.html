@@ -127,6 +127,24 @@
 /* Handoff note bubble */
 [data-theme="dark"] .note-item.is-handoff .note-bubble{background:#2A1800;border-color:#92400E}
 
+/* ── Slide-in panel task rows ─────────────────────────────── */
+.panel-task-row{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;border:1px solid var(--border);
+  border-radius:8px;margin-bottom:7px;cursor:pointer;
+  background:var(--card);transition:background .12s;
+}
+.panel-task-row:hover{background:var(--col)}
+.panel-check{
+  width:22px;height:22px;border-radius:50%;flex-shrink:0;
+  border:2px solid var(--border);background:transparent;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all .15s;padding:0;color:transparent;
+}
+.panel-check:hover{border-color:#22C55E;background:rgba(34,197,94,.1);color:#22C55E}
+.panel-check.checked{background:#22C55E;border-color:#22C55E;color:#fff}
+.panel-check svg{width:10px;height:10px}
+
 /* ── Theme toggle button ──────────────────────────────────── */
 .theme-toggle{
   width:30px;height:30px;border-radius:50%;
@@ -2841,9 +2859,9 @@ function getStats() {
 function renderHeader() {
   const s = getStats();
   document.getElementById('hdrStats').innerHTML =
-    `<div class="stat-chip">Tasks: <span>${s.total}</span></div>` +
-    `<div class="stat-chip${s.ip?' clickable':''}${s.ip?' blue':''}" ${s.ip?'onclick="openInProgressPanel()" style="cursor:pointer" title="Click to see in-progress tasks"':''}>In progress: <span>${s.ip}</span></div>` +
-    `<div class="stat-chip ${s.over?'red':''}" ${s.over?'onclick="openOverduePanel()" style="cursor:pointer" title="Click to see overdue tasks"':''}>Overdue: <span>${s.over}</span></div>`;
+    `<div class="stat-chip clickable" onclick="openOpenTasksPanel()" style="cursor:pointer" title="Click to see all open tasks">Tasks: <span>${s.total}</span></div>` +
+    `<div class="stat-chip clickable blue" onclick="openInProgressPanel()" style="cursor:pointer" title="Click to see in-progress tasks">In progress: <span>${s.ip}</span></div>` +
+    `<div class="stat-chip ${s.over?'red clickable':''}" ${s.over?'onclick="openOverduePanel()" style="cursor:pointer" title="Click to see overdue tasks"':''}>Overdue: <span>${s.over}</span></div>`;
 
   if (!state.currentUser && team.length) state.currentUser = team[0].name;
 
@@ -3593,14 +3611,22 @@ function renderDaily() {
         <div class="daily-card-value">${myTasks.length}</div>
         <div class="daily-card-sub">${myDone.length} completed · click to view</div>
       </div>
-      <div class="daily-card">
+      ${(() => {
+        const myIP = myTasks.filter(t => t.status === 'inprogress');
+        return `<div class="daily-card" style="cursor:pointer" onclick="openInProgressPanel('${esc(subject)}')" title="Click to see in-progress tasks">
+          <div class="daily-card-label">${isMe ? 'In Progress' : esc(subject.split(' ')[0]) + ' In Progress'}</div>
+          <div class="daily-card-value" style="color:#2563EB">${myIP.length}</div>
+          <div class="daily-card-sub">active tasks · click to view</div>
+        </div>`;
+      })()}
+      <div class="daily-card" style="cursor:pointer" onclick="openCompletedPanel('${esc(subject)}')" title="Click to see completed tasks">
         <div class="daily-card-label">${isMe ? 'My Completion Rate' : 'Completion Rate'}</div>
         <div class="daily-card-value" style="color:${myRate>=70?'#059669':'#D97706'}">${myRate}%</div>
-        <div class="daily-card-sub">${myTotal} total tasks assigned</div>
+        <div class="daily-card-sub">${myTotal} total assigned · click to view</div>
       </div>
       <div class="daily-card" ${(() => { const myOver = myTasks.filter(t => t.deadline && t.deadline < todayStr).length; return myOver ? `onclick="openOverduePanel('${esc(subject)}')" style="cursor:pointer" title="Click to see overdue tasks"` : ''; })()}>
         <div class="daily-card-label">${isMe ? 'My Overdue' : 'Overdue'}</div>
-        ${(() => { const myOver = myTasks.filter(t => t.deadline && t.deadline < todayStr).length; return `<div class="daily-card-value" style="color:${myOver?'#DC2626':'#059669'}">${myOver}</div><div class="daily-card-sub">${myOver ? myOver + ' past deadline — click to view' : 'All on track ✓'}</div>`; })()}
+        ${(() => { const myOver = myTasks.filter(t => t.deadline && t.deadline < todayStr).length; return `<div class="daily-card-value" style="color:${myOver?'#DC2626':'#059669'}">${myOver}</div><div class="daily-card-sub">${myOver ? myOver + ' past deadline · click to view' : 'All on track ✓'}</div>`; })()}
       </div>
     </div>
 
@@ -5056,50 +5082,69 @@ function closeNotifPanel() {
   document.getElementById('notifPanel').classList.remove('open');
 }
 
+/* ── Shared panel task row (theme-aware, no hardcoded light colors) ── */
+function _panelTaskRow(t, todayStr, mode) {
+  const cat   = CATEGORIES[t.cat] || { label: t.cat, color:'#6366F1' };
+  const aCol  = avatarColor(t.assignee);
+  const isDone = t.status === 'done';
+  const isOverdue = !isDone && t.deadline && t.deadline < todayStr;
+  const daysOver = isOverdue ? Math.floor((new Date(todayStr) - new Date(t.deadline)) / 86400000) : 0;
+  const prioBorder = PRIO_COLORS[t.priority] || 'var(--border)';
+
+  let deadlineBadge = '';
+  if (t.deadline) {
+    if (isOverdue) deadlineBadge = `<span style="font-size:11px;color:#EF4444;font-weight:600">📅 ${fmtDate(t.deadline)} · ${daysOver}d overdue</span>`;
+    else deadlineBadge = `<span style="font-size:11px;color:var(--t3)">📅 ${fmtDate(t.deadline)}</span>`;
+  }
+  const statusMap = { todo:'To Do', inprogress:'In Progress', blocked:'Blocked', done:'Done' };
+  const statusBadge = mode === 'open'
+    ? `<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:${t.status==='inprogress'?'rgba(37,99,235,.12)':t.status==='blocked'?'rgba(220,38,38,.12)':'var(--col)'};color:${t.status==='inprogress'?'#2563EB':t.status==='blocked'?'#DC2626':'var(--t3)'}">${statusMap[t.status]||t.status}</span>`
+    : '';
+
+  const checkFn = isDone ? `toggleDoneInPanel('${t.id}')` : `toggleDoneInPanel('${t.id}')`;
+  return `<div onclick="openTaskModal('${t.id}');closeOverduePanel()" class="panel-task-row">
+    <button class="panel-check ${isDone?'checked':''}" onclick="${checkFn};event.stopPropagation()" title="${isDone?'Mark incomplete':'Mark complete'}">
+      <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
+    </button>
+    <div style="width:3px;align-self:stretch;border-radius:3px;background:${prioBorder};flex-shrink:0"></div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${isDone?'text-decoration:line-through;opacity:.6':''}">${esc(t.name)}</div>
+      <div style="display:flex;gap:6px;margin-top:4px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--col);color:${cat.color};font-weight:600">${esc(cat.label)}</span>
+        ${statusBadge}
+        ${deadlineBadge}
+      </div>
+    </div>
+    <div style="width:26px;height:26px;border-radius:50%;background:${aCol};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0" title="${esc(t.assignee)}">${esc(initials(t.assignee))}</div>
+  </div>`;
+}
+
 function openOverduePanel(filterUser) {
   const todayStr = todayLocal();
   let overdue = tasks.filter(t => t.status !== 'done' && t.deadline && t.deadline < todayStr);
   if (filterUser) overdue = overdue.filter(t => t.assignee === filterUser);
   overdue.sort((a,b) => (a.deadline < b.deadline ? -1 : 1) || ({high:0,med:1,low:2}[a.priority]??1) - ({high:0,med:1,low:2}[b.priority]??1));
-  const title = filterUser ? `⚠ ${filterUser}'s Overdue Tasks` : `⚠ Overdue Tasks`;
   const titleEl = document.getElementById('overduePanelTitle');
-  titleEl.textContent = title + (overdue.length ? ` (${overdue.length})` : '');
+  titleEl.textContent = `⚠ ${filterUser ? filterUser + "'s " : ''}Overdue Tasks (${overdue.length})`;
   titleEl.style.color = '#DC2626';
   const body = document.getElementById('overduePanelBody');
-  if (!overdue.length) {
-    body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--t3);font-size:13px">No overdue tasks 🎉</div>';
-  } else {
-    body.innerHTML = overdue.map(t => {
-      const cat = CATEGORIES[t.cat] || { label: t.cat, color:'#999', bg:'#F9F9F9' };
-      const daysOver = Math.floor((new Date(todayStr) - new Date(t.deadline)) / 86400000);
-      const aCol = avatarColor(t.assignee);
-      return `<div onclick="openTaskModal('${t.id}');closeOverduePanel()" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #FECACA;border-radius:8px;margin-bottom:8px;cursor:pointer;background:#FFF5F5;transition:background .12s" onmouseover="this.style.background='#FEE2E2'" onmouseout="this.style.background='#FFF5F5'">
-        <button class="row-check" onclick="toggleDoneInPanel('${t.id}');event.stopPropagation()" title="Mark complete" style="flex-shrink:0">
-          <svg viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
-        </button>
-        <div style="width:4px;align-self:stretch;border-radius:4px;background:${PRIO_COLORS[t.priority]};flex-shrink:0"></div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</div>
-          <div style="display:flex;gap:8px;margin-top:3px;align-items:center;flex-wrap:wrap">
-            <span style="font-size:10px;padding:1px 7px;border-radius:10px;background:${cat.bg};color:${cat.color}">${esc(cat.label)}</span>
-            <span style="font-size:11px;color:#DC2626;font-weight:600">📅 ${fmtDate(t.deadline)} · ${daysOver}d overdue</span>
-          </div>
-        </div>
-        <div style="width:26px;height:26px;border-radius:50%;background:${aCol};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0" title="${esc(t.assignee)}">${esc(initials(t.assignee))}</div>
-      </div>`;
-    }).join('');
-  }
+  body.innerHTML = overdue.length
+    ? overdue.map(t => _panelTaskRow(t, todayStr, 'overdue')).join('')
+    : '<div style="text-align:center;padding:32px;color:var(--t3);font-size:13px">No overdue tasks 🎉</div>';
   document.getElementById('overduePanel').style.display = 'flex';
 }
 // Toggle done and refresh whichever slide-in panel is currently open
 function toggleDoneInPanel(id) {
   toggleTaskDone(id);
   const title = (document.getElementById('overduePanelTitle')?.textContent || '');
-  if (title.includes('⚠')) openOverduePanel();
-  else if (title.includes('🔄')) openInProgressPanel();
-  else if (title.includes('📋')) {
-    const match = title.match(/^📋\s(.+?)'s Open Tasks/);
-    openOpenTasksPanel(match ? match[1] : null);
+  if (title.includes('⚠')) {
+    const m = title.match(/⚠\s(.+?)'s\sOverdue/); openOverduePanel(m ? m[1] : null);
+  } else if (title.includes('🔄')) {
+    const m = title.match(/🔄\s(.+?)'s\sIn/); openInProgressPanel(m ? m[1] : null);
+  } else if (title.includes('📋')) {
+    const m = title.match(/📋\s(.+?)'s\sOpen/); openOpenTasksPanel(m ? m[1] : null);
+  } else if (title.includes('✅')) {
+    const m = title.match(/✅\s(.+?)'s\sCompleted/); openCompletedPanel(m ? m[1] : null);
   }
 }
 
@@ -5107,38 +5152,35 @@ function closeOverduePanel() {
   document.getElementById('overduePanel').style.display = 'none';
 }
 
-function openInProgressPanel() {
-  const ip = tasks.filter(t => t.status === 'inprogress');
+function openInProgressPanel(filterUser) {
+  let ip = tasks.filter(t => t.status === 'inprogress');
+  if (filterUser) ip = ip.filter(t => t.assignee === filterUser);
   ip.sort((a,b) => ({high:0,med:1,low:2}[a.priority]??1) - ({high:0,med:1,low:2}[b.priority]??1) || (a.deadline||'z').localeCompare(b.deadline||'z'));
   const titleEl = document.getElementById('overduePanelTitle');
-  titleEl.textContent = `🔄 In Progress Tasks (${ip.length})`;
+  titleEl.textContent = `🔄 ${filterUser ? filterUser + "'s " : ''}In Progress (${ip.length})`;
   titleEl.style.color = '#2563EB';
   const body = document.getElementById('overduePanelBody');
   if (!ip.length) {
     body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--t3);font-size:13px">No tasks in progress right now.</div>';
   } else {
     const todayStr = todayLocal();
-    body.innerHTML = ip.map(t => {
-      const cat = CATEGORIES[t.cat] || { label: t.cat, color:'#999', bg:'#F9F9F9' };
-      const aCol = avatarColor(t.assignee);
-      const deadlineBadge = t.deadline
-        ? `<span style="font-size:11px;color:${t.deadline<todayStr?'#DC2626':'var(--t3)'};font-weight:${t.deadline<todayStr?600:400}">📅 ${fmtDate(t.deadline)}</span>`
-        : '';
-      return `<div onclick="openTaskModal('${t.id}');closeOverduePanel()" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #BFDBFE;border-radius:8px;margin-bottom:8px;cursor:pointer;background:#EFF6FF;transition:background .12s" onmouseover="this.style.background='#DBEAFE'" onmouseout="this.style.background='#EFF6FF'">
-        <button class="row-check" onclick="toggleDoneInPanel('${t.id}');event.stopPropagation()" title="Mark complete" style="flex-shrink:0">
-          <svg viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
-        </button>
-        <div style="width:4px;align-self:stretch;border-radius:4px;background:${PRIO_COLORS[t.priority]};flex-shrink:0"></div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</div>
-          <div style="display:flex;gap:8px;margin-top:3px;align-items:center;flex-wrap:wrap">
-            <span style="font-size:10px;padding:1px 7px;border-radius:10px;background:${cat.bg};color:${cat.color}">${esc(cat.label)}</span>
-            ${deadlineBadge}
-          </div>
-        </div>
-        <div style="width:26px;height:26px;border-radius:50%;background:${aCol};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0" title="${esc(t.assignee)}">${esc(initials(t.assignee))}</div>
-      </div>`;
-    }).join('');
+    body.innerHTML = ip.map(t => _panelTaskRow(t, todayStr, 'ip')).join('');
+  }
+  document.getElementById('overduePanel').style.display = 'flex';
+}
+
+function openCompletedPanel(filterUser) {
+  let done = tasks.filter(t => t.status === 'done' && (!filterUser || t.assignee === filterUser));
+  done.sort((a,b) => (b.completedAt||b.updatedAt||'').localeCompare(a.completedAt||a.updatedAt||''));
+  const titleEl = document.getElementById('overduePanelTitle');
+  titleEl.textContent = `✅ ${filterUser ? filterUser + "'s " : ''}Completed (${done.length})`;
+  titleEl.style.color = '#059669';
+  const body = document.getElementById('overduePanelBody');
+  if (!done.length) {
+    body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--t3);font-size:13px">No completed tasks yet.</div>';
+  } else {
+    const todayStr = todayLocal();
+    body.innerHTML = done.map(t => _panelTaskRow(t, todayStr, 'done')).join('');
   }
   document.getElementById('overduePanel').style.display = 'flex';
 }
@@ -5147,41 +5189,13 @@ function openOpenTasksPanel(filterUser) {
   let open = tasks.filter(t => t.status !== 'done' && (!filterUser || t.assignee === filterUser));
   open.sort((a,b) => ({high:0,med:1,low:2}[a.priority]??1) - ({high:0,med:1,low:2}[b.priority]??1) || (a.deadline||'z').localeCompare(b.deadline||'z'));
   const titleEl = document.getElementById('overduePanelTitle');
-  const label = filterUser ? `${filterUser}'s Open Tasks` : 'All Open Tasks';
-  titleEl.textContent = `📋 ${label} (${open.length})`;
+  titleEl.textContent = `📋 ${filterUser ? filterUser + "'s " : ''}Open Tasks (${open.length})`;
   titleEl.style.color = 'var(--t1)';
   const body = document.getElementById('overduePanelBody');
   const todayStr = todayLocal();
-  if (!open.length) {
-    body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--t3);font-size:13px">No open tasks 🎉</div>';
-  } else {
-    body.innerHTML = open.map(t => {
-      const cat = CATEGORIES[t.cat] || { label: t.cat, color:'#999', bg:'#F9F9F9' };
-      const aCol = avatarColor(t.assignee);
-      const isOverdue = t.deadline && t.deadline < todayStr;
-      const statusColors = { todo:'#6B7280', inprogress:'#2563EB', blocked:'#DC2626' };
-      const statusLabels = { todo:'To Do', inprogress:'In Progress', blocked:'Blocked' };
-      const statusBadge = `<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:${t.status==='inprogress'?'#DBEAFE':t.status==='blocked'?'#FEE2E2':'#F3F4F6'};color:${statusColors[t.status]||'#6B7280'}">${statusLabels[t.status]||t.status}</span>`;
-      const deadlineBadge = t.deadline
-        ? `<span style="font-size:11px;color:${isOverdue?'#DC2626':'var(--t3)'};font-weight:${isOverdue?600:400}">📅 ${fmtDate(t.deadline)}${isOverdue?' ⚠':''}</span>`
-        : '';
-      return `<div onclick="openTaskModal('${t.id}');closeOverduePanel()" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;background:var(--bg);transition:background .12s" onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background='var(--bg)'">
-        <button class="row-check" onclick="toggleDoneInPanel('${t.id}');event.stopPropagation()" title="Mark complete" style="flex-shrink:0">
-          <svg viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
-        </button>
-        <div style="width:4px;align-self:stretch;border-radius:4px;background:${PRIO_COLORS[t.priority]};flex-shrink:0"></div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</div>
-          <div style="display:flex;gap:8px;margin-top:3px;align-items:center;flex-wrap:wrap">
-            <span style="font-size:10px;padding:1px 7px;border-radius:10px;background:${cat.bg};color:${cat.color}">${esc(cat.label)}</span>
-            ${statusBadge}
-            ${deadlineBadge}
-          </div>
-        </div>
-        <div style="width:26px;height:26px;border-radius:50%;background:${aCol};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0" title="${esc(t.assignee)}">${esc(initials(t.assignee))}</div>
-      </div>`;
-    }).join('');
-  }
+  body.innerHTML = open.length
+    ? open.map(t => _panelTaskRow(t, todayStr, 'open')).join('')
+    : '<div style="text-align:center;padding:32px;color:var(--t3);font-size:13px">No open tasks 🎉</div>';
   document.getElementById('overduePanel').style.display = 'flex';
 }
 
