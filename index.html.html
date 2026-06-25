@@ -1842,9 +1842,14 @@ let _lastLocalWrite = 0;
 
 async function load() {
   // localStorage first — instant paint while Firestore loads
+  let localSavedAt = 0;
   try {
     const d = JSON.parse(localStorage.getItem('chope_v2') || 'null');
-    if (d) { tasks = d.tasks || []; workstreams = d.workstreams || []; team = d.team || DEFAULT_TEAM; if (Array.isArray(d.activityLog)) activityLog = d.activityLog; }
+    if (d) {
+      tasks = d.tasks || []; workstreams = d.workstreams || []; team = d.team || DEFAULT_TEAM;
+      if (Array.isArray(d.activityLog)) activityLog = d.activityLog;
+      localSavedAt = d.savedAt || 0;
+    }
     else   { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; }
   } catch { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; }
 
@@ -1860,26 +1865,38 @@ async function load() {
       const snap = await getDoc(ref);
       if (snap.exists()) {
         const d = snap.data();
-        tasks = d.tasks || tasks;
-        workstreams = d.workstreams || workstreams;
-        team = d.team || team;
-        if (Array.isArray(d.activityLog)) activityLog = d.activityLog;
-        localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, activityLog }));
+        const firestoreSavedAt = d.savedAt || 0;
+        // Only use Firestore data if it's actually newer than what we have locally.
+        // This prevents a slow/pending write from being overwritten by stale server data.
+        if (firestoreSavedAt >= localSavedAt) {
+          tasks = d.tasks || tasks;
+          workstreams = d.workstreams || workstreams;
+          team = d.team || team;
+          if (Array.isArray(d.activityLog)) activityLog = d.activityLog;
+          localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, activityLog, savedAt: firestoreSavedAt }));
+        }
       } else {
         // First ever load — push local data to Firestore
-        await setDoc(ref, { tasks, workstreams, team, activityLog });
+        await setDoc(ref, { tasks, workstreams, team, activityLog, savedAt: localSavedAt });
       }
     } catch(e) { console.warn('Firestore load failed, falling back to localStorage', e); }
 
     // Real-time listener: fires when another device saves
     onSnapshot(ref, snap => {
-      if (!snap.exists() || Date.now() - _lastLocalWrite < 3000) return;
+      // Skip snapshots that reflect our own pending local write
+      if (!snap.exists() || snap.metadata.hasPendingWrites) return;
+      // Skip if we wrote recently — gives Firestore time to confirm our write
+      // so the incoming snapshot is definitely from a remote change, not our own
+      if (Date.now() - _lastLocalWrite < 8000) return;
       const d = snap.data();
+      const firestoreSavedAt = d.savedAt || 0;
+      // Only apply remote update if Firestore is actually newer than our local state
+      if (firestoreSavedAt <= _lastLocalWrite) return;
       tasks = d.tasks || [];
       workstreams = d.workstreams || [];
       team = d.team || DEFAULT_TEAM;
       if (Array.isArray(d.activityLog)) activityLog = d.activityLog;
-      localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, activityLog }));
+      localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, activityLog, savedAt: firestoreSavedAt }));
       renderAll();
       toast('🔄 Board updated by a colleague');
     });
@@ -1887,13 +1904,14 @@ async function load() {
 }
 
 function persist() {
-  localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, activityLog }));
-  try { bc.postMessage({ tasks, workstreams, team, activityLog }); } catch {}
+  const savedAt = Date.now();
+  _lastLocalWrite = savedAt;
+  localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, activityLog, savedAt }));
+  try { bc.postMessage({ tasks, workstreams, team, activityLog, savedAt }); } catch {}
   // Firestore write — fire and forget
   if (window._chopeFb) {
-    _lastLocalWrite = Date.now();
     const { db, doc, setDoc } = window._chopeFb;
-    setDoc(doc(db, 'chope', 'main'), { tasks, workstreams, team, activityLog })
+    setDoc(doc(db, 'chope', 'main'), { tasks, workstreams, team, activityLog, savedAt })
       .catch(e => console.warn('Firestore write failed:', e));
   }
 }
@@ -1901,8 +1919,11 @@ function persist() {
 const bc = new BroadcastChannel('chope_v2');
 bc.onmessage = e => {
   if (!e.data) return;
+  // Only apply cross-tab update if it's newer than what we last wrote
+  if (e.data.savedAt && e.data.savedAt <= _lastLocalWrite) return;
   tasks = e.data.tasks; workstreams = e.data.workstreams; team = e.data.team;
   if (Array.isArray(e.data.activityLog)) activityLog = e.data.activityLog;
+  if (e.data.savedAt) _lastLocalWrite = e.data.savedAt;
   renderAll(); toast('Board updated by a colleague');
 };
 
