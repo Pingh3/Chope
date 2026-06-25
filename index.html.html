@@ -45,6 +45,21 @@
   --cat-admin:#6B7280;
 }
 
+.dark{
+  --bg:#1A1A18;
+  --col:#242422;
+  --card:#252523;
+  --hdr:#1E1E1C;
+  --border:#333330;
+  --t1:#EAEAE6;
+  --t2:#9A9A92;
+  --t3:#62625C;
+  --accent:#EAEAE6;
+  --sh:0 1px 3px rgba(0,0,0,.3),0 1px 2px rgba(0,0,0,.2);
+  --sh-md:0 4px 12px rgba(0,0,0,.4);
+  --sh-lg:0 12px 32px rgba(0,0,0,.6);
+}
+
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--t1);font-size:13px;line-height:1.5;min-height:100vh}
 
 /* ── Header ─────────────────────────────────────────────── */
@@ -1267,6 +1282,7 @@ textarea.fi{resize:vertical;min-height:72px}
     🔔<span class="notif-badge" id="notifBadge"></span>
   </button>
   <button class="btn-ghost" style="font-size:12px;padding:5px 10px" onclick="openBulkModal()" title="Bulk add tasks">⊞ Bulk</button>
+  <button class="btn-ghost" id="themeToggle" style="font-size:15px;padding:5px 8px;line-height:1" onclick="toggleTheme()" title="Toggle dark mode">🌙</button>
   <button class="btn-add" onclick="openTaskModal()">+ Add Task</button>
 </header>
 
@@ -2520,16 +2536,16 @@ function cardHTML(t) {
       onmouseleave="hoveredCardId=null"
       onmouseenter="hoveredCardId='${t.id}'; if(event.ctrlKey) selectCard('${t.id}')"
       onclick="if(event.ctrlKey){event.stopPropagation();toggleSelectCard('${t.id}')}else{openTaskModal('${t.id}')}">
-      <button class="card-sel" onclick="toggleSelectCard('${t.id}');event.stopPropagation()" title="Select for bulk delete">
+      <button class="card-sel" onclick="event.stopPropagation();toggleSelectCard('${t.id}')" title="Select for bulk delete">
         <svg viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
       </button>
-      <button class="card-check ${isDone?'checked':''}" onclick="toggleTaskDone('${t.id}');event.stopPropagation()" title="Mark ${isDone?'incomplete':'complete'} (C)">
+      <button class="card-check ${isDone?'checked':''}" onclick="event.stopPropagation();toggleTaskDone('${t.id}')" title="Mark ${isDone?'incomplete':'complete'} (C)">
         <svg viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="1.5,5 4,7.5 8.5,2.5"/>
         </svg>
       </button>
-      <button class="card-dup" onclick="duplicateTask('${t.id}');event.stopPropagation()" title="Duplicate task (D)">⧉</button>
-      <button class="card-del" onclick="deleteTaskDirect('${t.id}');event.stopPropagation()" title="Delete task (Del)">🗑</button>
+      <button class="card-dup" onclick="event.stopPropagation();duplicateTask('${t.id}')" title="Duplicate task (D)">⧉</button>
+      <button class="card-del" onclick="event.stopPropagation();deleteTaskDirect('${t.id}')" title="Delete task (Del)">🗑</button>
       <div class="cat-badge" style="background:${cat.bg};color:${cat.color};padding-right:28px">${esc(cat.label)}</div>
       <div class="card-name">${esc(t.name)}</div>
       ${t.desc ? `<div class="card-notes">${esc(t.desc)}</div>` : ''}
@@ -4641,6 +4657,12 @@ function flash(fieldId) {
   setTimeout(() => el.style.borderColor = '', 2000);
 }
 
+function toggleTheme() {
+  const isDark = document.documentElement.classList.toggle('dark');
+  localStorage.setItem('chope_theme', isDark ? 'dark' : 'light');
+  document.getElementById('themeToggle').textContent = isDark ? '☀️' : '🌙';
+}
+
 function toast(msg) {
   const box = document.getElementById('toasts');
   const el  = document.createElement('div');
@@ -5375,6 +5397,12 @@ async function gmailSendBrief() {
 
 if (window.self === window.top) {
   async function init() {
+    // Restore theme preference
+    if (localStorage.getItem('chope_theme') === 'dark') {
+      document.documentElement.classList.add('dark');
+      const btn = document.getElementById('themeToggle');
+      if (btn) btn.textContent = '☀️';
+    }
     gmailHandleCallback();
     if (!window._chopeFb) {
       // Firebase unavailable — load directly without auth gate
