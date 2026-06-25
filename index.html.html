@@ -188,6 +188,26 @@
 .team-stale-wrap{display:flex;flex-direction:column;gap:6px}
 .team-stale-item{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;font-size:12px}
 .team-empty{font-size:12px;color:var(--t3);padding:8px 0}
+/* ── Member Profile cards ─────────────────── */
+.team-profile-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.team-profile-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.team-profile-hd{display:flex;align-items:center;gap:10px}
+.team-profile-name{font-size:14px;font-weight:700;color:var(--t1)}
+.team-profile-role{font-size:11px;color:var(--t3)}
+.team-profile-kpis{display:flex;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.team-profile-kpi{flex:1;padding:8px 10px;text-align:center;border-right:1px solid var(--border)}
+.team-profile-kpi:last-child{border-right:none}
+.team-profile-kpi-val{font-size:18px;font-weight:800;color:var(--t1);line-height:1}
+.team-profile-kpi-lbl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.team-profile-section{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.team-profile-bars{display:flex;flex-direction:column;gap:5px}
+.team-profile-bar-row{display:flex;align-items:center;gap:7px;font-size:11px}
+.team-profile-bar-label{width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t2);flex-shrink:0}
+.team-profile-bar-track{flex:1;height:6px;background:var(--bg);border-radius:3px;overflow:hidden}
+.team-profile-bar-fill{height:100%;border-radius:3px;transition:width .4s ease}
+.team-profile-bar-count{width:24px;text-align:right;color:var(--t3);flex-shrink:0}
+.team-profile-tags{display:flex;flex-wrap:wrap;gap:5px}
+.team-profile-tag{font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;border:1px solid var(--border)}
 
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--t1);font-size:13px;line-height:1.5;min-height:100vh}
 
@@ -2859,7 +2879,7 @@ function getStats() {
 function renderHeader() {
   const s = getStats();
   document.getElementById('hdrStats').innerHTML =
-    `<div class="stat-chip clickable" onclick="openOpenTasksPanel()" style="cursor:pointer" title="Click to see all open tasks">Tasks: <span>${s.total}</span></div>` +
+    `<div class="stat-chip clickable" onclick="openOpenTasksPanel()" style="cursor:pointer" title="Click to see outstanding tasks">Tasks: <span>${s.active}</span></div>` +
     `<div class="stat-chip clickable blue" onclick="openInProgressPanel()" style="cursor:pointer" title="Click to see in-progress tasks">In progress: <span>${s.ip}</span></div>` +
     `<div class="stat-chip ${s.over?'red clickable':''}" ${s.over?'onclick="openOverduePanel()" style="cursor:pointer" title="Click to see overdue tasks"':''}>Overdue: <span>${s.over}</span></div>`;
 
@@ -7784,6 +7804,88 @@ function renderTeamView() {
       </div>`;
   }).join('');
 
+  // ── Section: Member Profiles ─────────────────────────────
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000);
+  const profileCards = team.map(m => {
+    const all       = tasks.filter(t => t.assignee === m.name);
+    const done      = all.filter(t => t.status === 'done');
+    const open      = all.filter(t => t.status !== 'done');
+    const overdue   = open.filter(t => t.deadline && t.deadline < todayStr);
+    // Recent = completed in last 30 days + all open (reflects current focus)
+    const recent    = [
+      ...done.filter(t => t.completedAt && new Date(t.completedAt) >= thirtyDaysAgo),
+      ...open
+    ];
+
+    // Category breakdown on recent tasks
+    const catCounts = {};
+    recent.forEach(t => { const k = t.cat || 'admin'; catCounts[k] = (catCounts[k] || 0) + 1; });
+    const catTotal = Object.values(catCounts).reduce((s, v) => s + v, 0) || 1;
+    const topCats = Object.entries(catCounts).sort((a,b) => b[1]-a[1]).slice(0, 5);
+
+    // Fund breakdown on recent tasks
+    const fundCounts = {};
+    recent.forEach(t => { const k = t.fund || 'None'; fundCounts[k] = (fundCounts[k] || 0) + 1; });
+    const fundTotal = Object.values(fundCounts).reduce((s, v) => s + v, 0) || 1;
+    const topFunds = Object.entries(fundCounts).sort((a,b) => b[1]-a[1]).slice(0, 4);
+
+    const aCol = avatarColor(m.name);
+    const rate = all.length ? Math.round(done.length / all.length * 100) : 0;
+
+    const catBars = topCats.map(([k, n]) => {
+      const cat = CATEGORIES[k] || { label: k, color: '#6B7280' };
+      const pct = Math.round(n / catTotal * 100);
+      return `<div class="team-profile-bar-row">
+        <span class="team-profile-bar-label" title="${esc(cat.label)}">${esc(cat.label)}</span>
+        <div class="team-profile-bar-track">
+          <div class="team-profile-bar-fill" style="width:${pct}%;background:${cat.color}"></div>
+        </div>
+        <span class="team-profile-bar-count">${n}</span>
+      </div>`;
+    }).join('');
+
+    const fundTags = topFunds.map(([f, n]) => {
+      const pct = Math.round(n / fundTotal * 100);
+      return `<span class="team-profile-tag" style="background:var(--col);color:var(--t2)">${esc(f)} <strong style="color:var(--t1)">${n}</strong> <span style="color:var(--t3)">${pct}%</span></span>`;
+    }).join('');
+
+    return `<div class="team-profile-card">
+      <div class="team-profile-hd">
+        <div style="width:36px;height:36px;border-radius:50%;background:${aCol};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">${esc(initials(m.name))}</div>
+        <div>
+          <div class="team-profile-name">${esc(m.name)}</div>
+          <div class="team-profile-role">${open.length} open · ${overdue.length ? `<span style="color:#EF4444">${overdue.length} overdue</span>` : 'no overdue'}</div>
+        </div>
+      </div>
+      <div class="team-profile-kpis">
+        <div class="team-profile-kpi">
+          <div class="team-profile-kpi-val">${all.length}</div>
+          <div class="team-profile-kpi-lbl">Total Tasks</div>
+        </div>
+        <div class="team-profile-kpi">
+          <div class="team-profile-kpi-val" style="color:#059669">${done.length}</div>
+          <div class="team-profile-kpi-lbl">Completed</div>
+        </div>
+        <div class="team-profile-kpi">
+          <div class="team-profile-kpi-val" style="color:${rate>=70?'#059669':'#D97706'}">${rate}%</div>
+          <div class="team-profile-kpi-lbl">Done Rate</div>
+        </div>
+        <div class="team-profile-kpi">
+          <div class="team-profile-kpi-val" style="color:#2563EB">${done.filter(t => t.completedAt && new Date(t.completedAt) >= thirtyDaysAgo).length}</div>
+          <div class="team-profile-kpi-lbl">Done 30d</div>
+        </div>
+      </div>
+      ${topCats.length ? `<div>
+        <div class="team-profile-section">Work type focus (recent)</div>
+        <div class="team-profile-bars">${catBars}</div>
+      </div>` : ''}
+      ${topFunds.length ? `<div>
+        <div class="team-profile-section">Fund focus (recent)</div>
+        <div class="team-profile-tags">${fundTags}</div>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+
   // ── Section: Workload Health ──────────────────────────────
   const wlCards = team.map(m => {
     const assigned = tasks.filter(t => t.assignee === m.name);
@@ -7844,6 +7946,11 @@ function renderTeamView() {
     <div class="team-dash">
       <h1>Team Dashboard</h1>
       <div class="team-dash-sub">Only visible to you, Victor · Click any workload card to filter the Board to that person</div>
+
+      <div class="team-section">
+        <div class="team-section-hd">👤 Member Profiles <span>total tasks · completion rate · work type & fund focus (open + last 30 days done)</span></div>
+        <div class="team-profile-grid">${profileCards}</div>
+      </div>
 
       <div class="team-section">
         <div class="team-section-hd">📈 Weekly Velocity <span>tasks completed — this week vs last</span></div>
