@@ -2660,19 +2660,19 @@ function renderDaily() {
     })()}
 
     <div class="daily-grid">
-      <div class="daily-card">
+      <div class="daily-card" onclick="showDrilldownModal('Open Tasks', tasks.filter(t=>t.assignee==='${subject}'&&t.status!=='done'))" style="cursor:pointer" onmouseover="this.style.boxShadow='0 0 0 2px var(--accent)'" onmouseout="this.style.boxShadow=''">
         <div class="daily-card-label">${isMe ? 'My Open Tasks' : esc(subject.split(' ')[0]) + "'s Open Tasks"}</div>
         <div class="daily-card-value">${myTasks.length}</div>
-        <div class="daily-card-sub">${myDone.length} completed</div>
+        <div class="daily-card-sub">${myDone.length} completed · click to view</div>
       </div>
-      <div class="daily-card">
+      <div class="daily-card" onclick="showDrilldownModal('Completed Tasks', tasks.filter(t=>t.assignee==='${subject}'&&t.status==='done'))" style="cursor:pointer" onmouseover="this.style.boxShadow='0 0 0 2px var(--accent)'" onmouseout="this.style.boxShadow=''">
         <div class="daily-card-label">${isMe ? 'My Completion Rate' : 'Completion Rate'}</div>
         <div class="daily-card-value" style="color:${myRate>=70?'#059669':'#D97706'}">${myRate}%</div>
-        <div class="daily-card-sub">${myTotal} total tasks assigned</div>
+        <div class="daily-card-sub">${myTotal} total assigned · click to view</div>
       </div>
-      <div class="daily-card">
+      <div class="daily-card" onclick="showDrilldownModal('Overdue Tasks', tasks.filter(t=>t.assignee==='${subject}'&&t.status!=='done'&&t.deadline&&t.deadline<new Date().toISOString().slice(0,10)))" style="cursor:pointer" onmouseover="this.style.boxShadow='0 0 0 2px var(--accent)'" onmouseout="this.style.boxShadow=''">
         <div class="daily-card-label">${isMe ? 'My Overdue' : 'Overdue'}</div>
-        ${(() => { const myOver = myTasks.filter(t => t.deadline && t.deadline < todayStr).length; return `<div class="daily-card-value" style="color:${myOver?'#DC2626':'#059669'}">${myOver}</div><div class="daily-card-sub">${myOver ? myOver + ' past deadline' : 'All on track ✓'}</div>`; })()}
+        ${(() => { const myOver = myTasks.filter(t => t.deadline && t.deadline < todayStr).length; return `<div class="daily-card-value" style="color:${myOver?'#DC2626':'#059669'}">${myOver}</div><div class="daily-card-sub">${myOver ? myOver + ' past deadline · click to view' : 'All on track ✓'}</div>`; })()}
       </div>
     </div>
 
@@ -2870,88 +2870,134 @@ function renderTeamPulse() {
 function renderTeamView() {
   const el = document.getElementById('teamContent');
   if (!el) return;
-  const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
-  const fiveDaysAgo = new Date(now); fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
 
-  // Per-member breakdown
-  const memberSections = team.map(m => {
-    const all      = tasks.filter(t => t.assignee === m.name);
-    const open     = all.filter(t => t.status !== 'done');
-    const done     = all.filter(t => t.status === 'done');
-    const overdue  = open.filter(t => t.deadline && t.deadline < todayStr);
-    const high     = open.filter(t => t.priority === 'high');
-    const stale    = open.filter(t => t.status === 'inprogress' && t.createdAt && new Date(t.createdAt) < fiveDaysAgo);
-    const rate     = all.length ? Math.round(done.length / all.length * 100) : 0;
-    const rateCol  = rate >= 70 ? '#059669' : rate >= 40 ? '#D97706' : '#DC2626';
-    const healthScore = Math.max(0, 100 - overdue.length * 20 - stale.length * 10 - Math.max(0, open.length - 5) * 5);
-    const healthCol = healthScore >= 70 ? '#059669' : healthScore >= 40 ? '#D97706' : '#DC2626';
+  const members = [...new Set(tasks.map(t => t.assignee).filter(Boolean))];
+  const now = Date.now();
+  const MS7 = 7 * 86400000, MS30 = 30 * 86400000;
 
-    const overdueRows = overdue.length ? overdue.map(t => `
-      <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
-        <span style="flex:1;font-size:12px;color:var(--t1)">${esc(t.name.slice(0,55))}</span>
-        <span style="font-size:11px;color:#DC2626;font-weight:600">Due ${fmtDate(t.deadline)}</span>
-        <button onclick="openTaskModal('${t.id}')" style="font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--t2)">Edit</button>
-      </div>`).join('') : `<div style="font-size:12px;color:#059669;padding:5px 0">✓ Nothing overdue</div>`;
+  // Team-wide KPIs
+  const allOpen = tasks.filter(t => t.status !== 'done');
+  const allDone = tasks.filter(t => t.status === 'done');
+  const allOverdue = allOpen.filter(t => t.dueDate && new Date(t.dueDate) < new Date(new Date().toDateString()));
+  const done7 = allDone.filter(t => t.doneAt && (now - t.doneAt) < MS7);
+  const done30 = allDone.filter(t => t.doneAt && (now - t.doneAt) < MS30);
 
-    const highRows = high.length ? high.slice(0,5).map(t => `
-      <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
-        <span class="prio-dot" style="background:#EF4444;width:6px;height:6px;border-radius:50%;flex-shrink:0"></span>
-        <span style="flex:1;font-size:12px;color:var(--t1)">${esc(t.name.slice(0,55))}</span>
-        <span style="font-size:11px;color:var(--t3)">${t.status}</span>
-      </div>`).join('') : `<div style="font-size:12px;color:var(--t3);padding:5px 0">No high-priority open tasks</div>`;
+  const kpiBar = `
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:24px">
+      ${[
+        { label:'Total Tasks', val: tasks.length, filter:'all' },
+        { label:'Completed', val: allDone.length, filter:'done' },
+        { label:'Open', val: allOpen.length, filter:'open' },
+        { label:'Overdue', val: allOverdue.length, filter:'overdue', warn: allOverdue.length > 0 },
+        { label:'Done (7d)', val: done7.length, filter:'done7' },
+        { label:'Done (30d)', val: done30.length, filter:'done30' },
+      ].map(k => `
+        <div onclick="openTeamDrilldown('${k.filter}')" style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;cursor:pointer;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 0 0 2px var(--accent)'" onmouseout="this.style.boxShadow=''">
+          <div style="font-size:22px;font-weight:700;color:${k.warn ? '#ef4444' : 'var(--t1)'}">${k.val}</div>
+          <div style="font-size:12px;color:var(--t2);margin-top:3px">${k.label}</div>
+        </div>`).join('')}
+    </div>`;
+
+  // Per-member cards
+  const memberCards = members.map(name => {
+    const mt = tasks.filter(t => t.assignee === name);
+    const mDone = mt.filter(t => t.status === 'done');
+    const mOpen = mt.filter(t => t.status !== 'done');
+    const mOverdue = mOpen.filter(t => t.dueDate && new Date(t.dueDate) < new Date(new Date().toDateString()));
+    const mDone7 = mDone.filter(t => t.doneAt && (now - t.doneAt) < MS7);
+    const mDone30 = mDone.filter(t => t.doneAt && (now - t.doneAt) < MS30);
+    const mStale = mOpen.filter(t => t.updatedAt && (now - t.updatedAt) > MS7);
+    const mHighOpen = mOpen.filter(t => t.priority === 'high');
+    const doneRate = mt.length ? Math.round(mDone.length / mt.length * 100) : 0;
+
+    // On-time delivery: done tasks that were completed on or before due date
+    const onTimeDone = mDone.filter(t => t.dueDate && t.doneAt && new Date(t.doneAt) <= new Date(t.dueDate));
+    const onTimeRate = mDone.filter(t => t.dueDate).length
+      ? Math.round(onTimeDone.length / mDone.filter(t => t.dueDate).length * 100)
+      : null;
+
+    // Health score
+    const health = Math.max(0, Math.min(100, 100 - Math.min(75, mOverdue.length * 25) - Math.min(30, mStale.length * 15)));
+    const healthColor = health >= 70 ? '#22c55e' : health >= 40 ? '#f59e0b' : '#ef4444';
+    const healthLabel = health >= 70 ? 'Healthy' : health >= 40 ? 'At Risk' : 'Critical';
+
+    // Focus areas: top 3 categories
+    const catCount = {};
+    mt.forEach(t => { if (t.category) catCount[t.category] = (catCount[t.category] || 0) + 1; });
+    const topCats = Object.entries(catCount).sort((a,b) => b[1]-a[1]).slice(0, 3);
+    const maxCat = topCats[0]?.[1] || 1;
+    const catColors = ['#6366f1','#f59e0b','#22c55e'];
+    const focusHtml = topCats.length ? topCats.map(([cat, cnt], i) => `
+      <div style="margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+          <span style="font-size:12px;color:var(--t1)">${cat}</span>
+          <span style="font-size:11px;color:var(--t2)">${cnt} tasks</span>
+        </div>
+        <div style="background:var(--border);border-radius:99px;height:5px;overflow:hidden">
+          <div style="background:${catColors[i]};width:${Math.round(cnt/maxCat*100)}%;height:100%;border-radius:99px"></div>
+        </div>
+      </div>`).join('') : `<div style="font-size:12px;color:var(--t3)">No tasks assigned</div>`;
+
+    const statItem = (label, val, filter, warn) => `
+      <div onclick="openMemberDrilldown('${name}','${filter}')" style="background:var(--bg);border-radius:8px;padding:10px 12px;cursor:pointer;border:1px solid var(--border);transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 0 0 2px var(--accent)'" onmouseout="this.style.boxShadow=''">
+        <div style="font-size:18px;font-weight:700;color:${warn && val>0?'#ef4444':'var(--t1)'}">${val}</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px">${label}</div>
+      </div>`;
 
     return `
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;margin-bottom:16px">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-          <div style="width:36px;height:36px;border-radius:50%;background:${avatarColor(m.name)};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">${esc(initials(m.name))}</div>
-          <div>
-            <div style="font-weight:700;font-size:14px">${esc(m.name)}</div>
-            <div style="font-size:11px;color:var(--t3)">${esc(m.role||'')}</div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:16px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:44px;height:44px;border-radius:50%;background:var(--accent);color:var(--bg);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px">${name[0]}</div>
+            <div>
+              <div style="font-weight:700;font-size:16px">${name}</div>
+              <div style="font-size:12px;color:var(--t2);margin-top:2px">${mt.length} total tasks · ${doneRate}% done</div>
+            </div>
           </div>
-          <div style="margin-left:auto;display:flex;gap:16px;text-align:center">
-            <div><div style="font-size:18px;font-weight:700;color:var(--t1)">${open.length}</div><div style="font-size:10px;color:var(--t3)">Open</div></div>
-            <div><div style="font-size:18px;font-weight:700;color:${overdue.length?'#DC2626':'var(--t1)'}">${overdue.length}</div><div style="font-size:10px;color:var(--t3)">Overdue</div></div>
-            <div><div style="font-size:18px;font-weight:700;color:${rateCol}">${rate}%</div><div style="font-size:10px;color:var(--t3)">Done rate</div></div>
-            <div><div style="font-size:18px;font-weight:700;color:${healthCol}">${healthScore}</div><div style="font-size:10px;color:var(--t3)">Health</div></div>
-            <button class="pulse-nudge-btn" style="align-self:center" onclick="nudgeMember('${esc(m.name)}')">Nudge</button>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-          <div>
-            <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">⚠ Overdue</div>
-            ${overdueRows}
-          </div>
-          <div>
-            <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🔴 High Priority</div>
-            ${highRows}
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:12px;color:${healthColor};background:${healthColor}22;padding:4px 10px;border-radius:99px;font-weight:600">${healthLabel}</span>
+            <span style="font-size:20px;font-weight:800;color:${healthColor}">${health}</span>
           </div>
         </div>
-        ${stale.length ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-          <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🐢 Stale In-Progress (&gt;5 days)</div>
-          ${stale.map(t => `<div style="font-size:12px;color:#D97706;padding:3px 0">${esc(t.name.slice(0,60))} <span style="color:var(--t3)">(${Math.floor((now-new Date(t.createdAt))/86400000)}d)</span></div>`).join('')}
-        </div>` : ''}
+
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:14px">
+          ${statItem('Total',mt.length,'all')}
+          ${statItem('Completed',mDone.length,'done')}
+          ${statItem('Open',mOpen.length,'open')}
+          ${statItem('Overdue',mOverdue.length,'overdue',true)}
+          ${statItem('Done Rate',doneRate+'%','done')}
+          ${statItem('Done (7d)',mDone7.length,'done7')}
+          ${statItem('Health',health,'health')}
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
+          ${statItem('Done (30d)',mDone30.length,'done30')}
+          ${statItem('On-time',onTimeRate!=null?onTimeRate+'%':'N/A','ontime')}
+          ${statItem('Stale',mStale.length,'stale',true)}
+          ${statItem('High Pri Open',mHighOpen.length,'high',true)}
+        </div>
+
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--t2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Focus Areas</div>
+          ${focusHtml}
+        </div>
       </div>`;
   }).join('');
 
   // Activity feed
-  const actIcons = { create:'➕', status:'🔄', priority:'⚡', deadline:'📅', assign:'👤' };
-  const actDesc = e => {
-    if (e.type==='create')   return `<b>${esc(e.by)}</b> created task`;
-    if (e.type==='status')   return `<b>${esc(e.by)}</b> moved to <b>${esc(e.to)}</b>`;
-    if (e.type==='priority') return `<b>${esc(e.by)}</b> changed priority to <b>${esc(e.to)}</b>`;
-    if (e.type==='deadline') return `<b>${esc(e.by)}</b> moved deadline → <b>${esc(e.to)}</b>`;
-    if (e.type==='assign')   return `<b>${esc(e.by)}</b> reassigned to <b>${esc(e.to)}</b>`;
-    return `<b>${esc(e.by)}</b> updated task`;
-  };
-  const feedHtml = activityLog.length
-    ? activityLog.slice(0,40).map(e => `
-        <div style="display:flex;align-items:baseline;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">
-          <span style="font-size:13px;flex-shrink:0">${actIcons[e.type]||'📝'}</span>
-          <span style="flex:1;font-size:12px;color:var(--t1)">${actDesc(e)} — ${esc((e.taskName||'').slice(0,45))}</span>
-          <span style="font-size:11px;color:var(--t3);white-space:nowrap">${_relTime(e.ts)}</span>
-        </div>`).join('')
-    : '<div style="font-size:12px;color:var(--t3)">No activity yet.</div>';
+  const feedItems = [...(activityLog || [])].reverse().slice(0, 40);
+  const feedHtml = feedItems.length ? feedItems.map(e => {
+    const ago = Math.round((now - e.ts) / 60000);
+    const agoStr = ago < 60 ? `${ago}m ago` : ago < 1440 ? `${Math.floor(ago/60)}h ago` : `${Math.floor(ago/1440)}d ago`;
+    const icons = { complete:'✅', create:'➕', edit:'✏️', delete:'🗑️', assign:'👤' };
+    return `<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:14px">${icons[e.type]||'•'}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.taskName || ''}</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px">${e.user || ''} · ${agoStr}</div>
+      </div>
+    </div>`;
+  }).join('') : '<div style="font-size:13px;color:var(--t3)">No activity yet</div>';
 
   el.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
@@ -2960,12 +3006,79 @@ function renderTeamView() {
         <p style="font-size:13px;color:var(--t2);margin-top:3px">Workload, overdue tasks and activity across your team</p>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start">
-      <div>${memberSections}</div>
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;position:sticky;top:70px">
-        <div style="font-size:13px;font-weight:700;margin-bottom:10px">Activity Feed</div>
-        ${feedHtml}
+    ${kpiBar}
+    <div style="margin-bottom:24px">${memberCards}</div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px">Activity Feed</div>
+      ${feedHtml}
+    </div>
+    <div style="margin-top:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;font-size:12px;color:var(--t2)">
+      <strong style="color:var(--t1)">Health Score formula:</strong> Starts at 100. −25 per overdue task (max −75), −15 per stale task (max −30). Stale = open task not updated in 7+ days.
+    </div>`;
+}
+
+function openTeamDrilldown(filter) {
+  let filtered = [];
+  const now = Date.now();
+  const MS7 = 7 * 86400000, MS30 = 30 * 86400000;
+  const today = new Date(new Date().toDateString());
+  if (filter === 'all') filtered = tasks;
+  else if (filter === 'done') filtered = tasks.filter(t => t.status === 'done');
+  else if (filter === 'open') filtered = tasks.filter(t => t.status !== 'done');
+  else if (filter === 'overdue') filtered = tasks.filter(t => t.status !== 'done' && t.dueDate && new Date(t.dueDate) < today);
+  else if (filter === 'done7') filtered = tasks.filter(t => t.status === 'done' && t.doneAt && (now - t.doneAt) < MS7);
+  else if (filter === 'done30') filtered = tasks.filter(t => t.status === 'done' && t.doneAt && (now - t.doneAt) < MS30);
+  const labels = { all:'All Tasks', done:'Completed Tasks', open:'Open Tasks', overdue:'Overdue Tasks', done7:'Done in Last 7 Days', done30:'Done in Last 30 Days' };
+  showDrilldownModal(labels[filter] || filter, filtered);
+}
+
+function openMemberDrilldown(member, filter) {
+  let filtered = tasks.filter(t => t.assignee === member);
+  const now = Date.now();
+  const MS7 = 7 * 86400000, MS30 = 30 * 86400000;
+  const today = new Date(new Date().toDateString());
+  if (filter === 'done') filtered = filtered.filter(t => t.status === 'done');
+  else if (filter === 'open') filtered = filtered.filter(t => t.status !== 'done');
+  else if (filter === 'overdue') filtered = filtered.filter(t => t.status !== 'done' && t.dueDate && new Date(t.dueDate) < today);
+  else if (filter === 'done7') filtered = filtered.filter(t => t.status === 'done' && t.doneAt && (now - t.doneAt) < MS7);
+  else if (filter === 'done30') filtered = filtered.filter(t => t.status === 'done' && t.doneAt && (now - t.doneAt) < MS30);
+  else if (filter === 'stale') filtered = filtered.filter(t => t.status !== 'done' && t.updatedAt && (now - t.updatedAt) > MS7);
+  else if (filter === 'high') filtered = filtered.filter(t => t.status !== 'done' && t.priority === 'high');
+  else if (filter === 'ontime') filtered = filtered.filter(t => t.status === 'done' && t.dueDate && t.doneAt && new Date(t.doneAt) <= new Date(t.dueDate));
+  const labels = { all:'All Tasks', done:'Completed', open:'Open', overdue:'Overdue', done7:'Done (7d)', done30:'Done (30d)', stale:'Stale', high:'High Priority Open', ontime:'On-time Completions', health:'Health Breakdown' };
+  showDrilldownModal(`${member} — ${labels[filter] || filter}`, filtered);
+}
+
+function showDrilldownModal(title, taskList) {
+  let m = document.getElementById('drilldownModal');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'drilldownModal';
+    m.style.cssText = 'position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45)';
+    m.onclick = e => { if (e.target === m) m.remove(); };
+    document.body.appendChild(m);
+  }
+  const rows = taskList.length ? taskList.map(t => {
+    const priColor = {high:'#ef4444',medium:'#f59e0b',low:'#22c55e'}[t.priority] || 'var(--t3)';
+    const due = t.dueDate ? `<span style="font-size:11px;color:var(--t2)">${t.dueDate}</span>` : '';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
+      <span style="width:8px;height:8px;border-radius:50%;background:${priColor};flex-shrink:0"></span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;color:var(--t1);${t.status==='done'?'text-decoration:line-through;color:var(--t3)':''}">${t.name || t.title || 'Untitled'}</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px">${t.assignee||''} ${t.category?'· '+t.category:''} ${due}</div>
       </div>
+      <span style="font-size:11px;color:var(--t2);text-transform:capitalize">${t.status||''}</span>
+    </div>`;
+  }).join('') : '<div style="padding:20px 0;text-align:center;color:var(--t3);font-size:13px">No tasks</div>';
+
+  m.innerHTML = `
+    <div style="background:var(--col);border:1px solid var(--border);border-radius:var(--r);width:min(560px,95vw);max-height:80vh;overflow:hidden;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)">
+        <div style="font-weight:700;font-size:15px">${title}</div>
+        <button onclick="document.getElementById('drilldownModal').remove()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--t2)">×</button>
+      </div>
+      <div style="padding:0 20px;overflow-y:auto;flex:1">${rows}</div>
+      <div style="padding:10px 20px;border-top:1px solid var(--border);font-size:12px;color:var(--t3)">${taskList.length} task${taskList.length !== 1 ? 's' : ''}</div>
     </div>`;
 }
 
