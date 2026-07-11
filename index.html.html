@@ -1053,12 +1053,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .ws-task-row{cursor:grab}
 .ws-task-row.dragging{opacity:.35}
 .ws-card-hd{
-  padding:14px 16px 10px;
-  display:flex;align-items:center;gap:10px;
-  border-bottom:1px solid var(--border);
+  padding:14px 16px 8px;
+  display:flex;align-items:center;gap:8px;
 }
 .ws-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.ws-name{font-size:14px;font-weight:600}
+.ws-name{font-size:14px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws-card-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 16px 10px}
+.ws-meta-chip{font-size:11px;color:var(--t3)}
+.ws-meta-open{font-size:11px;color:var(--t3);margin-left:auto}
+.ws-card-objective{font-size:11px;color:var(--t2);padding:0 16px 10px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .ws-owner-chip{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--t2);cursor:pointer;flex-shrink:0;padding:2px 6px;border-radius:12px;transition:background .12s}
 .ws-owner-chip:hover{background:var(--bg)}
 .ws-owner-chip-empty{color:var(--t3);font-weight:500;border:1px dashed var(--border);padding:2px 8px;border-radius:12px}
@@ -1132,7 +1135,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .gmail-pill-skip{font-size:10px;padding:3px 10px;background:transparent;color:var(--t3);border:1px solid var(--border);border-radius:20px;cursor:pointer;font-family:inherit}
 
 /* ── Workstream progress bar ─────────────────────────────── */
-.ws-progress{padding:10px 16px 4px}
+.ws-progress{padding:10px 16px 4px;border-top:1px solid var(--border)}
 .ws-progress-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
 .ws-progress-label{font-size:10px;color:var(--t3)}
 .ws-progress-pct{font-size:11px;font-weight:700}
@@ -1279,12 +1282,13 @@ textarea.fi{resize:vertical;min-height:72px}
 .ws-vt-btn:hover:not(.active){color:var(--t1)}
 .ws-card-drag-handle{cursor:grab;color:var(--t3);font-size:13px;padding:2px 4px;flex-shrink:0;letter-spacing:-2px;line-height:1}
 .ws-card-drag-handle:hover{color:var(--t1)}
-.ws-card.ws-card-dragging{opacity:.4}
-.ws-card.ws-card-drop-target{outline:2px dashed var(--t3);outline-offset:2px}
+.ws-card.ws-card-dragging,.ws-list-row.ws-card-dragging{opacity:.4}
+.ws-card.ws-card-drop-target,.ws-list-row.ws-card-drop-target{outline:2px dashed var(--t3);outline-offset:-2px}
 
 .ws-list-wrap{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-.ws-list-header{display:grid;grid-template-columns:1fr 130px 110px 150px 70px 70px 56px;gap:0;padding:0 16px;background:var(--hdr);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:2}
-.ws-list-row{display:grid;grid-template-columns:1fr 130px 110px 150px 70px 70px 56px;gap:0;padding:0 16px;border-bottom:1px solid var(--border);align-items:center;min-height:48px;cursor:pointer;transition:background .1s}
+.ws-list-header{display:grid;grid-template-columns:24px 1fr 130px 110px 150px 70px 70px 56px;gap:0;padding:0 16px;background:var(--hdr);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:2}
+.ws-list-row{display:grid;grid-template-columns:24px 1fr 130px 110px 150px 70px 70px 56px;gap:0;padding:0 16px;border-bottom:1px solid var(--border);align-items:center;min-height:48px;cursor:pointer;transition:background .1s}
+.ws-list-note{font-size:11px;color:var(--t3);padding:8px 16px 0}
 .ws-list-row:last-child{border-bottom:none}
 .ws-list-row:hover{background:var(--bg)}
 .ws-list-cell{display:flex;align-items:center;font-size:12px;color:var(--t2);min-width:0;padding:8px 6px}
@@ -1292,6 +1296,7 @@ textarea.fi{resize:vertical;min-height:72px}
 .ws-list-sort-btn:hover{color:var(--t1)}
 .ws-list-sort-btn.sorted{color:var(--t1)}
 .ws-list-name{font-size:13px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws-list-objective{font-size:10px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
 .ws-list-progress-track{flex:1;height:5px;background:var(--bg);border-radius:3px;overflow:hidden;margin-right:8px}
 .ws-list-progress-fill{height:100%;border-radius:3px}
 .ws-list-expand{padding:0 16px 14px 46px}
@@ -2170,8 +2175,8 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
         <input class="fi" id="wsName" placeholder="e.g. 450 Park Ave Acquisition" oninput="onWsNameInput()">
       </div>
       <div class="mf">
-        <label>Description</label>
-        <input class="fi" id="wsDesc" placeholder="Brief summary of this workstream">
+        <label>Key Objective <span style="font-weight:400;color:var(--t3)">— what this workstream is trying to achieve</span></label>
+        <input class="fi" id="wsDesc" placeholder="e.g. Exit the remaining Fund II assets by Q4">
       </div>
       <div class="mfrow">
         <div class="mf">
@@ -4214,19 +4219,20 @@ function renderWsView() {
           <div class="ws-card-hd" style="cursor:pointer" onclick="toggleWsExpand('${ws.id}')">
             <span class="ws-card-drag-handle" draggable="true" ondragstart="wsCardDragStart(event,'${ws.id}')" ondragend="dragEnd(event)" onclick="event.stopPropagation()" title="Drag to reorder">⋮⋮</span>
             <div class="ws-dot" style="background:${ws.color}"></div>
-            <div style="flex:1;min-width:0">
-              <div class="ws-name">${esc(ws.name)}</div>
-              ${ws.fund ? `<div style="font-size:11px;color:var(--t3)">${esc(ws.fund)}</div>` : ''}
-            </div>
+            <div class="ws-name" title="${esc(ws.name)}">${esc(ws.name)}</div>
+            <button class="btn-sm" onclick="openWsModal('${ws.id}');event.stopPropagation()" style="flex-shrink:0">Edit</button>
+            <span style="font-size:14px;color:var(--t3);transition:transform .2s;display:inline-block;flex-shrink:0;transform:${isExpanded?'rotate(90deg)':'rotate(0deg)'}">${isExpanded?'▼':'▶'}</span>
+          </div>
+          <div class="ws-card-meta" onclick="toggleWsExpand('${ws.id}')" style="cursor:pointer">
+            ${ws.fund ? `<span class="ws-meta-chip">${esc(ws.fund)}</span>` : ''}
             ${ws.owner ? `
             <div class="ws-owner-chip" onclick="event.stopPropagation();openProfileModal('${esc(ws.owner)}')" title="Lead: ${esc(ws.owner)}">
               <div style="width:18px;height:18px;border-radius:50%;background:${avatarColor(ws.owner)};display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;flex-shrink:0">${esc(initials(ws.owner))}</div>
               <span>${esc(ws.owner.split(' ')[0])}</span>
             </div>` : `<span class="ws-owner-chip ws-owner-chip-empty" onclick="event.stopPropagation();openWsModal('${ws.id}')" title="No lead assigned — click to set one">+ Lead</span>`}
-            <span style="font-size:11px;color:var(--t3);margin-right:6px">${activeTasks.length} open</span>
-            <button class="btn-sm" onclick="openWsModal('${ws.id}');event.stopPropagation()" style="margin-right:6px">Edit</button>
-            <span style="font-size:14px;color:var(--t3);transition:transform .2s;display:inline-block;transform:${isExpanded?'rotate(90deg)':'rotate(0deg)'}">${isExpanded?'▼':'▶'}</span>
+            <span class="ws-meta-open">${activeTasks.length} open</span>
           </div>
+          ${ws.desc ? `<div class="ws-card-objective" title="${esc(ws.desc)}" onclick="toggleWsExpand('${ws.id}')" style="cursor:pointer">${esc(ws.desc)}</div>` : ''}
           <div class="ws-progress">
             <div class="ws-progress-meta">
               <span class="ws-progress-label">${doneCount} of ${allWsTasks.length} task${allWsTasks.length!==1?'s':''} done</span>
@@ -4305,23 +4311,33 @@ function renderWsListView(visibleWs) {
     return { ws, allWsTasks, doneCount, openCount, pct };
   });
 
-  const sortDir = wsListSortDir === 'asc' ? 1 : -1;
-  rows.sort((a, b) => {
-    switch (wsListSortCol) {
-      case 'name':     return sortDir * a.ws.name.localeCompare(b.ws.name);
-      case 'owner':    return sortDir * (a.ws.owner || '').localeCompare(b.ws.owner || '');
-      case 'fund':     return sortDir * (a.ws.fund || '').localeCompare(b.ws.fund || '');
-      case 'progress': return sortDir * (a.pct - b.pct);
-      case 'open':     return sortDir * (a.openCount - b.openCount);
-      case 'done':     return sortDir * (a.doneCount - b.doneCount);
-      default:         return 0;
-    }
-  });
+  if (wsListSortCol === 'manual') {
+    const orderIdx = new Map(_wsOrdered(visibleWs).map((w, i) => [w.id, i]));
+    rows.sort((a, b) => orderIdx.get(a.ws.id) - orderIdx.get(b.ws.id));
+  } else {
+    const sortDir = wsListSortDir === 'asc' ? 1 : -1;
+    rows.sort((a, b) => {
+      switch (wsListSortCol) {
+        case 'name':     return sortDir * a.ws.name.localeCompare(b.ws.name);
+        case 'owner':    return sortDir * (a.ws.owner || '').localeCompare(b.ws.owner || '');
+        case 'fund':     return sortDir * (a.ws.fund || '').localeCompare(b.ws.fund || '');
+        case 'progress': return sortDir * (a.pct - b.pct);
+        case 'open':     return sortDir * (a.openCount - b.openCount);
+        case 'done':     return sortDir * (a.doneCount - b.doneCount);
+        default:         return 0;
+      }
+    });
+  }
 
   const sortIcon = col => wsListSortCol === col ? (wsListSortDir === 'asc' ? ' ▲' : ' ▼') : '';
   const hdrBtn = (col, label) => `<button class="ws-list-sort-btn${wsListSortCol===col?' sorted':''}" onclick="setWsListSort('${col}')">${label}${sortIcon(col)}</button>`;
 
+  const note = wsListSortCol === 'manual'
+    ? `<div class="ws-list-note">Custom order — drag ⋮⋮ to rearrange, or click a column below to sort instead.</div>`
+    : `<div class="ws-list-note">Drag ⋮⋮ on any row to set a custom order.</div>`;
+
   const header = `<div class="ws-list-header">
+    <span></span>
     ${hdrBtn('name','Workstream')}
     ${hdrBtn('owner','Lead')}
     ${hdrBtn('fund','Fund')}
@@ -4351,10 +4367,14 @@ function renderWsListView(visibleWs) {
   const body = rows.map(({ ws, allWsTasks, doneCount, openCount, pct }) => {
     const isExpanded = wsExpanded.has(ws.id);
     return `
-    <div class="ws-list-row" onclick="toggleWsExpand('${ws.id}')" ondragover="wsDragOver(event,'${ws.id}')" ondragleave="wsDragLeave(event)" ondrop="wsDrop(event,'${ws.id}')">
+    <div class="ws-list-row" id="wslistrow-${ws.id}" onclick="toggleWsExpand('${ws.id}')" ondragover="wsDragOver(event,'${ws.id}')" ondragleave="wsDragLeave(event)" ondrop="wsDrop(event,'${ws.id}')">
+      <span class="ws-card-drag-handle" draggable="true" ondragstart="wsCardDragStart(event,'${ws.id}')" ondragend="dragEnd(event)" onclick="event.stopPropagation()" title="Drag to reorder">⋮⋮</span>
       <div class="ws-list-cell">
         <span style="width:8px;height:8px;border-radius:50%;background:${ws.color};flex-shrink:0;margin-right:8px"></span>
-        <span class="ws-list-name">${esc(ws.name)}</span>
+        <div style="min-width:0">
+          <div class="ws-list-name" title="${esc(ws.name)}">${esc(ws.name)}</div>
+          ${ws.desc ? `<div class="ws-list-objective" title="${esc(ws.desc)}">${esc(ws.desc)}</div>` : ''}
+        </div>
       </div>
       <div class="ws-list-cell">${ws.owner ? `<span onclick="event.stopPropagation();openProfileModal('${esc(ws.owner)}')" style="cursor:pointer;display:flex;align-items:center;gap:5px">
           <div style="width:16px;height:16px;border-radius:50%;background:${avatarColor(ws.owner)};display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#fff;flex-shrink:0">${esc(initials(ws.owner))}</div>
@@ -4374,7 +4394,7 @@ function renderWsListView(visibleWs) {
       </div>` : ''}`;
   }).join('');
 
-  document.getElementById('wsListWrap').innerHTML = header + body;
+  document.getElementById('wsListWrap').innerHTML = note + header + body;
 }
 
 function toggleWsExpand(wsId) {
@@ -4492,7 +4512,7 @@ function dragEnd(e) {
   document.querySelectorAll('.card,.ws-task-row,.ws-drag-chip').forEach(c => c.classList.remove('dragging'));
   document.querySelectorAll('.kol-body').forEach(b => b.classList.remove('drag-over'));
   document.querySelectorAll('.ws-card,.ws-unassigned-zone').forEach(c => c.classList.remove('ws-drag-over'));
-  document.querySelectorAll('.ws-card').forEach(c => c.classList.remove('ws-card-dragging', 'ws-card-drop-target'));
+  document.querySelectorAll('.ws-card,.ws-list-row').forEach(c => c.classList.remove('ws-card-dragging', 'ws-card-drop-target'));
 }
 
 // Custom card order (Workstreams "Cards" view, per-user preference — see wsCardOrder).
@@ -4506,15 +4526,21 @@ function wsCardDragStart(e, id) {
   e.stopPropagation();
   _wsCardDragId = id;
   e.dataTransfer.effectAllowed = 'move';
-  setTimeout(() => document.getElementById('wscard-' + id)?.classList.add('ws-card-dragging'), 0);
+  setTimeout(() => {
+    document.getElementById('wscard-' + id)?.classList.add('ws-card-dragging');
+    document.getElementById('wslistrow-' + id)?.classList.add('ws-card-dragging');
+  }, 0);
 }
 
 function wsDragOver(e, wsId) {
   e.preventDefault(); e.stopPropagation();
   e.dataTransfer.dropEffect = 'move';
   if (_wsCardDragId) {
-    document.querySelectorAll('.ws-card').forEach(c => c.classList.remove('ws-card-drop-target'));
-    if (wsId && wsId !== _wsCardDragId) document.getElementById('wscard-' + wsId)?.classList.add('ws-card-drop-target');
+    document.querySelectorAll('.ws-card,.ws-list-row').forEach(c => c.classList.remove('ws-card-drop-target'));
+    if (wsId && wsId !== _wsCardDragId) {
+      document.getElementById('wscard-' + wsId)?.classList.add('ws-card-drop-target');
+      document.getElementById('wslistrow-' + wsId)?.classList.add('ws-card-drop-target');
+    }
     return;
   }
   document.querySelectorAll('.ws-card,.ws-unassigned-zone').forEach(c => c.classList.remove('ws-drag-over'));
@@ -4527,7 +4553,7 @@ function wsDragLeave(e) {
 function wsDrop(e, wsId) {
   e.preventDefault(); e.stopPropagation();
   if (_wsCardDragId) {
-    document.querySelectorAll('.ws-card').forEach(c => c.classList.remove('ws-card-dragging', 'ws-card-drop-target'));
+    document.querySelectorAll('.ws-card,.ws-list-row').forEach(c => c.classList.remove('ws-card-dragging', 'ws-card-drop-target'));
     const draggedId = _wsCardDragId;
     _wsCardDragId = null;
     if (!wsId || draggedId === wsId) return;
@@ -4538,6 +4564,7 @@ function wsDrop(e, wsId) {
     const newTo = currentOrder.indexOf(wsId);
     currentOrder.splice(newTo === -1 ? currentOrder.length : newTo, 0, draggedId);
     wsCardOrder = currentOrder;
+    if (wsViewMode === 'list') wsListSortCol = 'manual';
     saveUserPrefs(); renderWsView();
     return;
   }
