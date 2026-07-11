@@ -1283,8 +1283,8 @@ textarea.fi{resize:vertical;min-height:72px}
 .ws-card.ws-card-drop-target{outline:2px dashed var(--t3);outline-offset:2px}
 
 .ws-list-wrap{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-.ws-list-header{display:grid;grid-template-columns:1fr 130px 110px 150px 70px 70px;gap:0;padding:0 16px;background:var(--hdr);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:2}
-.ws-list-row{display:grid;grid-template-columns:1fr 130px 110px 150px 70px 70px;gap:0;padding:0 16px;border-bottom:1px solid var(--border);align-items:center;min-height:48px;cursor:pointer;transition:background .1s}
+.ws-list-header{display:grid;grid-template-columns:1fr 130px 110px 150px 70px 70px 56px;gap:0;padding:0 16px;background:var(--hdr);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:2}
+.ws-list-row{display:grid;grid-template-columns:1fr 130px 110px 150px 70px 70px 56px;gap:0;padding:0 16px;border-bottom:1px solid var(--border);align-items:center;min-height:48px;cursor:pointer;transition:background .1s}
 .ws-list-row:last-child{border-bottom:none}
 .ws-list-row:hover{background:var(--bg)}
 .ws-list-cell{display:flex;align-items:center;font-size:12px;color:var(--t2);min-width:0;padding:8px 6px}
@@ -4328,6 +4328,7 @@ function renderWsListView(visibleWs) {
     ${hdrBtn('progress','Progress')}
     ${hdrBtn('open','Open')}
     ${hdrBtn('done','Done')}
+    <span></span>
   </div>`;
 
   const pctColorFor = pct => pct >= 75 ? '#059669' : pct >= 40 ? '#3B82F6' : '#F59E0B';
@@ -4366,6 +4367,7 @@ function renderWsListView(visibleWs) {
       </div>
       <div class="ws-list-cell">${openCount}</div>
       <div class="ws-list-cell">${doneCount}</div>
+      <div class="ws-list-cell"><button class="btn-sm" onclick="event.stopPropagation();openWsModal('${ws.id}')" title="Edit or delete this workstream">Edit</button></div>
     </div>
     ${isExpanded ? `<div class="ws-list-expand" onclick="event.stopPropagation()">
         ${allWsTasks.filter(t=>t.status!=='done').length ? allWsTasks.filter(t=>t.status!=='done').map(taskRowHTML).join('') : '<div class="ws-empty">No open tasks</div>'}
