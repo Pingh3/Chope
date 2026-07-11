@@ -1988,7 +1988,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
 </div>
 
 <!-- Task Modal -->
-<div class="overlay" id="taskOverlay" onclick="overlayClick(event,'taskOverlay')">
+<div class="overlay" id="taskOverlay" onmousedown="overlayMouseDown(event)" onclick="overlayClick(event,'taskOverlay')">
   <div class="modal">
     <div class="modal-hd">
       <div class="modal-title" id="taskModalTitle">New Task</div>
@@ -2040,13 +2040,8 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
         <label>Fund</label>
         <div class="sel-wrap">
           <div class="sel-dot" id="dot-fund"></div>
-          <select class="fi" id="fFund" onchange="this.dataset.userSet='1';updateSelDots()">
+          <select class="fi" id="fFund" onchange="this.dataset.userSet='1';_handleFundSelect(this);updateSelDots()">
             <option value="none">None</option>
-            <option value="cross">Cross-funds</option>
-            <option value="WHPMT">WHPMT</option>
-            <option value="Fund II">Fund II</option>
-            <option value="Fund III">Fund III</option>
-            <option value="Fund IV">Fund IV</option>
           </select>
         </div>
       </div>
@@ -2164,7 +2159,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
 </div>
 
 <!-- Workstream Modal -->
-<div class="overlay" id="wsOverlay" onclick="overlayClick(event,'wsOverlay')">
+<div class="overlay" id="wsOverlay" onmousedown="overlayMouseDown(event)" onclick="overlayClick(event,'wsOverlay')">
   <div class="modal" style="width:420px">
     <div class="modal-hd">
       <div class="modal-title" id="wsModalTitle">New Workstream</div>
@@ -2198,13 +2193,8 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
         </div>
         <div class="mf">
           <label>Related Fund</label>
-          <select class="fi" id="wsFund" onchange="this.dataset.userSet='1'">
+          <select class="fi" id="wsFund" onchange="this.dataset.userSet='1';_handleFundSelect(this)">
             <option value="">Any</option>
-            <option value="cross">Cross-funds</option>
-            <option value="WHPMT">WHPMT</option>
-            <option value="Fund II">Fund II</option>
-            <option value="Fund III">Fund III</option>
-            <option value="Fund IV">Fund IV</option>
           </select>
         </div>
       </div>
@@ -2224,7 +2214,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
 </div>
 
 <!-- Team Modal -->
-<div class="overlay" id="teamOverlay" onclick="overlayClick(event,'teamOverlay')">
+<div class="overlay" id="teamOverlay" onmousedown="overlayMouseDown(event)" onclick="overlayClick(event,'teamOverlay')">
   <div class="modal" style="width:480px">
     <div class="modal-hd">
       <div class="modal-title">Manage Team</div>
@@ -2290,7 +2280,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
 </div>
 
 <!-- Shortcuts Modal -->
-<div class="overlay" id="shortcutsOverlay" onclick="overlayClick(event,'shortcutsOverlay')">
+<div class="overlay" id="shortcutsOverlay" onmousedown="overlayMouseDown(event)" onclick="overlayClick(event,'shortcutsOverlay')">
   <div class="modal" style="width:480px">
     <div class="modal-hd">
       <div class="modal-title">⌨ Keyboard Shortcuts</div>
@@ -2356,7 +2346,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
 </div>
 
 <!-- Bulk Add Modal -->
-<div class="overlay" id="bulkOverlay" onclick="overlayClick(event,'bulkOverlay')">
+<div class="overlay" id="bulkOverlay" onmousedown="overlayMouseDown(event)" onclick="overlayClick(event,'bulkOverlay')">
   <div class="modal" style="width:620px;max-height:85vh;display:flex;flex-direction:column">
     <div class="modal-hd">
       <div class="modal-title">⊞ Import Tasks</div>
@@ -2476,6 +2466,8 @@ const DEFAULT_TEAM = [
   { name: 'Denise', role: 'Associate', initials: 'De' },
 ];
 
+const DEFAULT_FUNDS = ['WHPMT', 'Fund II', 'Fund III', 'Fund IV'];
+
 const COLS = {
   todo:       { label: 'To Do',         color: '#6B7280' },
   inprogress: { label: 'In Progress',   color: '#3B82F6' },
@@ -2491,6 +2483,7 @@ const LOW_KW  = ['draft','research','track','monitor','log','archive','note','do
 ══════════════════════════════════════════════════════════ */
 
 let tasks = [], workstreams = [], team = [];
+let funds = [...DEFAULT_FUNDS];
 let feedback = [];
 let state = {
   view: 'daily',
@@ -2542,9 +2535,9 @@ async function load() {
   // localStorage first — instant paint while Firestore loads
   try {
     const d = JSON.parse(localStorage.getItem('chope_v2') || 'null');
-    if (d) { tasks = d.tasks || []; workstreams = d.workstreams || []; team = d.team || DEFAULT_TEAM; if (Array.isArray(d.activityLog)) activityLog = d.activityLog; }
-    else   { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; }
-  } catch { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; }
+    if (d) { tasks = d.tasks || []; workstreams = d.workstreams || []; team = d.team || DEFAULT_TEAM; funds = Array.isArray(d.funds) && d.funds.length ? d.funds : DEFAULT_FUNDS; if (Array.isArray(d.activityLog)) activityLog = d.activityLog; }
+    else   { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; funds = DEFAULT_FUNDS; }
+  } catch { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; funds = DEFAULT_FUNDS; }
 
   const savedUser = localStorage.getItem('chope_user');
   state.currentUser = (savedUser && team.find(m => m.name === savedUser))
@@ -2564,15 +2557,16 @@ async function load() {
         tasks = d.tasks || tasks;
         workstreams = d.workstreams || workstreams;
         team = d.team || team;
+        funds = Array.isArray(d.funds) && d.funds.length ? d.funds : funds;
         if (Array.isArray(d.activityLog)) activityLog = d.activityLog;
         if (d.scheduleData && typeof d.scheduleData === 'object') {
           scheduleData = d.scheduleData;
           localStorage.setItem('chope_schedule', JSON.stringify(scheduleData));
         }
-        localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, activityLog }));
+        localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, activityLog }));
       } else {
         // First ever load — push local data to Firestore
-        await setDoc(ref, { tasks, workstreams, team, activityLog, scheduleData });
+        await setDoc(ref, { tasks, workstreams, team, funds, activityLog, scheduleData });
       }
     } catch(e) { console.warn('Firestore load failed, falling back to localStorage', e); }
 
@@ -2589,6 +2583,7 @@ async function load() {
       tasks = d.tasks || [];
       workstreams = d.workstreams || [];
       team = d.team || DEFAULT_TEAM;
+      funds = Array.isArray(d.funds) && d.funds.length ? d.funds : DEFAULT_FUNDS;
       if (Array.isArray(d.activityLog)) activityLog = d.activityLog;
       if (d.scheduleData && typeof d.scheduleData === 'object') {
         scheduleData = d.scheduleData;
@@ -2604,7 +2599,7 @@ async function load() {
         const idx = tasks.findIndex(t => t.id === id);
         if (idx >= 0) { const { _ts, ...td } = ov; tasks[idx] = td; }
       });
-      localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, activityLog }));
+      localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, activityLog }));
       renderAll();
       toast('🔄 Board updated by a colleague');
     });
@@ -2626,12 +2621,12 @@ async function load() {
 }
 
 function persist() {
-  localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, activityLog }));
-  try { bc.postMessage({ tasks, workstreams, team, activityLog, scheduleData }); } catch {}
+  localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, activityLog }));
+  try { bc.postMessage({ tasks, workstreams, team, funds, activityLog, scheduleData }); } catch {}
   if (window._chopeFb) {
     _lastLocalWrite = Date.now();
     const { db, doc, setDoc } = window._chopeFb;
-    setDoc(doc(db, 'chope', 'main'), { tasks, workstreams, team, activityLog, scheduleData, _savedAt: _lastLocalWrite })
+    setDoc(doc(db, 'chope', 'main'), { tasks, workstreams, team, funds, activityLog, scheduleData, _savedAt: _lastLocalWrite })
       .catch(e => console.warn('Firestore write failed:', e));
   }
 }
@@ -2647,6 +2642,7 @@ const bc = new BroadcastChannel('chope_v2');
 bc.onmessage = e => {
   if (!e.data) return;
   tasks = e.data.tasks; workstreams = e.data.workstreams; team = e.data.team;
+  if (Array.isArray(e.data.funds) && e.data.funds.length) funds = e.data.funds;
   if (Array.isArray(e.data.activityLog)) activityLog = e.data.activityLog;
   if (e.data.scheduleData && typeof e.data.scheduleData === 'object') scheduleData = e.data.scheduleData;
   renderAll(); toast('Board updated by a colleague');
@@ -3077,10 +3073,7 @@ function renderFilterBar() {
       <span class="fb-label">Fund</span>
       <div class="fb-group">
         ${p('all','All','fund',state.fund==='all')}
-        ${p('WHPMT','WHPMT','fund',state.fund==='WHPMT')}
-        ${p('Fund II','Fund II','fund',state.fund==='Fund II')}
-        ${p('Fund III','Fund III','fund',state.fund==='Fund III')}
-        ${p('Fund IV','Fund IV','fund',state.fund==='Fund IV')}
+        ${funds.map(f => p(f,f,'fund',state.fund===f)).join('')}
         ${p('cross','Cross-funds','fund',state.fund==='cross')}
         ${p('none','None','fund',state.fund==='none')}
       </div>
@@ -4639,6 +4632,7 @@ function openTaskModal(id) {
   document.getElementById('taskOverlay').style.display = '';
   editTaskId = id || null;
   populateAssigneeSelect();
+  populateFundSelects();
   const del = document.getElementById('btnDelete');
 
   if (id) {
@@ -5948,8 +5942,42 @@ function renderTodoistStatus() {
    WORKSTREAM MODAL
 ══════════════════════════════════════════════════════════ */
 
+/* ── Fund select population (task modal #fFund, workstream modal #wsFund) ──
+   funds[] is user-extensible (see _handleFundSelect) — both selects are
+   rebuilt from it each time their modal opens, rather than hardcoded HTML. */
+function populateFundSelect(selId, opts) {
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  const current = sel.value;
+  let html = '';
+  if (opts.blankLabel) html += `<option value="">${esc(opts.blankLabel)}</option>`;
+  if (opts.noneLabel) html += `<option value="none">${esc(opts.noneLabel)}</option>`;
+  html += `<option value="cross">Cross-funds</option>`;
+  html += funds.map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join('');
+  html += `<option value="__add_new__">+ Add new fund…</option>`;
+  sel.innerHTML = html;
+  if ([...sel.options].some(o => o.value === current)) sel.value = current;
+}
+
+function populateFundSelects() {
+  populateFundSelect('fFund', { noneLabel: 'None' });
+  populateFundSelect('wsFund', { blankLabel: 'Any' });
+}
+
+function _handleFundSelect(sel) {
+  if (sel.value !== '__add_new__') return;
+  const name = (prompt('New fund name (e.g. Fund V):') || '').trim();
+  if (name && !funds.includes(name)) {
+    funds.push(name);
+    persist();
+  }
+  populateFundSelects();
+  sel.value = (name && funds.includes(name)) ? name : sel.options[0].value;
+}
+
 function openWsModal(id) {
   editWsId = id || null;
+  populateFundSelects();
   const del = document.getElementById('wsBtnDelete');
   const ownerSel = document.getElementById('wsOwner');
   ownerSel.innerHTML = '<option value="">No lead assigned</option>' +
@@ -6406,7 +6434,19 @@ function removeMember(name) {
   toast(`${name} removed from team`);
 }
 
+// Click-outside-to-close must only fire when the MOUSEDOWN also started on the
+// backdrop itself. Without this, selecting text inside a field (e.g. triple-click
+// or drag-to-select) can end the drag over the backdrop, and the resulting click's
+// target looks like an "outside click" even though the interaction started inside
+// the modal — silently closing it and discarding the user's in-progress edit.
+let _overlayMouseDownOnSelf = false;
+function overlayMouseDown(e) {
+  _overlayMouseDownOnSelf = (e.target === e.currentTarget);
+}
 function overlayClick(e, id) {
+  const downOnSelf = _overlayMouseDownOnSelf;
+  _overlayMouseDownOnSelf = false;
+  if (!downOnSelf) return;
   if (e.target === document.getElementById(id)) {
     if (id === 'taskOverlay')  closeTaskModal();
     else if (id === 'wsOverlay')   closeWsModal();
@@ -8895,7 +8935,7 @@ if (window.visualViewport) {
 }
 </script>
 <!-- Profile Modal -->
-<div class="overlay" id="profileOverlay" onclick="overlayClick(event,'profileOverlay')">
+<div class="overlay" id="profileOverlay" onmousedown="overlayMouseDown(event)" onclick="overlayClick(event,'profileOverlay')">
   <div class="modal" style="width:460px" id="profileModal">
     <div class="modal-hd">
       <div class="modal-title" id="profileModalTitle">Profile</div>
