@@ -1283,7 +1283,8 @@ textarea.fi{resize:vertical;min-height:72px}
 .ws-card-drag-handle{cursor:grab;color:var(--t3);font-size:13px;padding:2px 4px;flex-shrink:0;letter-spacing:-2px;line-height:1}
 .ws-card-drag-handle:hover{color:var(--t1)}
 .ws-card.ws-card-dragging,.ws-list-row.ws-card-dragging{opacity:.4}
-.ws-card.ws-card-drop-target,.ws-list-row.ws-card-drop-target{outline:2px dashed var(--t3);outline-offset:-2px}
+.ws-card.ws-card-drop-target,.ws-list-row.ws-card-drop-target{box-shadow:inset 0 2px 0 var(--t1)}
+.ws-card.ws-card-drop-after,.ws-list-row.ws-card-drop-after{box-shadow:inset 0 -2px 0 var(--t1)}
 
 .ws-list-wrap{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
 .ws-list-header{display:grid;grid-template-columns:24px 1fr 130px 110px 150px 70px 70px 56px;gap:0;padding:0 16px;background:var(--hdr);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:2}
@@ -2505,6 +2506,7 @@ let _isSaving = false;
 let listSortCol = null, listSortDir = 'asc';
 let wsViewMode = 'cards', wsListSortCol = 'name', wsListSortDir = 'asc', wsCardOrder = [];
 let _wsCardDragId = null;
+let _wsCardDragInsertAfter = false;
 let listColWidths = [28, 300, null, 120, 110, 90, 110]; // null = 1fr (description)
 let wsExpanded = new Set();    // workstream IDs that are expanded
 let wsDoneExpanded = new Set(); // workstream IDs with done tasks visible
@@ -4512,7 +4514,7 @@ function dragEnd(e) {
   document.querySelectorAll('.card,.ws-task-row,.ws-drag-chip').forEach(c => c.classList.remove('dragging'));
   document.querySelectorAll('.kol-body').forEach(b => b.classList.remove('drag-over'));
   document.querySelectorAll('.ws-card,.ws-unassigned-zone').forEach(c => c.classList.remove('ws-drag-over'));
-  document.querySelectorAll('.ws-card,.ws-list-row').forEach(c => c.classList.remove('ws-card-dragging', 'ws-card-drop-target'));
+  document.querySelectorAll('.ws-card,.ws-list-row').forEach(c => c.classList.remove('ws-card-dragging', 'ws-card-drop-target', 'ws-card-drop-after'));
 }
 
 // Custom card order (Workstreams "Cards" view, per-user preference — see wsCardOrder).
@@ -4522,6 +4524,16 @@ function _wsOrdered(list) {
   const idx = new Map(wsCardOrder.map((id, i) => [id, i]));
   return [...list].sort((a, b) => (idx.has(a.id) ? idx.get(a.id) : Infinity) - (idx.has(b.id) ? idx.get(b.id) : Infinity));
 }
+// The exact order rows currently appear on screen — may be a column sort (list view) or the
+// custom/natural order (cards view / manual mode), not necessarily wsCardOrder itself. Reordering
+// must be computed against what the user actually sees being dragged, not an abstract baseline.
+function _wsVisibleOrderIds() {
+  const els = wsViewMode === 'list'
+    ? document.querySelectorAll('#wsListWrap .ws-list-row')
+    : document.querySelectorAll('#wsGrid .ws-card');
+  return [...els].map(el => el.id.replace(/^wscard-|^wslistrow-/, ''));
+}
+
 function wsCardDragStart(e, id) {
   e.stopPropagation();
   _wsCardDragId = id;
@@ -4536,10 +4548,13 @@ function wsDragOver(e, wsId) {
   e.preventDefault(); e.stopPropagation();
   e.dataTransfer.dropEffect = 'move';
   if (_wsCardDragId) {
-    document.querySelectorAll('.ws-card,.ws-list-row').forEach(c => c.classList.remove('ws-card-drop-target'));
+    document.querySelectorAll('.ws-card,.ws-list-row').forEach(c => c.classList.remove('ws-card-drop-target', 'ws-card-drop-after'));
     if (wsId && wsId !== _wsCardDragId) {
-      document.getElementById('wscard-' + wsId)?.classList.add('ws-card-drop-target');
-      document.getElementById('wslistrow-' + wsId)?.classList.add('ws-card-drop-target');
+      // Which half of the target row/card the cursor is over decides insert-before vs insert-after —
+      // without this, dropping "onto" the last row could never make an item the new last item.
+      const rect = e.currentTarget.getBoundingClientRect();
+      _wsCardDragInsertAfter = (e.clientY - rect.top) > rect.height / 2;
+      e.currentTarget.classList.add(_wsCardDragInsertAfter ? 'ws-card-drop-after' : 'ws-card-drop-target');
     }
     return;
   }
@@ -4548,21 +4563,25 @@ function wsDragOver(e, wsId) {
   else document.getElementById('wsUnassignedZone')?.classList.add('ws-drag-over');
 }
 function wsDragLeave(e) {
-  if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('ws-drag-over', 'ws-card-drop-target');
+  if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('ws-drag-over', 'ws-card-drop-target', 'ws-card-drop-after');
 }
 function wsDrop(e, wsId) {
   e.preventDefault(); e.stopPropagation();
   if (_wsCardDragId) {
-    document.querySelectorAll('.ws-card,.ws-list-row').forEach(c => c.classList.remove('ws-card-dragging', 'ws-card-drop-target'));
+    document.querySelectorAll('.ws-card,.ws-list-row').forEach(c => c.classList.remove('ws-card-dragging', 'ws-card-drop-target', 'ws-card-drop-after'));
     const draggedId = _wsCardDragId;
+    const insertAfter = _wsCardDragInsertAfter;
     _wsCardDragId = null;
+    _wsCardDragInsertAfter = false;
     if (!wsId || draggedId === wsId) return;
-    const currentOrder = _wsOrdered(workstreams).map(w => w.id);
+    const currentOrder = _wsVisibleOrderIds();
     const from = currentOrder.indexOf(draggedId);
     if (from === -1) return;
     currentOrder.splice(from, 1);
-    const newTo = currentOrder.indexOf(wsId);
-    currentOrder.splice(newTo === -1 ? currentOrder.length : newTo, 0, draggedId);
+    let newTo = currentOrder.indexOf(wsId);
+    if (newTo === -1) newTo = currentOrder.length;
+    else if (insertAfter) newTo += 1;
+    currentOrder.splice(newTo, 0, draggedId);
     wsCardOrder = currentOrder;
     if (wsViewMode === 'list') wsListSortCol = 'manual';
     saveUserPrefs(); renderWsView();
