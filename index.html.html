@@ -209,6 +209,21 @@
 .team-profile-tags{display:flex;flex-wrap:wrap;gap:5px}
 .team-profile-tag{font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;border:1px solid var(--border)}
 
+/* ── Insights view ─────────────────────────── */
+.ins-trend-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px 14px}
+.ins-trend-grid{position:relative;display:flex;align-items:flex-end;gap:14px;height:140px;padding-top:4px}
+.ins-trend-goal-line{position:absolute;left:0;right:0;border-top:1.5px dashed var(--t3);z-index:1}
+.ins-trend-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end}
+.ins-trend-bar-wrap{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center}
+.ins-trend-bar{width:60%;min-width:14px;border-radius:4px 4px 0 0;transition:height .4s ease}
+.ins-trend-count{font-size:12px;font-weight:700;color:var(--t1)}
+.ins-trend-label{font-size:10px;color:var(--t3)}
+.ins-trend-note{font-size:12px;color:var(--t2);margin-top:12px;line-height:1.5}
+.ins-narrative-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px}
+.ins-narrative-text{font-size:13px;line-height:1.7;color:var(--t1)}
+.ins-narrative-text p{margin:0 0 10px}
+.ins-narrative-text p:last-child{margin-bottom:0}
+
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--t1);font-size:13px;line-height:1.5;min-height:100vh}
 
 /* ── Header ─────────────────────────────────────────────── */
@@ -1810,6 +1825,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
     <button class="vbtn" data-view="week" onclick="switchView('week',this)">Our Week</button>
     <button class="vbtn" data-view="ws" onclick="switchView('ws',this)">Workstreams</button>
     <button class="vbtn" data-view="team" id="teamNavBtn" onclick="switchView('team',this)" style="display:none" title="Team Dashboard">Team</button>
+    <button class="vbtn" data-view="insights" onclick="switchView('insights',this)" title="Your productivity & workload — only visible to you">Insights</button>
   </div>
   <div class="live-dot-wrap"><div class="ldot"></div>Live</div>
   <button class="theme-toggle" id="themeToggleBtn" onclick="toggleDarkMode()" title="Toggle dark / light mode">🌙</button>
@@ -1896,6 +1912,11 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
 <!-- Team Dashboard View (Victor only) -->
 <div class="view" id="teamView">
   <div id="teamContent"></div>
+</div>
+
+<!-- Insights View (self only) -->
+<div class="view" id="insightsView">
+  <div id="insightsContent"></div>
 </div>
 
 <!-- Gmail Side Panel -->
@@ -4226,6 +4247,7 @@ function renderAll() {
   if (state.view === 'week')   renderMyWeek();
   if (state.view === 'ws')     renderWsView();
   if (state.view === 'team')   renderTeamView();
+  if (state.view === 'insights') renderInsightsView();
   updateNotifBadge();
   updateFeedbackBadge();
 }
@@ -4252,7 +4274,7 @@ function switchView(v, btn) {
   document.querySelectorAll('.vbtn, .mnav-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll(`[data-view="${v}"]`).forEach(b => b.classList.add('active'));
   document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
-  const map = { board: 'boardView', daily: 'dailyView', week: 'weekView', ws: 'wsView', team: 'teamView' };
+  const map = { board: 'boardView', daily: 'dailyView', week: 'weekView', ws: 'wsView', team: 'teamView', insights: 'insightsView' };
   const viewEl = document.getElementById(map[v]);
   if (viewEl) viewEl.classList.add('active');
   saveUserPrefs();
@@ -5858,6 +5880,10 @@ function renderProfileModal() {
         <input class="fi" id="profileTrivia" value="${esc(m.trivia||'')}" placeholder="e.g. Slow Wi-Fi, Late replies, Noisy chewing">
       </div>
       <div>
+        <div class="profile-edit-label">Weekly task goal <span style="font-weight:400;color:var(--t3)">— used by your Insights view</span></div>
+        <input class="fi" id="profileWeeklyGoal" type="number" min="1" max="200" value="${m.weeklyGoal || 20}" style="max-width:100px">
+      </div>
+      <div>
         <div class="profile-edit-label">Work style <span style="font-weight:400;color:var(--t3)">— helps the AI schedule your tasks</span></div>
         <div class="profile-chronotype-opts">
           <label class="chronotype-opt">
@@ -5908,6 +5934,8 @@ function saveMyProfile() {
   m.bio        = (document.getElementById('profileBio')?.value      || '').trim();
   m.birthday   = (document.getElementById('profileBirthday')?.value || '').trim();
   m.trivia     = (document.getElementById('profileTrivia')?.value   || '').trim();
+  const goalVal = parseInt(document.getElementById('profileWeeklyGoal')?.value, 10);
+  m.weeklyGoal = (goalVal > 0) ? goalVal : (m.weeklyGoal || 20);
   const chronoEl = document.querySelector('input[name="profileChronotype"]:checked');
   m.chronotype = chronoEl ? chronoEl.value : (m.chronotype || '');
   persist();
@@ -6607,6 +6635,49 @@ async function fetchTodayCalendarEvents(dateStr) {
       const at = a.start?.dateTime || a.start?.date || '';
       const bt = b.start?.dateTime || b.start?.date || '';
       return at < bt ? -1 : 1;
+    });
+    return all;
+  } catch { return null; }
+}
+
+// Same fetch/filter logic as fetchTodayCalendarEvents but over an arbitrary [tMin,tMax) range,
+// used by Insights to estimate meeting load for the current vs previous week.
+async function fetchCalendarRangeEvents(tMin, tMax) {
+  if (!gmailToken) return null;
+  try {
+    const calListRes = await fetch(
+      'https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=50',
+      { headers: { Authorization: 'Bearer ' + gmailToken } }
+    );
+    if (calListRes.status === 401) return null;
+    if (calListRes.status === 403) return 'no-scope';
+    if (!calListRes.ok) return null;
+    const calList = await calListRes.json();
+    const calItems = (calList.items || [])
+      .filter(c => c.selected !== false && c.accessRole !== 'freeBusyReader');
+    const ownedCalIds = new Set(calItems.filter(c => c.accessRole === 'owner' || c.accessRole === 'writer').map(c => c.id));
+
+    const results = await Promise.all(calItems.map(async cal => {
+      try {
+        const r = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?timeMin=${encodeURIComponent(tMin)}&timeMax=${encodeURIComponent(tMax)}&singleEvents=true&orderBy=startTime&maxResults=250`,
+          { headers: { Authorization: 'Bearer ' + gmailToken } }
+        );
+        if (!r.ok) return [];
+        const d = await r.json();
+        return (d.items || []).map(ev => ({ ...ev, _calId: cal.id }));
+      } catch { return []; }
+    }));
+
+    const seen = new Set();
+    const all = results.flat().filter(ev => {
+      if (seen.has(ev.id)) return false;
+      seen.add(ev.id);
+      if (ev.status === 'cancelled') return false;
+      if (!ownedCalIds.has(ev._calId)) {
+        if (!ev.attendees || !ev.attendees.some(a => a.self === true)) return false;
+      }
+      return true;
     });
     return all;
   } catch { return null; }
@@ -8126,6 +8197,251 @@ function renderTeamView() {
         ${feedHtml}
       </div>
     </div>`;
+}
+
+/* ══════════════════════════════════════════════════════════
+   INSIGHTS VIEW (self only — productivity & workload)
+══════════════════════════════════════════════════════════ */
+
+function renderInsightsView() {
+  const el = document.getElementById('insightsContent');
+  if (!el) return;
+  const cu = state.currentUser;
+  const me = getMember(cu);
+  const now = new Date();
+  const todayStr = todayLocal();
+  const goal = (me && me.weeklyGoal) || 20;
+
+  // Week boundaries (Mon–Sun), same convention as Team dashboard
+  const dow = now.getDay();
+  const msSinceMon = ((dow === 0 ? 6 : dow - 1)) * 86400000;
+  const startThisWeek = new Date(now.getTime() - msSinceMon);
+  startThisWeek.setHours(0, 0, 0, 0);
+
+  const WEEKS = 6;
+  const weekBuckets = [];
+  for (let i = WEEKS - 1; i >= 0; i--) {
+    const start = new Date(startThisWeek.getTime() - i * 7 * 86400000);
+    const end = new Date(start.getTime() + 7 * 86400000);
+    weekBuckets.push({ start, end, isCurrent: i === 0 });
+  }
+  const myDone = tasks.filter(t => t.assignee === cu && t.status === 'done' && t.completedAt);
+  weekBuckets.forEach(w => {
+    w.count = myDone.filter(t => { const d = new Date(t.completedAt); return d >= w.start && d < w.end; }).length;
+  });
+
+  const maxCount = Math.max(goal, ...weekBuckets.map(w => w.count), 1);
+  const fmtWeekLabel = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  const trendBars = weekBuckets.map(w => {
+    const h = Math.max(3, Math.round(w.count / maxCount * 100));
+    const barColor = w.count >= goal ? '#059669' : (w.isCurrent ? '#6366F1' : '#94A3B8');
+    return `<div class="ins-trend-col">
+      <div class="ins-trend-bar-wrap">
+        <div class="ins-trend-bar" style="height:${h}%;background:${barColor}" title="${w.count} completed, week of ${fmtWeekLabel(w.start)}"></div>
+      </div>
+      <div class="ins-trend-count">${w.count}</div>
+      <div class="ins-trend-label">${w.isCurrent ? 'This wk' : fmtWeekLabel(w.start)}</div>
+    </div>`;
+  }).join('');
+
+  const thisWeek = weekBuckets[weekBuckets.length - 1];
+  const lastWeek = weekBuckets[weekBuckets.length - 2];
+  const vsGoalNote = thisWeek.count >= goal
+    ? `${thisWeek.count} done — ${Math.round(thisWeek.count / goal * 100)}% of your ${goal}/wk goal, ahead of pace.`
+    : `${thisWeek.count} of ${goal}/wk goal so far this week (week isn't over yet).`;
+  const wowDelta = thisWeek.count - lastWeek.count;
+  const wowLabel = wowDelta > 0 ? `↑ ${wowDelta} vs last wk` : wowDelta < 0 ? `↓ ${Math.abs(wowDelta)} vs last wk` : 'same as last wk';
+
+  // ── Streak: consecutive days (counting back from today/yesterday) with ≥1 completion ──
+  const doneDates = new Set(myDone.map(t => t.completedAt.slice(0, 10)));
+  let streak = 0;
+  let cursor = new Date(now);
+  if (!doneDates.has(todayStr)) cursor.setDate(cursor.getDate() - 1);
+  while (doneDates.has(_localDateStr(cursor))) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000);
+  const recentDone = myDone.filter(t => new Date(t.completedAt) >= thirtyDaysAgo);
+  const activeDays = new Set(recentDone.map(t => t.completedAt.slice(0, 10))).size;
+  const avgPerActiveDay = activeDays ? (recentDone.length / activeDays).toFixed(1) : '0';
+  const burstNote = streak === 0 && activeDays > 0
+    ? `You're completing in bursts — averaging ${avgPerActiveDay} tasks on the ${activeDays} day${activeDays===1?'':'s'} you were active this past month, rather than daily.`
+    : streak > 0
+    ? `${streak}-day streak going — nice and steady.`
+    : `No completions yet this month.`;
+
+  // ── Focus breakdown (recent = done in last 30d + all currently open) ──
+  const myAll = tasks.filter(t => t.assignee === cu);
+  const myOpen = myAll.filter(t => t.status !== 'done');
+  const myOverdue = myOpen.filter(t => t.deadline && t.deadline < todayStr);
+  const recent = [...recentDone, ...myOpen];
+
+  const buildBreakdown = (keyFn, labelFn, colorFn) => {
+    const counts = {};
+    recent.forEach(t => { const k = keyFn(t); if (!k) return; counts[k] = (counts[k] || 0) + 1; });
+    const total = Object.values(counts).reduce((s, v) => s + v, 0) || 1;
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6)
+      .map(([k, n]) => ({ label: labelFn(k), n, pct: Math.round(n / total * 100), color: colorFn(k) }));
+  };
+
+  const catRows = buildBreakdown(t => t.cat, k => (CATEGORIES[k] || { label: k }).label, k => (CATEGORIES[k] || { color: '#6B7280' }).color);
+  const fundRows = buildBreakdown(t => (t.fund && t.fund !== 'none') ? t.fund : null, k => k, () => '#C026D3');
+  const wsRows = buildBreakdown(t => { const w = workstreams.find(w => w.id === t.ws); return w ? w.name : null; }, k => k, () => '#0891B2');
+
+  const barsHTML = rows => rows.map(r => `
+      <div class="team-profile-bar-row">
+        <span class="team-profile-bar-label" title="${esc(r.label)}">${esc(r.label)}</span>
+        <div class="team-profile-bar-track"><div class="team-profile-bar-fill" style="width:${r.pct}%;background:${r.color}"></div></div>
+        <span class="team-profile-bar-count">${r.n}</span>
+      </div>`).join('');
+
+  const rate = myAll.length ? Math.round(myDone.length / myAll.length * 100) : 0;
+
+  el.innerHTML = `
+    <div class="team-dash">
+      <h1>Insights</h1>
+      <div class="team-dash-sub">Your productivity & workload — only visible to you</div>
+
+      <div class="team-section">
+        <div class="team-section-hd">📈 Volume Trend <span>completions per week vs your ${goal}/wk goal (dashed line)</span></div>
+        <div class="ins-trend-card">
+          <div class="ins-trend-grid" style="--goal-pct:${Math.round(goal / maxCount * 100)}%">
+            <div class="ins-trend-goal-line" style="bottom:${Math.round(goal / maxCount * 100)}%" title="Goal: ${goal}/wk"></div>
+            ${trendBars}
+          </div>
+          <div class="ins-trend-note">${esc(vsGoalNote)} <span style="color:var(--t3)">·</span> ${esc(wowLabel)}</div>
+        </div>
+      </div>
+
+      <div class="team-section">
+        <div class="team-section-hd">🔥 Streak & Pace <span>last 30 days</span></div>
+        <div class="team-velocity-grid">
+          <div class="team-vel-card">
+            <div class="team-vel-name">Daily streak</div>
+            <div class="team-vel-row"><span class="team-vel-num" style="font-size:22px">${streak}</span><span class="team-vel-label">day${streak===1?'':'s'}</span></div>
+          </div>
+          <div class="team-vel-card">
+            <div class="team-vel-name">Active days (30d)</div>
+            <div class="team-vel-row"><span class="team-vel-num" style="font-size:22px">${activeDays}</span><span class="team-vel-label">of last 30</span></div>
+          </div>
+          <div class="team-vel-card">
+            <div class="team-vel-name">Avg per active day</div>
+            <div class="team-vel-row"><span class="team-vel-num" style="font-size:22px">${avgPerActiveDay}</span><span class="team-vel-label">tasks</span></div>
+          </div>
+          <div class="team-vel-card">
+            <div class="team-vel-name">Overall</div>
+            <div class="team-vel-row"><span class="team-vel-num" style="font-size:22px">${rate}%</span><span class="team-vel-label">done rate</span></div>
+          </div>
+        </div>
+        <div class="ins-trend-note" style="margin-top:10px">${esc(burstNote)}</div>
+      </div>
+
+      <div class="team-section">
+        <div class="team-section-hd">🎯 Where Your Attention Is <span>work type · fund · workstream — open + last 30 days done</span></div>
+        <div class="team-profile-grid">
+          <div class="team-profile-card">
+            <div class="team-profile-section">Work type</div>
+            <div class="team-profile-bars">${catRows.length ? barsHTML(catRows) : '<div class="team-empty">No data yet</div>'}</div>
+          </div>
+          <div class="team-profile-card">
+            <div class="team-profile-section">Fund focus</div>
+            <div class="team-profile-bars">${fundRows.length ? barsHTML(fundRows) : '<div class="team-empty">No fund-tagged tasks</div>'}</div>
+          </div>
+          <div class="team-profile-card">
+            <div class="team-profile-section">Workstream / project</div>
+            <div class="team-profile-bars">${wsRows.length ? barsHTML(wsRows) : '<div class="team-empty">No workstream-tagged tasks</div>'}</div>
+          </div>
+        </div>
+        <div class="ins-trend-note" style="margin-top:10px">${myOpen.length} open${myOverdue.length ? `, <span style="color:#DC2626">${myOverdue.length} overdue</span>` : ', none overdue'}.</div>
+      </div>
+
+      <div class="team-section" id="insCalSection" style="${gmailToken ? '' : 'display:none'}">
+        <div class="team-section-hd">📅 Calendar Load <span>meeting time this week vs last</span></div>
+        <div id="insCalCard" class="ins-trend-note">Loading calendar…</div>
+      </div>
+      ${!gmailToken ? `
+      <div class="team-section">
+        <div class="team-section-hd">📅 Calendar Load</div>
+        <div class="team-empty">Connect Gmail/Calendar to see your meeting load here. <button class="btn-ghost" style="font-size:11px;padding:3px 10px;margin-left:6px" onclick="gmailSignIn()">Connect</button></div>
+      </div>` : ''}
+
+      <div class="team-section">
+        <div class="team-section-hd">✍️ Written Summary <span>AI-generated from the data above</span></div>
+        <div id="insSummaryCard" class="ins-narrative-card">
+          <button class="btn-add" id="insSummaryBtn" onclick="generateInsightsSummary()">Generate summary</button>
+        </div>
+      </div>
+    </div>`;
+
+  if (gmailToken) _loadInsightsCalendarLoad(startThisWeek);
+}
+
+async function _loadInsightsCalendarLoad(startThisWeek) {
+  const startLastWeek = new Date(startThisWeek.getTime() - 7 * 86400000);
+  const endThisWeek = new Date(startThisWeek.getTime() + 7 * 86400000);
+  const events = await fetchCalendarRangeEvents(startLastWeek.toISOString(), endThisWeek.toISOString());
+  const card = document.getElementById('insCalCard');
+  if (!card) return; // user navigated away
+  if (events === 'no-scope') { card.textContent = 'Calendar access not granted — reconnect Gmail to include calendar load.'; return; }
+  if (!events) { card.textContent = 'Could not load calendar events.'; return; }
+
+  let lastWeekMs = 0, thisWeekMs = 0;
+  events.forEach(ev => {
+    if (!ev.start?.dateTime || !ev.end?.dateTime) return; // skip all-day events
+    const s = new Date(ev.start.dateTime), e = new Date(ev.end.dateTime);
+    const dur = e - s;
+    if (s >= startThisWeek) thisWeekMs += dur;
+    else if (s >= startLastWeek) lastWeekMs += dur;
+  });
+  const thisHrs = (thisWeekMs / 3600000).toFixed(1);
+  const lastHrs = (lastWeekMs / 3600000).toFixed(1);
+  const delta = thisWeekMs - lastWeekMs;
+  const deltaLabel = Math.abs(delta) < 15 * 60000 ? 'about the same as' : (delta > 0 ? `${((delta)/3600000).toFixed(1)}h more than` : `${(Math.abs(delta)/3600000).toFixed(1)}h less than`);
+  card.innerHTML = `<strong style="color:var(--t1);font-size:15px">${thisHrs}h</strong> in meetings this week (${deltaLabel} last week's ${lastHrs}h).`;
+}
+
+async function generateInsightsSummary() {
+  const cu = state.currentUser;
+  const btn = document.getElementById('insSummaryBtn');
+  const card = document.getElementById('insSummaryCard');
+  if (btn) { btn.disabled = true; btn.textContent = 'Thinking…'; }
+
+  const todayStr = todayLocal();
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000);
+  const myCompleted = tasks
+    .filter(t => t.assignee === cu && t.status === 'done' && t.completedAt && new Date(t.completedAt) >= thirtyDaysAgo)
+    .map(t => ({ name: t.name.slice(0, 70), cat: t.cat, fund: (t.fund && t.fund !== 'none') ? t.fund : null, ws: (workstreams.find(w => w.id === t.ws) || {}).name || null, completedAt: t.completedAt }))
+    .slice(0, 80);
+  const myOpen = tasks.filter(t => t.assignee === cu && t.status !== 'done').length;
+  const myOverdue = tasks.filter(t => t.assignee === cu && t.status !== 'done' && t.deadline && t.deadline < todayStr).length;
+
+  try {
+    const r = await fetch('/api/assistant', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'insights',
+        message: 'Write my Chope Insights summary.',
+        currentUser: cu,
+        today: todayStr,
+        completedTasks: myCompleted,
+        stats: { openTasks: myOpen, overdueTasks: myOverdue },
+      }),
+    });
+    const data = await r.json();
+    if (!r.ok || data.error) {
+      card.innerHTML = `<div class="team-empty">${esc(data.error || 'Something went wrong generating your summary.')}</div><button class="btn-add" id="insSummaryBtn" onclick="generateInsightsSummary()">Try again</button>`;
+      return;
+    }
+    const narrativeHtml = '<p>' + esc(data.reply).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
+    card.innerHTML = `<div class="ins-narrative-text">${narrativeHtml}</div>
+      <button class="btn-ghost" style="margin-top:12px;font-size:11px;padding:4px 10px" onclick="generateInsightsSummary()">Regenerate</button>`;
+  } catch (e) {
+    card.innerHTML = `<div class="team-empty">Could not reach the AI — try again.</div><button class="btn-add" id="insSummaryBtn" onclick="generateInsightsSummary()">Try again</button>`;
+  }
 }
 
 // ── Mobile: reliable modal-open class (cross-browser, replaces CSS :has() on older iOS) ──

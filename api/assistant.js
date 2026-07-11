@@ -12,8 +12,56 @@ export default async function handler(req, res) {
     });
   }
 
-  const { message, tasks = [], currentUser, today, history = [], chronotype = '', userOnly = false } = req.body || {};
+  const { message, tasks = [], currentUser, today, history = [], chronotype = '', userOnly = false, mode = '', completedTasks = [], stats = {} } = req.body || {};
   if (!message) return res.status(400).json({ error: 'No message provided' });
+
+  // ── Insights mode: write a productivity/workload narrative from a completed-task history ──
+  if (mode === 'insights') {
+    const lines = completedTasks.slice(0, 80).map(t => {
+      const tags = [t.cat, t.fund, t.ws].filter(Boolean).join(', ');
+      return `- "${(t.name || '').slice(0, 70)}"${tags ? ` [${tags}]` : ''} — completed ${(t.completedAt || '').slice(0, 16).replace('T', ' ')}`;
+    }).join('\n');
+
+    const insightsPrompt = `You are writing a short productivity & workload insights summary for ${currentUser || 'a team member'} inside Chope, a work task manager. Today is ${today}. This covers WORK tasks only — there is no personal-life data here, so don't speculate about work/life balance.
+
+${currentUser}'s current stats: ${stats.openTasks ?? '?'} open tasks, ${stats.overdueTasks ?? '?'} overdue.
+
+Tasks ${currentUser} completed in the last 30 days (chronological signal — use timestamps to spot patterns like batch-clearing, single-day sweeps, or steady daily work):
+${lines || '(no completions in the last 30 days)'}
+
+Write in the style of a sharp, friendly analyst — direct, specific, references real task names in quotes, uses actual numbers. Structure:
+1. A short paragraph on completion volume/pace patterns (steady vs bursty, any streak or batch-clearing behavior visible from the timestamps).
+2. A short paragraph identifying the 2-4 clearest focus themes/projects from the task names and tags — name them specifically using real task names as evidence.
+3. One or two short, concrete observations if something stands out (e.g. duplicate-looking tasks, a cluster of tasks closed within minutes of each other suggesting a cleanup sweep rather than active work, an unusually quiet or unusually busy stretch).
+
+Keep it under 220 words, plain prose in short paragraphs (no headers, no bullet lists, no markdown formatting). Be honest and specific, not generic or falsely encouraging.`;
+
+    try {
+      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [{ role: 'system', content: insightsPrompt }, { role: 'user', content: message }],
+          max_tokens: 500,
+          temperature: 0.7,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        console.error('Groq error (insights):', r.status, JSON.stringify(data).slice(0, 300));
+        const msg = r.status === 429 ? 'Rate limit hit — wait a moment and try again.'
+                  : r.status === 401 ? 'API key invalid — check GROQ_API_KEY in Vercel settings.'
+                  : `AI error (${r.status}) — please try again.`;
+        return res.status(r.status).json({ error: msg });
+      }
+      const reply = data.choices?.[0]?.message?.content || '(empty response)';
+      return res.status(200).json({ reply });
+    } catch (e) {
+      console.error('Groq fetch error (insights):', e.message);
+      return res.status(502).json({ error: `Connection error: ${e.message}` });
+    }
+  }
 
   // ── Build task context (capped to keep payload small) ──
   const PRIO = { high: 1, med: 2, low: 3 };
