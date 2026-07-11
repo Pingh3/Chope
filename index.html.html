@@ -8074,9 +8074,13 @@ function renderTeamView() {
       return `<span class="team-profile-tag" style="background:var(--col);color:var(--t2)">${esc(f)} <strong style="color:var(--t1)">${n}</strong> <span style="color:var(--t3)">${pct}%</span></span>`;
     }).join('');
 
+    const avatarHTML = m.photo
+      ? `<img src="${esc(m.photo)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--border)" onerror="this.outerHTML='<div style=\\'width:36px;height:36px;border-radius:50%;background:${aCol};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0\\'>${esc(initials(m.name))}</div>'">`
+      : `<div style="width:36px;height:36px;border-radius:50%;background:${aCol};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">${esc(initials(m.name))}</div>`;
+
     return `<div class="team-profile-card">
-      <div class="team-profile-hd">
-        <div style="width:36px;height:36px;border-radius:50%;background:${aCol};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">${esc(initials(m.name))}</div>
+      <div class="team-profile-hd" style="cursor:pointer" onclick="openProfileModal('${esc(m.name)}')" title="View ${esc(m.name)}'s profile">
+        ${avatarHTML}
         <div>
           <div class="team-profile-name">${esc(m.name)}</div>
           <div class="team-profile-role">${open.length} open · ${overdue.length ? `<span style="color:#EF4444">${overdue.length} overdue</span>` : 'no overdue'}</div>

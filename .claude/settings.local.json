@@ -46,7 +46,9 @@
       "Bash(node -e ' *)",
       "Bash(mkdir -p /c/Users/phtan/AppData/Local/Temp/claude/C--Users-phtan-OneDrive-Documents-Claude-Coding-projects-Chope/b957e776-a329-4abe-8405-430cf1fe8221/scratchpad/preview)",
       "Bash(cp index.html.html /c/Users/phtan/AppData/Local/Temp/claude/C--Users-phtan-OneDrive-Documents-Claude-Coding-projects-Chope/b957e776-a329-4abe-8405-430cf1fe8221/scratchpad/preview/index.html)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3001/)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3001/)",
+      "Read(//c/Users/phtan/AppData/Local/Temp/claude/C--Users-phtan-OneDrive-Documents-Claude-Coding-projects-Chope/b957e776-a329-4abe-8405-430cf1fe8221/scratchpad/preview/**)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3002/)"
     ]
   }
 }
