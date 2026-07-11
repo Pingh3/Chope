@@ -48,7 +48,14 @@
       "Bash(cp index.html.html /c/Users/phtan/AppData/Local/Temp/claude/C--Users-phtan-OneDrive-Documents-Claude-Coding-projects-Chope/b957e776-a329-4abe-8405-430cf1fe8221/scratchpad/preview/index.html)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3001/)",
       "Read(//c/Users/phtan/AppData/Local/Temp/claude/C--Users-phtan-OneDrive-Documents-Claude-Coding-projects-Chope/b957e776-a329-4abe-8405-430cf1fe8221/scratchpad/preview/**)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3002/)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3002/)",
+      "mcp__0e1d7c6e-d9de-4065-aa63-3e27774f1aac__get_deployment",
+      "mcp__0e1d7c6e-d9de-4065-aa63-3e27774f1aac__get_project",
+      "Bash(npx --yes vercel --prod --yes)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3003/)",
+      "Bash(sed -i \"s|await import\\('C:/Users/phtan/OneDrive/Documents/Claude/Coding projects/Chope/api/assistant.js'\\)|await import\\(new URL\\('file:///C:/Users/phtan/OneDrive/Documents/Claude/Coding projects/Chope/api/assistant.js'\\).href\\)|\" /tmp/test_assistant.mjs)",
+      "Bash(node /tmp/test_assistant.mjs)",
+      "Bash(rm -f /tmp/test_assistant.mjs)"
     ]
   }
 }

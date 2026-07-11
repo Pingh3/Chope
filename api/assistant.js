@@ -22,19 +22,37 @@ export default async function handler(req, res) {
       return `- "${(t.name || '').slice(0, 70)}"${tags ? ` [${tags}]` : ''} — completed ${(t.completedAt || '').slice(0, 16).replace('T', ' ')}`;
     }).join('\n');
 
+    const overdueLines = (stats.overdueList || []).map(t => `- "${t.name}" [${t.priority || '?'}] — ${t.daysOverdue}d overdue`).join('\n');
+    const atRiskLines = (stats.atRiskHighPriority || []).map(t => `- "${t.name}"${t.deadline ? ` — due ${t.deadline}` : ' — no deadline set'}`).join('\n');
+
+    const calendarNote = (stats.calendarHoursThisWeek != null)
+      ? `\n${currentUser}'s calendar this week: ${stats.calendarHoursThisWeek}h in meetings across ${stats.calendarMeetingCountThisWeek ?? '?'} meetings (last week: ${stats.calendarHoursLastWeek}h). Use this only if it plausibly explains a pace or focus pattern (e.g. a heavy meeting week coinciding with fewer completions) — don't force a connection if there isn't one.`
+      : '';
+
+    const blindSpotSignals = `
+Deadline reliability signals for ${currentUser} (use these to judge whether deadlines/priorities are a blind spot — don't mention any of them if they all look healthy):
+- On-time completion rate (last 60 days, tasks with a deadline): ${stats.onTimeCompletionRate != null ? stats.onTimeCompletionRate + '%' : 'not enough data'} (${stats.lateCompletions60d ?? 0} completed late)
+- Deadline pushed/rescheduled ${stats.deadlinePushes30d ?? 0} time(s) in the last 30 days
+- Currently overdue (${(stats.overdueList || []).length}):
+${overdueLines || '(none)'}
+- High-priority tasks not yet overdue but worth watching (${(stats.atRiskHighPriority || []).length}):
+${atRiskLines || '(none)'}`;
+
     const insightsPrompt = `You are writing a short productivity & workload insights summary for ${currentUser || 'a team member'} inside Chope, a work task manager. Today is ${today}. This covers WORK tasks only — there is no personal-life data here, so don't speculate about work/life balance.
 
-${currentUser}'s current stats: ${stats.openTasks ?? '?'} open tasks, ${stats.overdueTasks ?? '?'} overdue.
+${currentUser}'s current stats: ${stats.openTasks ?? '?'} open tasks, ${stats.overdueTasks ?? '?'} overdue.${calendarNote}
 
 Tasks ${currentUser} completed in the last 30 days (chronological signal — use timestamps to spot patterns like batch-clearing, single-day sweeps, or steady daily work):
 ${lines || '(no completions in the last 30 days)'}
+${blindSpotSignals}
 
 Write in the style of a sharp, friendly analyst — direct, specific, references real task names in quotes, uses actual numbers. Structure:
-1. A short paragraph on completion volume/pace patterns (steady vs bursty, any streak or batch-clearing behavior visible from the timestamps).
+1. A short paragraph on completion volume/pace patterns (steady vs bursty, any streak or batch-clearing behavior visible from the timestamps; mention meeting load only if it's plausibly relevant).
 2. A short paragraph identifying the 2-4 clearest focus themes/projects from the task names and tags — name them specifically using real task names as evidence.
 3. One or two short, concrete observations if something stands out (e.g. duplicate-looking tasks, a cluster of tasks closed within minutes of each other suggesting a cleanup sweep rather than active work, an unusually quiet or unusually busy stretch).
+4. A closing paragraph naming one genuine strength AND one potential blind spot, grounded in the deadline reliability signals and task list above — e.g. a recurring overdue pattern, high-priority tasks stalling, or frequent deadline pushes, with one concrete, practical suggestion. If the deadline signals all look healthy, say so briefly instead of inventing a problem — don't manufacture a blind spot that isn't there.
 
-Keep it under 220 words, plain prose in short paragraphs (no headers, no bullet lists, no markdown formatting). Be honest and specific, not generic or falsely encouraging.`;
+Keep it under 260 words, plain prose in short paragraphs (no headers, no bullet lists, no markdown formatting). Be honest and specific, not generic or falsely encouraging.`;
 
     try {
       const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
