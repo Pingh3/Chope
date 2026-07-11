@@ -1059,6 +1059,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 }
 .ws-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
 .ws-name{font-size:14px;font-weight:600}
+.ws-owner-chip{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--t2);cursor:pointer;flex-shrink:0;padding:2px 6px;border-radius:12px;transition:background .12s}
+.ws-owner-chip:hover{background:var(--bg)}
+.ws-owner-chip-empty{color:var(--t3);font-weight:500;border:1px dashed var(--border);padding:2px 8px;border-radius:12px}
+.ws-owner-chip-empty:hover{color:var(--t1);border-color:var(--t3)}
 .ws-count{margin-left:auto;font-size:11px;color:var(--t3)}
 .ws-card-body{padding:8px 0}
 .ws-task-row{
@@ -2165,6 +2169,12 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
             <option value="Fund IV">Fund IV</option>
           </select>
         </div>
+      </div>
+      <div class="mf">
+        <label>Lead <span style="font-weight:400;color:var(--t3)">— the key person in charge of this workstream</span></label>
+        <select class="fi" id="wsOwner">
+          <option value="">No lead assigned</option>
+        </select>
       </div>
     </div>
     <div class="modal-ft">
@@ -3491,7 +3501,7 @@ function cardHTML(t) {
         <div class="card-row">
           ${t.fund && t.fund !== 'none' ? `<div class="fund-chip">${esc(t.fund)}</div>` : '<span style="font-size:10px;color:var(--t3)">No fund</span>'}
           ${dl ? `<div class="card-dl ${dlCls}" style="margin-left:auto">📅 ${dl}${t.deadlineHistory?.length?`<span class="dl-moved-badge">↻${t.deadlineHistory.length}</span>`:''}</div>` : ''}
-          ${wsObj ? `<div class="ws-chip">${esc(wsObj.name)}</div>` : ''}
+          ${wsObj ? `<div class="ws-chip" title="${wsObj.owner ? 'Lead: ' + esc(wsObj.owner) : 'No lead assigned'}">${esc(wsObj.name)}</div>` : ''}
         </div>
         <div class="card-row">
           <div class="card-avatar" style="background:${aCol};cursor:pointer" onclick="event.stopPropagation();openProfileModal('${esc(t.assignee)}')" title="${esc(t.assignee)}">${esc(initials(t.assignee))}</div>
@@ -4150,6 +4160,11 @@ function renderWsView() {
               <div class="ws-name">${esc(ws.name)}</div>
               ${ws.fund ? `<div style="font-size:11px;color:var(--t3)">${esc(ws.fund)}</div>` : ''}
             </div>
+            ${ws.owner ? `
+            <div class="ws-owner-chip" onclick="event.stopPropagation();openProfileModal('${esc(ws.owner)}')" title="Lead: ${esc(ws.owner)}">
+              <div style="width:18px;height:18px;border-radius:50%;background:${avatarColor(ws.owner)};display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;flex-shrink:0">${esc(initials(ws.owner))}</div>
+              <span>${esc(ws.owner.split(' ')[0])}</span>
+            </div>` : `<span class="ws-owner-chip ws-owner-chip-empty" onclick="event.stopPropagation();openWsModal('${ws.id}')" title="No lead assigned — click to set one">+ Lead</span>`}
             <span style="font-size:11px;color:var(--t3);margin-right:6px">${activeTasks.length} open</span>
             <button class="btn-sm" onclick="openWsModal('${ws.id}');event.stopPropagation()" style="margin-right:6px">Edit</button>
             <span style="font-size:14px;color:var(--t3);transition:transform .2s;display:inline-block;transform:${isExpanded?'rotate(90deg)':'rotate(0deg)'}">${isExpanded?'▼':'▶'}</span>
@@ -5711,6 +5726,9 @@ function renderTodoistStatus() {
 function openWsModal(id) {
   editWsId = id || null;
   const del = document.getElementById('wsBtnDelete');
+  const ownerSel = document.getElementById('wsOwner');
+  ownerSel.innerHTML = '<option value="">No lead assigned</option>' +
+    team.map(m => `<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('');
   if (id) {
     const w = workstreams.find(x => x.id === id);
     if (!w) return;
@@ -5719,6 +5737,7 @@ function openWsModal(id) {
     document.getElementById('wsDesc').value  = w.desc || '';
     document.getElementById('wsColor').value = w.color;
     document.getElementById('wsFund').value  = w.fund || '';
+    ownerSel.value = w.owner || '';
     del.style.display = 'block';
   } else {
     document.getElementById('wsModalTitle').textContent = 'New Workstream';
@@ -5727,6 +5746,7 @@ function openWsModal(id) {
     document.getElementById('wsColor').value = '#4F46E5';
     document.getElementById('wsFund').value  = '';
     delete document.getElementById('wsFund').dataset.userSet;
+    ownerSel.value = '';
     del.style.display = 'none';
   }
   const wsColorEl = document.getElementById('wsColor');
@@ -5746,15 +5766,16 @@ function saveWs() {
   const desc  = document.getElementById('wsDesc').value.trim();
   const color = document.getElementById('wsColor').value;
   const fund  = document.getElementById('wsFund').value;
+  const owner = document.getElementById('wsOwner').value;
 
   if (!name) { flash('wsName'); return; }
 
   if (editWsId) {
     const w = workstreams.find(x => x.id === editWsId);
-    if (w) Object.assign(w, { name, desc, color, fund });
+    if (w) Object.assign(w, { name, desc, color, fund, owner });
     toast('Workstream updated');
   } else {
-    workstreams.push({ id: uid(), name, desc, color, fund });
+    workstreams.push({ id: uid(), name, desc, color, fund, owner });
     toast('Workstream created');
   }
   persist(); renderAll(); closeWsModal();
