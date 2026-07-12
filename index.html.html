@@ -1041,7 +1041,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   padding:10px 14px;margin-bottom:14px;transition:border-color .15s,box-shadow .15s;
 }
 .ws-unassigned-zone.ws-drag-over{border-color:#6B7280;box-shadow:0 0 0 3px #E5E7EB}
-.ws-unassigned-hd{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.ws-unassigned-hd{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ws-unassigned-filter{font-size:11px;font-weight:500;text-transform:none;letter-spacing:0;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--t2);font-family:inherit;cursor:pointer}
 .ws-drag-chips{display:flex;flex-wrap:wrap;gap:6px;min-height:28px}
 .ws-drag-chip{
   display:flex;align-items:center;gap:5px;background:var(--bg);
@@ -1939,6 +1940,10 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
   <div class="ws-header">
     <h1>Workstreams &amp; Projects</h1>
     <div style="display:flex;align-items:center;gap:10px">
+      <div class="ws-view-toggle" title="Sort of the open-task list inside an expanded workstream">
+        <button class="ws-vt-btn" id="wsTaskSortBtnPriority" onclick="setWsTaskSortMode('priority')">Priority</button>
+        <button class="ws-vt-btn" id="wsTaskSortBtnDeadline" onclick="setWsTaskSortMode('deadline')">Deadline</button>
+      </div>
       <div class="ws-view-toggle">
         <button class="ws-vt-btn" id="wsViewBtnCards" onclick="setWsViewMode('cards')" title="Cards — drag to reorder">Cards</button>
         <button class="ws-vt-btn" id="wsViewBtnList" onclick="setWsViewMode('list')" title="List — click a column to sort">List</button>
@@ -2498,6 +2503,8 @@ let editTaskId = null, editWsId = null, dragId = null, winsExpanded = false, hid
 let _isSaving = false;
 let listSortCol = null, listSortDir = 'asc';
 let wsViewMode = 'cards', wsListSortCol = 'name', wsListSortDir = 'asc', wsCardOrder = [];
+let wsTaskSortMode = 'priority'; // 'priority' | 'deadline' — sort of the open-task list within an expanded workstream
+let wsUnassignedFilter = 'me';   // 'me' | 'all' | a specific team member's name — resets to 'me' each page load
 let _wsCardDragId = null;
 let _wsCardDragInsertAfter = false;
 let listColWidths = [28, 300, null, 120, 110, 90, 110]; // null = 1fr (description)
@@ -4163,11 +4170,33 @@ function setWsListSort(col) {
   renderWsView();
 }
 
+function setWsTaskSortMode(mode) {
+  wsTaskSortMode = mode;
+  saveUserPrefs();
+  renderWsView();
+}
+
+// Sort of the open-task list shown inside an expanded workstream (Cards and List view alike).
+function _sortWsTasks(list) {
+  if (wsTaskSortMode === 'deadline') {
+    return [...list].sort((a, b) => (a.deadline || '9999-99-99').localeCompare(b.deadline || '9999-99-99'));
+  }
+  const po = { high: 0, med: 1, low: 2 };
+  return [...list].sort((a, b) => (po[a.priority] ?? 1) - (po[b.priority] ?? 1));
+}
+
+function setWsUnassignedFilter(val) {
+  wsUnassignedFilter = val;
+  renderWsView();
+}
+
 function renderWsView() {
   document.getElementById('wsViewBtnCards')?.classList.toggle('active', wsViewMode !== 'list');
   document.getElementById('wsViewBtnList')?.classList.toggle('active', wsViewMode === 'list');
   document.getElementById('wsGrid').style.display = wsViewMode === 'list' ? 'none' : '';
   document.getElementById('wsListWrap').style.display = wsViewMode === 'list' ? '' : 'none';
+  document.getElementById('wsTaskSortBtnPriority')?.classList.toggle('active', wsTaskSortMode !== 'deadline');
+  document.getElementById('wsTaskSortBtnDeadline')?.classList.toggle('active', wsTaskSortMode === 'deadline');
 
   if (!workstreams.length) {
     const emptyHtml = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--t3)">
@@ -4182,8 +4211,7 @@ function renderWsView() {
     const visibleWs = state.ws !== 'all' ? workstreams.filter(w => w.id === state.ws) : workstreams;
     document.getElementById('wsGrid').innerHTML = _wsOrdered(visibleWs).map(ws => {
       const allWsTasks = applyFilters(tasks.filter(t => t.ws === ws.id), {ignoreWs: true});
-      const activeTasks = allWsTasks.filter(t => t.status !== 'done')
-        .sort((a,b) => {const po={high:0,med:1,low:2}; return (po[a.priority]??1)-(po[b.priority]??1);});
+      const activeTasks = _sortWsTasks(allWsTasks.filter(t => t.status !== 'done'));
       const doneTasks   = allWsTasks.filter(t => t.status === 'done');
       const doneCount   = doneTasks.length;
       const pct         = allWsTasks.length ? Math.round(doneCount / allWsTasks.length * 100) : 0;
@@ -4273,12 +4301,22 @@ function renderWsView() {
     }).join('');
   }
 
-  // Unassigned tasks zone — at the bottom
-  const unassigned = tasks.filter(t => !t.ws && t.status !== 'done');
+  // Unassigned tasks zone — at the bottom, filterable by assignee (defaults to the signed-in user)
+  const unassignedAll = tasks.filter(t => !t.ws && t.status !== 'done');
+  const unassignedFilterName = wsUnassignedFilter === 'me' ? state.currentUser : wsUnassignedFilter;
+  const unassigned = wsUnassignedFilter === 'all' ? unassignedAll : unassignedAll.filter(t => t.assignee === unassignedFilterName);
+  const unassignedFilterOptions = `
+    <option value="me" ${wsUnassignedFilter==='me'?'selected':''}>Me (${esc(state.currentUser)})</option>
+    <option value="all" ${wsUnassignedFilter==='all'?'selected':''}>All assignees</option>
+    ${team.filter(m => m.name !== state.currentUser).map(m => `<option value="${esc(m.name)}" ${wsUnassignedFilter===m.name?'selected':''}>${esc(m.name)}</option>`).join('')}
+  `;
   document.getElementById('wsUnassigned').innerHTML = `
     <div class="ws-unassigned-zone" id="wsUnassignedZone"
       ondragover="wsDragOver(event,null)" ondragleave="wsDragLeave(event)" ondrop="wsDrop(event,null)">
-      <div class="ws-unassigned-hd">Unassigned tasks <span style="font-weight:400;font-size:10px;text-transform:none;letter-spacing:0">(${unassigned.length} — drag into a workstream above)</span></div>
+      <div class="ws-unassigned-hd">
+        <span>Unassigned tasks <span style="font-weight:400;font-size:10px;text-transform:none;letter-spacing:0">(${unassigned.length} of ${unassignedAll.length} — drag into a workstream above)</span></span>
+        <select class="ws-unassigned-filter" onchange="setWsUnassignedFilter(this.value)">${unassignedFilterOptions}</select>
+      </div>
       <div class="ws-drag-chips">
         ${unassigned.length
           ? unassigned.map(t => {
@@ -4291,7 +4329,7 @@ function renderWsView() {
                 ${esc(t.name.length>32 ? t.name.slice(0,32)+'…' : t.name)}
               </div>`;
             }).join('')
-          : `<span style="font-size:11px;color:var(--t3)">All tasks assigned ✓</span>`
+          : `<span style="font-size:11px;color:var(--t3)">${unassignedAll.length ? 'No unassigned tasks for this filter ✓' : 'All tasks assigned ✓'}</span>`
         }
       </div>
     </div>`;
@@ -4385,7 +4423,7 @@ function renderWsListView(visibleWs) {
       <div class="ws-list-cell"><button class="btn-sm" onclick="event.stopPropagation();openWsModal('${ws.id}')" title="Edit or delete this workstream">Edit</button></div>
     </div>
     ${isExpanded ? `<div class="ws-list-expand" onclick="event.stopPropagation()">
-        ${allWsTasks.filter(t=>t.status!=='done').length ? allWsTasks.filter(t=>t.status!=='done').map(taskRowHTML).join('') : '<div class="ws-empty">No open tasks</div>'}
+        ${(() => { const open = _sortWsTasks(allWsTasks.filter(t=>t.status!=='done')); return open.length ? open.map(taskRowHTML).join('') : '<div class="ws-empty">No open tasks</div>'; })()}
       </div>` : ''}`;
   }).join('');
 
@@ -4475,13 +4513,14 @@ function loadUserPrefs(user) {
     if (p.wsListSortCol) wsListSortCol = p.wsListSortCol;
     if (p.wsListSortDir) wsListSortDir = p.wsListSortDir;
     if (Array.isArray(p.wsCardOrder)) wsCardOrder = p.wsCardOrder;
+    if (p.wsTaskSortMode) wsTaskSortMode = p.wsTaskSortMode;
   } catch {}
 }
 
 function saveUserPrefs() {
   const user = state.currentUser;
   if (!user) return;
-  localStorage.setItem(_prefsKey(user), JSON.stringify({ boardMode, hideDone, listAllDoneHidden, defaultView: state.view, listColWidths, wsViewMode, wsListSortCol, wsListSortDir, wsCardOrder }));
+  localStorage.setItem(_prefsKey(user), JSON.stringify({ boardMode, hideDone, listAllDoneHidden, defaultView: state.view, listColWidths, wsViewMode, wsListSortCol, wsListSortDir, wsCardOrder, wsTaskSortMode }));
 }
 
 function onUserChange() {
