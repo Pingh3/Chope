@@ -8630,7 +8630,10 @@ function renderTeamView() {
 
   el.innerHTML = `
     <div class="team-dash">
-      <h1>Team Dashboard</h1>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <h1>Team Dashboard</h1>
+        <button class="btn-ws" onclick="exportTasksMarkdown()" title="Download all completed and open tasks as a Markdown file">⬇ Export Tasks (.md)</button>
+      </div>
       <div class="team-dash-sub">Only visible to you, Victor · Click any workload card to filter the Board to that person</div>
 
       <div class="team-section">
@@ -8678,6 +8681,53 @@ function renderTeamView() {
         ${feedHtml}
       </div>
     </div>`;
+}
+
+// Exports every task (completed + open) as a Markdown file — team-wide, unfiltered, Victor only.
+// Plain download, no server round-trip; meant to be pasted/uploaded into Claude (or anywhere else)
+// for ad-hoc analysis outside the app.
+function exportTasksMarkdown() {
+  const todayStr = todayLocal();
+  const escMd = s => String(s || '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').trim();
+  const catLabel = c => (CATEGORIES[c] || {}).label || c || '';
+  const fundLabel = f => (f && f !== 'none') ? f : '';
+  const wsLabel = id => id ? (getWs(id)?.name || '') : '';
+
+  const completed = tasks.filter(t => t.status === 'done')
+    .sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''));
+  const open = tasks.filter(t => t.status !== 'done')
+    .sort((a, b) => (a.deadline || '9999-99-99').localeCompare(b.deadline || '9999-99-99'));
+
+  const table = (rows, dateHeader, dateFn) => {
+    const header = `| Task | Assignee | Status | Priority | Category | Fund | Workstream | ${dateHeader} |\n` +
+                   `|---|---|---|---|---|---|---|---|`;
+    const body = rows.map(t => `| ${escMd(t.name)} | ${escMd(t.assignee)} | ${escMd(t.status)} | ${escMd(t.priority)} | ${escMd(catLabel(t.cat))} | ${escMd(fundLabel(t.fund))} | ${escMd(wsLabel(t.ws))} | ${escMd(dateFn(t))} |`).join('\n');
+    return header + '\n' + body;
+  };
+
+  const md = `# Chope Task Export — ${todayStr}
+
+Exported by ${state.currentUser} · ${tasks.length} total tasks (${completed.length} completed, ${open.length} open) · team-wide, unfiltered
+
+## ✅ Completed Tasks (${completed.length})
+
+${completed.length ? table(completed, 'Completed On', t => (t.completedAt || '').slice(0, 10)) : '_None_'}
+
+## 📋 Open / Upcoming Tasks (${open.length})
+
+${open.length ? table(open, 'Deadline', t => t.deadline || '(none)') : '_None_'}
+`;
+
+  const blob = new Blob([md], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `chope-export-${todayStr}.md`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast('Task export downloaded');
 }
 
 async function generateQuarterlyReview() {
