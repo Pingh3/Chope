@@ -2494,8 +2494,8 @@ let state = {
   view: 'daily',
   cat: 'all',
   priority: 'all',
-  fund: 'all',
-  assignee: 'all',
+  fund: [],      // multi-select: [] = no filter (all funds); otherwise a list of selected fund/'cross'/'none' values
+  assignee: [],  // multi-select: [] = no filter (all assignees); otherwise a list of selected team member names
   ws: 'all',
   currentUser: '',
 };
@@ -2888,6 +2888,11 @@ function isOverdue(t) {
   if (t.status === 'done' || !t.deadline) return false;
   return new Date(t.deadline) < new Date(new Date().toDateString());
 }
+function isUpcoming(t, days = 7) {
+  if (t.status === 'done' || !t.deadline || isOverdue(t)) return false;
+  const ms = new Date(t.deadline) - new Date(new Date().toDateString());
+  return ms >= 0 && ms <= days * 86400000;
+}
 function fmtDate(iso) {
   if (!iso) return '';
   const d = new Date(iso + 'T00:00:00');
@@ -2930,11 +2935,11 @@ function applyFilters(list, {ignoreAssignee=false, ignoreWs=false}={}) {
   return list.filter(t => {
     if (state.cat      !== 'all' && t.cat !== state.cat) return false;
     if (state.priority !== 'all' && t.priority !== state.priority) return false;
-    if (state.fund !== 'all') {
-      if (state.fund === 'none' && t.fund && t.fund !== 'none') return false;
-      if (state.fund !== 'none' && t.fund !== state.fund) return false;
+    if (state.fund.length) {
+      const tFund = (t.fund && t.fund !== 'none') ? t.fund : 'none';
+      if (!state.fund.includes(tFund)) return false;
     }
-    if (!ignoreAssignee && state.assignee !== 'all' && t.assignee !== state.assignee) return false;
+    if (!ignoreAssignee && state.assignee.length && !state.assignee.includes(t.assignee)) return false;
     if (!ignoreWs      && state.ws       !== 'all' && t.ws       !== state.ws)       return false;
     return true;
   });
@@ -2949,9 +2954,10 @@ function getStats() {
   const active = tasks.filter(t => t.status !== 'done');
   const ip     = tasks.filter(t => t.status === 'inprogress');
   const over   = tasks.filter(t => isOverdue(t));
+  const upcoming = tasks.filter(t => isUpcoming(t));
   const done   = tasks.filter(t => t.status === 'done');
   const rate   = tasks.length ? Math.round(done.length / tasks.length * 100) : 0;
-  return { total: tasks.length, active: active.length, ip: ip.length, over: over.length, done: done.length, rate };
+  return { total: tasks.length, active: active.length, ip: ip.length, over: over.length, upcoming: upcoming.length, done: done.length, rate };
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -2963,6 +2969,7 @@ function renderHeader() {
   document.getElementById('hdrStats').innerHTML =
     `<div class="stat-chip clickable" onclick="openOpenTasksPanel()" style="cursor:pointer" title="Click to see outstanding tasks">Tasks: <span>${s.active}</span></div>` +
     `<div class="stat-chip clickable blue" onclick="openInProgressPanel()" style="cursor:pointer" title="Click to see in-progress tasks">In progress: <span>${s.ip}</span></div>` +
+    `<div class="stat-chip ${s.upcoming?'clickable':''}" style="${s.upcoming?'border-color:#FDE68A;background:#FFFBEB;cursor:pointer':''}" ${s.upcoming?'onclick="openUpcomingPanel()" title="Click to see tasks due in the next 7 days"':''}>Upcoming: <span style="${s.upcoming?'color:#B45309':''}">${s.upcoming}</span></div>` +
     `<div class="stat-chip ${s.over?'red clickable':''}" ${s.over?'onclick="openOverduePanel()" style="cursor:pointer" title="Click to see overdue tasks"':''}>Overdue: <span>${s.over}</span></div>`;
 
   if (!state.currentUser && team.length) state.currentUser = team[0].name;
@@ -2999,14 +3006,14 @@ function renderCatNav() {
   const mfr = document.getElementById('mobileFilterRow');
   if (mfr) {
     const activeFilterCount = [
-      state.priority !== 'all', state.fund !== 'all',
-      state.assignee !== 'all', state.ws !== 'all'
+      state.priority !== 'all', state.fund.length > 0,
+      state.assignee.length > 0, state.ws !== 'all'
     ].filter(Boolean).length;
     const isExpanded = document.getElementById('filterBar')?.classList.contains('fb-expanded');
     const activePillsHtml = [
       state.priority !== 'all' ? ({high:'● High',med:'● Med',low:'● Low'}[state.priority]) : null,
-      state.fund !== 'all' ? state.fund : null,
-      state.assignee !== 'all' ? state.assignee.split(' ')[0] : null,
+      ...state.fund,
+      ...state.assignee.map(a => a.split(' ')[0]),
       state.ws !== 'all' ? (state.ws === '' ? 'No WS' : (getWs(state.ws)?.name.slice(0,10)||state.ws)) : null,
     ].filter(Boolean).map(p => `<span style="background:var(--t1);color:#fff;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0">${esc(p)}</span>`).join('');
     mfr.innerHTML = `
@@ -3029,11 +3036,14 @@ function renderCatNav() {
 function renderFilterBar() {
   const p = (val, label, group, active) =>
     `<button class="fpill ${active?'active':''}" onclick="setFilter('${group}','${val}')">${esc(label)}</button>`;
+  // Multi-select pill — several can be active at once, toggled independently (assignee/fund only)
+  const pm = (val, label, group, active) =>
+    `<button class="fpill ${active?'active':''}" onclick="toggleFilterMulti('${group}','${val}')">${esc(label)}</button>`;
 
   const teamPills = team.map(m => {
     const col = avatarColor(m.name);
-    const act = state.assignee === m.name;
-    return `<button class="fpill ${act?'active':''}" onclick="setFilter('assignee','${esc(m.name)}')">
+    const act = state.assignee.includes(m.name);
+    return `<button class="fpill ${act?'active':''}" onclick="toggleFilterMulti('assignee','${esc(m.name)}')">
       <span class="fpill-avatar" style="background:${col}">${esc(initials(m.name))}</span>
       ${esc(m.name)}
     </button>`;
@@ -3045,8 +3055,8 @@ function renderFilterBar() {
 
   const activePills = [
     state.priority !== 'all' ? ({high:'High',med:'Medium',low:'Low'}[state.priority]) : null,
-    state.fund !== 'all' ? (state.fund === 'none' ? 'None' : state.fund) : null,
-    state.assignee !== 'all' ? state.assignee.split(' ')[0] : null,
+    ...state.fund.map(f => f === 'none' ? 'No fund' : f === 'cross' ? 'Cross-funds' : f),
+    ...state.assignee.map(a => a.split(' ')[0]),
     state.ws !== 'all' ? (state.ws === '' ? 'No WS' : (getWs(state.ws)?.name.slice(0,12) || state.ws)) : null,
   ].filter(Boolean);
 
@@ -3079,16 +3089,16 @@ function renderFilterBar() {
     <div class="fb-row">
       <span class="fb-label">Fund</span>
       <div class="fb-group">
-        ${p('all','All','fund',state.fund==='all')}
-        ${funds.map(f => p(f,f,'fund',state.fund===f)).join('')}
-        ${p('cross','Cross-funds','fund',state.fund==='cross')}
-        ${p('none','None','fund',state.fund==='none')}
+        ${p('all','All','fund',state.fund.length===0)}
+        ${funds.map(f => pm(f,f,'fund',state.fund.includes(f))).join('')}
+        ${pm('cross','Cross-funds','fund',state.fund.includes('cross'))}
+        ${pm('none','None','fund',state.fund.includes('none'))}
       </div>
     </div>
     <div class="fb-row">
       <span class="fb-label">Assignee</span>
       <div class="fb-group">
-        ${p('all','All','assignee',state.assignee==='all')}
+        ${p('all','All','assignee',state.assignee.length===0)}
         ${teamPills}
       </div>
       <span class="fb-label" style="margin-left:16px">Workstream</span>
@@ -3560,8 +3570,8 @@ function cardHTML(t) {
 function renderDaily() {
   const me = state.currentUser;
   const base    = applyFilters(tasks, {ignoreAssignee: true, ignoreWs: true});
-  // Subject: follow assignee filter when viewing someone else, else default to self
-  const subject = (state.assignee !== 'all' && state.assignee) ? state.assignee : me;
+  // Subject: follow assignee filter when exactly one person is selected, else default to self
+  const subject = state.assignee.length === 1 ? state.assignee[0] : me;
   const isMe = subject === me;
   const myTasks = base.filter(t => t.assignee === subject && t.status !== 'done');
   const myDone  = base.filter(t => t.assignee === subject && t.status === 'done');
@@ -4465,9 +4475,24 @@ function renderAll() {
 ══════════════════════════════════════════════════════════ */
 
 function setCat(cat) { state.cat = cat; renderAll(); }
-function setFilter(group, val) { state[group] = val; renderAll(); }
+// Single-value "jump to this filter" — used by every quick-filter click across the app
+// (Team Dashboard cards, Daily view cards, etc.). Replaces the whole multi-select with one value.
+function setFilter(group, val) {
+  if (group === 'assignee' || group === 'fund') state[group] = val === 'all' ? [] : [val];
+  else state[group] = val;
+  renderAll();
+}
+// Multi-select toggle — used only by the filter bar's own assignee/fund pills, which can have
+// several values selected at once. Adds/removes val from the selection; 'all' clears it.
+function toggleFilterMulti(group, val) {
+  if (val === 'all') { state[group] = []; renderAll(); return; }
+  const arr = state[group];
+  const idx = arr.indexOf(val);
+  if (idx === -1) arr.push(val); else arr.splice(idx, 1);
+  renderAll();
+}
 function clearAllFilters() {
-  state.priority = 'all'; state.fund = 'all'; state.assignee = 'all'; state.ws = 'all';
+  state.priority = 'all'; state.fund = []; state.assignee = []; state.ws = 'all';
   renderAll();
 }
 
@@ -4625,6 +4650,7 @@ function wsDrop(e, wsId) {
   const newWs = wsId || null;
   if (t && t.ws !== newWs) {
     t.ws = newWs;
+    _localTaskOverrides[t.id] = { ...t, _ts: Date.now() };
     persist(); renderWsView();
     toast(`Moved to ${newWs ? (workstreams.find(w => w.id === newWs)?.name || 'workstream') : 'Unassigned'}`);
   }
@@ -4718,7 +4744,7 @@ function openTaskModal(id) {
     document.getElementById('fName').value     = '';
     document.getElementById('fDesc').value     = '';
     document.getElementById('fCat').value      = state.cat !== 'all' ? state.cat : '';
-    document.getElementById('fFund').value     = state.fund !== 'all' && state.fund !== 'none' ? state.fund : 'none';
+    document.getElementById('fFund').value     = (state.fund.length === 1 && state.fund[0] !== 'none') ? state.fund[0] : 'none';
     document.getElementById('fAssignee').value = state.currentUser || '';
     _origAssignee = null;
     document.getElementById('fPriority').value = 'med';
@@ -4789,6 +4815,7 @@ function addExistingTaskToWs(wsId) {
   const t = tasks.find(x => x.id === sel.value);
   if (!t) return;
   t.ws = wsId;
+  _localTaskOverrides[t.id] = { ...t, _ts: Date.now() };
   persist(); renderAll();
   toast(`"${t.name.slice(0,30)}" added to workstream`);
 }
@@ -5454,12 +5481,29 @@ function openOverduePanel(filterUser) {
     : '<div style="text-align:center;padding:32px;color:var(--t3);font-size:13px">No overdue tasks 🎉</div>';
   document.getElementById('overduePanel').style.display = 'flex';
 }
+function openUpcomingPanel(filterUser) {
+  const todayStr = todayLocal();
+  let upcoming = tasks.filter(t => isUpcoming(t));
+  if (filterUser) upcoming = upcoming.filter(t => t.assignee === filterUser);
+  upcoming.sort((a,b) => (a.deadline < b.deadline ? -1 : 1) || ({high:0,med:1,low:2}[a.priority]??1) - ({high:0,med:1,low:2}[b.priority]??1));
+  const titleEl = document.getElementById('overduePanelTitle');
+  titleEl.textContent = `📆 ${filterUser ? filterUser + "'s " : ''}Upcoming Deadlines (${upcoming.length})`;
+  titleEl.style.color = '#B45309';
+  const body = document.getElementById('overduePanelBody');
+  body.innerHTML = upcoming.length
+    ? upcoming.map(t => _panelTaskRow(t, todayStr, 'open')).join('')
+    : '<div style="text-align:center;padding:32px;color:var(--t3);font-size:13px">Nothing due in the next 7 days.</div>';
+  document.getElementById('overduePanel').style.display = 'flex';
+}
+
 // Toggle done and refresh whichever slide-in panel is currently open
 function toggleDoneInPanel(id) {
   toggleTaskDone(id);
   const title = (document.getElementById('overduePanelTitle')?.textContent || '');
   if (title.includes('⚠')) {
     const m = title.match(/⚠\s(.+?)'s\sOverdue/); openOverduePanel(m ? m[1] : null);
+  } else if (title.includes('📆')) {
+    const m = title.match(/📆\s(.+?)'s\sUpcoming/); openUpcomingPanel(m ? m[1] : null);
   } else if (title.includes('🔄')) {
     const m = title.match(/🔄\s(.+?)'s\sIn/); openInProgressPanel(m ? m[1] : null);
   } else if (title.includes('📋')) {
@@ -5730,7 +5774,7 @@ function reviewOverdueTasks() {
 function focusHighPriority() {
   closeRefocus();
   state.priority = 'high';
-  state.assignee = state.currentUser;
+  state.assignee = [state.currentUser];
   renderAll();
 }
 
@@ -6075,7 +6119,12 @@ function saveWs() {
 
 function deleteWs() {
   if (!editWsId) return;
-  tasks.forEach(t => { if (t.ws === editWsId) t.ws = ''; });
+  tasks.forEach(t => {
+    if (t.ws === editWsId) {
+      t.ws = '';
+      _localTaskOverrides[t.id] = { ...t, _ts: Date.now() };
+    }
+  });
   workstreams = workstreams.filter(x => x.id !== editWsId);
   persist(); renderAll(); closeWsModal();
   toast('Workstream deleted');
@@ -6819,6 +6868,16 @@ function _localDateStr(d) {
 // and shows the wrong date in timezones like SGT (UTC+8) before 8am.
 function todayLocal() { return _localDateStr(new Date()); }
 
+function _quarterBounds(d) {
+  const y = d.getFullYear(), q = Math.floor(d.getMonth() / 3);
+  return { start: new Date(y, q * 3, 1), end: new Date(y, q * 3 + 3, 1), label: `Q${q + 1} ${y}` };
+}
+function _adjQuarter(qb, deltaQuarters) {
+  const d = new Date(qb.start);
+  d.setMonth(d.getMonth() + deltaQuarters * 3);
+  return _quarterBounds(d);
+}
+
 function setPlanStart(offsetDays) {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
@@ -7125,6 +7184,21 @@ const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www
 let gmailToken = null;
 let gmailOpen  = false;
 let _gmailRefreshTimer = null;
+let _gmailUserEmail = null; // cached self address for the "To:" header on self-sent emails (brief/audit)
+
+// The literal string "me" is not a valid RFC 5322 address — Gmail's send API silently fails to
+// deliver a message with "To: me". Resolve the connected account's real address once and cache it.
+async function _getGmailEmail() {
+  if (_gmailUserEmail) return _gmailUserEmail;
+  if (!gmailToken) return null;
+  try {
+    const r = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+      headers: { Authorization: 'Bearer ' + gmailToken }
+    });
+    if (r.ok) { const d = await r.json(); _gmailUserEmail = d.emailAddress || null; }
+  } catch {}
+  return _gmailUserEmail;
+}
 
 function _scheduleGmailRefresh(expiresIn) {
   if (_gmailRefreshTimer) clearTimeout(_gmailRefreshTimer);
@@ -7369,7 +7443,7 @@ function setupGmailAuth() {
             }
           });
         }
-        state.assignee = state.currentUser;
+        state.assignee = [state.currentUser];
         renderAll();
         setInterval(renderAll, 60000);
         setTimeout(checkRefocusPrompt, 1200);
@@ -7622,6 +7696,13 @@ function gmailAddTask(msgId, taskName) {
 
 async function gmailSendBrief() {
   if (!gmailToken) { gmailSignIn(); return; }
+  document.getElementById('gmailBriefBtn').textContent = 'Sending…';
+  const selfEmail = await _getGmailEmail();
+  if (!selfEmail) {
+    toast('Could not determine your Gmail address — try reconnecting Gmail');
+    document.getElementById('gmailBriefBtn').textContent = 'Send Today\'s Brief';
+    return;
+  }
   const cu = state.currentUser;
   const todayStr = todayLocal();
   const myTasks = tasks.filter(t => t.status !== 'done' && (!cu || t.assignee === cu));
@@ -7640,7 +7721,7 @@ async function gmailSendBrief() {
   const body = lines.join('\n');
   const subject = `Chope Daily Brief — ${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;
   const email = [
-    `To: ${cu ? '' : ''}me`,
+    `To: ${selfEmail}`,
     `Subject: ${subject}`,
     `Content-Type: text/plain; charset=utf-8`,
     ``,
@@ -7649,7 +7730,6 @@ async function gmailSendBrief() {
   const encoded = btoa(unescape(encodeURIComponent(email))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 
   try {
-    document.getElementById('gmailBriefBtn').textContent = 'Sending…';
     const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + gmailToken, 'Content-Type': 'application/json' },
@@ -7679,6 +7759,12 @@ async function gmailSendWeeklyAudit() {
   if (!gmailToken) { gmailSignIn(); return; }
   const btn = document.getElementById('weeklyAuditBtn');
   if (btn) { btn.disabled = true; btn.querySelector('span').textContent = '📊 Sending…'; }
+  const selfEmail = await _getGmailEmail();
+  if (!selfEmail) {
+    toast('Could not determine your Gmail address — try reconnecting Gmail');
+    if (btn) { btn.disabled = false; btn.querySelector('span').textContent = '📊 Weekly Audit'; }
+    return;
+  }
 
   const now = new Date();
   const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
@@ -7781,7 +7867,7 @@ ${overdue.length > 0 ? card(h2('⚠️ Overdue Tasks') + overdueSection, '#FECAC
 </div></body></html>`;
 
   const rawEmail = [
-    `To: me`,
+    `To: ${selfEmail}`,
     `Subject: Chope Weekly Audit — ${weekLabel}`,
     `MIME-Version: 1.0`,
     `Content-Type: text/html; charset=utf-8`,
@@ -8524,10 +8610,39 @@ function renderTeamView() {
         </div>`).join('')}</div>`
     : '<div class="team-empty">No activity recorded yet — appears as tasks are created and edited.</div>';
 
+  // ── Section: Quarterly Review & Forecast (Victor only) ────
+  const qThis = _quarterBounds(now);
+  const qLast = _adjQuarter(qThis, -1);
+  const qNext = _adjQuarter(qThis, 1);
+  const _ds = d => _localDateStr(d);
+  const completedLastQ = tasks.filter(t => t.status === 'done' && t.completedAt && t.completedAt.slice(0,10) >= _ds(qLast.start) && t.completedAt.slice(0,10) < _ds(qLast.end));
+  const completedThisQ = tasks.filter(t => t.status === 'done' && t.completedAt && t.completedAt.slice(0,10) >= _ds(qThis.start) && t.completedAt.slice(0,10) < _ds(qThis.end));
+  const plannedThisQ   = tasks.filter(t => t.status !== 'done' && t.deadline && t.deadline >= _ds(qThis.start) && t.deadline < _ds(qThis.end));
+  const pipelineNextQ  = tasks.filter(t => t.status !== 'done' && t.deadline && t.deadline >= _ds(qNext.start) && t.deadline < _ds(qNext.end));
+
+  const quarterStatCard = (label, n, sub) => `
+    <div class="team-vel-card">
+      <div class="team-vel-name">${esc(label)}</div>
+      <div class="team-vel-row"><span class="team-vel-num" style="font-size:22px">${n}</span><span class="team-vel-label">${esc(sub)}</span></div>
+    </div>`;
+
   el.innerHTML = `
     <div class="team-dash">
       <h1>Team Dashboard</h1>
       <div class="team-dash-sub">Only visible to you, Victor · Click any workload card to filter the Board to that person</div>
+
+      <div class="team-section">
+        <div class="team-section-hd">🗓️ Quarterly Review & Forecast <span>${esc(qLast.label)} → ${esc(qThis.label)} → ${esc(qNext.label)} · admin only</span></div>
+        <div class="team-velocity-grid">
+          ${quarterStatCard(qLast.label + ' (done)', completedLastQ.length, 'tasks completed')}
+          ${quarterStatCard(qThis.label + ' (so far)', completedThisQ.length, 'tasks completed')}
+          ${quarterStatCard(qThis.label + ' (planned)', plannedThisQ.length, 'still open, due this Q')}
+          ${quarterStatCard(qNext.label + ' (pipeline)', pipelineNextQ.length, 'already due next Q')}
+        </div>
+        <div id="quarterlyReviewCard" class="ins-narrative-card" style="margin-top:14px">
+          <button class="btn-add" id="quarterlyReviewBtn" onclick="generateQuarterlyReview()">Generate Quarterly Review</button>
+        </div>
+      </div>
 
       <div class="team-section">
         <div class="team-section-hd">👤 Member Profiles <span>total tasks · completion rate · work type & fund focus (open + last 30 days done)</span></div>
@@ -8554,6 +8669,51 @@ function renderTeamView() {
         ${feedHtml}
       </div>
     </div>`;
+}
+
+async function generateQuarterlyReview() {
+  const btn = document.getElementById('quarterlyReviewBtn');
+  const card = document.getElementById('quarterlyReviewCard');
+  if (btn) { btn.disabled = true; btn.textContent = 'Thinking…'; }
+
+  const now = new Date();
+  const qThis = _quarterBounds(now);
+  const qLast = _adjQuarter(qThis, -1);
+  const qNext = _adjQuarter(qThis, 1);
+  const ds = d => _localDateStr(d);
+
+  const mapTask = t => ({ name: t.name.slice(0, 70), assignee: t.assignee, cat: t.cat, fund: (t.fund && t.fund !== 'none') ? t.fund : null, ws: (getWs(t.ws) || {}).name || null, deadline: t.deadline || null, completedAt: t.completedAt || null });
+
+  const completedLastQ = tasks.filter(t => t.status === 'done' && t.completedAt && t.completedAt.slice(0,10) >= ds(qLast.start) && t.completedAt.slice(0,10) < ds(qLast.end)).map(mapTask).slice(0, 100);
+  const completedThisQ = tasks.filter(t => t.status === 'done' && t.completedAt && t.completedAt.slice(0,10) >= ds(qThis.start) && t.completedAt.slice(0,10) < ds(qThis.end)).map(mapTask).slice(0, 100);
+  const plannedThisQ   = tasks.filter(t => t.status !== 'done' && t.deadline && t.deadline >= ds(qThis.start) && t.deadline < ds(qThis.end)).map(mapTask).slice(0, 100);
+  const pipelineNextQ  = tasks.filter(t => t.status !== 'done' && t.deadline && t.deadline >= ds(qNext.start) && t.deadline < ds(qNext.end)).map(mapTask).slice(0, 100);
+  const openNoDeadline = tasks.filter(t => t.status !== 'done' && !t.deadline).map(mapTask).slice(0, 60);
+
+  try {
+    const r = await fetch('/api/assistant', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'quarterly',
+        message: 'Write the quarterly review and forecast.',
+        currentUser: state.currentUser,
+        today: todayLocal(),
+        quarterLabels: { last: qLast.label, current: qThis.label, next: qNext.label },
+        completedLastQ, completedThisQ, plannedThisQ, pipelineNextQ, openNoDeadline,
+      }),
+    });
+    const data = await r.json();
+    if (!r.ok || data.error) {
+      card.innerHTML = `<div class="team-empty">${esc(data.error || 'Something went wrong generating the review.')}</div><button class="btn-add" id="quarterlyReviewBtn" onclick="generateQuarterlyReview()">Try again</button>`;
+      return;
+    }
+    const narrativeHtml = '<p>' + esc(data.reply).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
+    card.innerHTML = `<div class="ins-narrative-text">${narrativeHtml}</div>
+      <button class="btn-ghost" style="margin-top:12px;font-size:11px;padding:4px 10px" onclick="generateQuarterlyReview()">Regenerate</button>`;
+  } catch (e) {
+    card.innerHTML = `<div class="team-empty">Could not reach the AI — try again.</div><button class="btn-add" id="quarterlyReviewBtn" onclick="generateQuarterlyReview()">Try again</button>`;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════

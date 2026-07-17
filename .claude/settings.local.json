@@ -57,7 +57,8 @@
       "Bash(node /tmp/test_assistant.mjs)",
       "Bash(rm -f /tmp/test_assistant.mjs)",
       "Bash(ls -la \"/c/Users/phtan/.claude/projects/C--Users-phtan-OneDrive-Documents-Claude-Coding-projects-Chope/memory/\")",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3005/)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3005/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3011/)"
     ]
   }
 }

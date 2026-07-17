@@ -12,7 +12,11 @@ export default async function handler(req, res) {
     });
   }
 
-  const { message, tasks = [], currentUser, today, history = [], chronotype = '', userOnly = false, mode = '', completedTasks = [], stats = {} } = req.body || {};
+  const {
+    message, tasks = [], currentUser, today, history = [], chronotype = '', userOnly = false, mode = '',
+    completedTasks = [], stats = {},
+    quarterLabels = {}, completedLastQ = [], completedThisQ = [], plannedThisQ = [], pipelineNextQ = [], openNoDeadline = [],
+  } = req.body || {};
   if (!message) return res.status(400).json({ error: 'No message provided' });
 
   // ── Insights mode: write a productivity/workload narrative from a completed-task history ──
@@ -77,6 +81,67 @@ Keep it under 260 words, plain prose in short paragraphs (no headers, no bullet 
       return res.status(200).json({ reply });
     } catch (e) {
       console.error('Groq fetch error (insights):', e.message);
+      return res.status(502).json({ error: `Connection error: ${e.message}` });
+    }
+  }
+
+  // ── Quarterly mode: team-wide past-quarter summary, this-quarter plan, next-quarter forecast ──
+  if (mode === 'quarterly') {
+    const fmtLines = list => list.map(t => {
+      const tags = [t.assignee, t.cat, t.fund, t.ws].filter(Boolean).join(', ');
+      const when = t.completedAt ? `completed ${t.completedAt.slice(0,10)}` : (t.deadline ? `due ${t.deadline}` : 'no deadline');
+      return `- "${(t.name || '').slice(0, 70)}"${tags ? ` [${tags}]` : ''} — ${when}`;
+    }).join('\n');
+
+    const quarterlyPrompt = `You are writing a quarterly business review for ${currentUser || 'the admin'}, who leads a small investment team using Chope, a work task manager. Today is ${today}. This is a team-wide view across everyone's tasks — ${currentUser} is the only person who sees this.
+
+Quarters: last = ${quarterLabels.last || '?'}, current = ${quarterLabels.current || '?'}, next = ${quarterLabels.next || '?'}.
+
+Completed in ${quarterLabels.last || 'last quarter'} (${completedLastQ.length} tasks):
+${fmtLines(completedLastQ) || '(none)'}
+
+Completed so far in ${quarterLabels.current || 'this quarter'} (${completedThisQ.length} tasks):
+${fmtLines(completedThisQ) || '(none)'}
+
+Still open, with a deadline falling in ${quarterLabels.current || 'this quarter'} (${plannedThisQ.length} tasks — this is the tentative plan for the rest of the quarter):
+${fmtLines(plannedThisQ) || '(none)'}
+
+Still open, with a deadline already falling in ${quarterLabels.next || 'next quarter'} (${pipelineNextQ.length} tasks — early pipeline visibility):
+${fmtLines(pipelineNextQ) || '(none)'}
+
+Open tasks with no deadline set at all (${openNoDeadline.length} — a blind spot: work that exists but isn't scheduled into any quarter):
+${fmtLines(openNoDeadline) || '(none)'}
+
+Write a quarterly business review in three short sections, using real task names in quotes, real numbers, and grouping by theme/fund/workstream where the data supports it (not by individual task) — don't just list every task:
+1. "${quarterLabels.last || 'Last quarter'}" — what actually happened: the main themes of completed work, which people/funds/workstreams saw the most activity, and any notable deal or project progress.
+2. "${quarterLabels.current || 'This quarter'}" — the tentative plan for the rest of the quarter based on what's already scheduled with a deadline this quarter, organized by theme.
+3. "${quarterLabels.next || 'Next quarter'} forecast" — a forward-looking projection: what's already on the books for next quarter, plus a brief, honest read on capacity/risk (e.g. if a lot of undated work exists, note that it isn't yet scheduled and could slip into future quarters unplanned).
+
+Plain prose in short paragraphs under a bold-free heading per section (use the quarter label as the heading text, no markdown # or ** formatting — just the label on its own line followed by the paragraph). Keep the whole thing under 380 words. Be honest and specific — call out gaps (e.g. no deadline set, a quiet quarter) rather than writing generic filler.`;
+
+    try {
+      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [{ role: 'system', content: quarterlyPrompt }, { role: 'user', content: message }],
+          max_tokens: 700,
+          temperature: 0.7,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        console.error('Groq error (quarterly):', r.status, JSON.stringify(data).slice(0, 300));
+        const msg = r.status === 429 ? 'Rate limit hit — wait a moment and try again.'
+                  : r.status === 401 ? 'API key invalid — check GROQ_API_KEY in Vercel settings.'
+                  : `AI error (${r.status}) — please try again.`;
+        return res.status(r.status).json({ error: msg });
+      }
+      const reply = data.choices?.[0]?.message?.content || '(empty response)';
+      return res.status(200).json({ reply });
+    } catch (e) {
+      console.error('Groq fetch error (quarterly):', e.message);
       return res.status(502).json({ error: `Connection error: ${e.message}` });
     }
   }
