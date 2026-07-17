@@ -164,6 +164,66 @@ Plain prose in short paragraphs under a bold-free heading per section (use the q
     }
   }
 
+  // ── Forecast-suggestions mode: discrete, actionable next-quarter to-do suggestions as JSON ──
+  // (distinct from 'quarterly' — that writes prose; this returns structured items Victor can
+  // individually review and turn into real tasks, rather than a paragraph to read.)
+  if (mode === 'forecast-suggestions') {
+    const fmtBucket = (bucket) => {
+      const { items = [], total = 0 } = bucket || {};
+      const lines = items.map(t => {
+        const tags = [t.assignee, t.cat, t.fund, t.ws].filter(Boolean).join(', ');
+        return `- "${(t.name || '').slice(0, 60)}"${tags ? ` [${tags}]` : ''}${t.deadline ? ` — due ${t.deadline}` : ''}`;
+      }).join('\n');
+      const truncNote = total > items.length ? ` (sample of ${items.length} of ${total})` : '';
+      return { count: total, lines: lines || '(none)', truncNote };
+    };
+    const bPipeline = fmtBucket(pipelineNextQ);
+    const bPlanned = fmtBucket(plannedThisQ);
+
+    const suggestPrompt = `You help ${currentUser || 'the admin'}, who leads a small investment team using Chope, plan ahead. Today is ${today}. Quarters: current = ${quarterLabels.current || '?'}, next = ${quarterLabels.next || '?'}.
+
+Already scheduled with a deadline in ${quarterLabels.next || 'next quarter'} (${bPipeline.count} total${bPipeline.truncNote} — the existing pipeline):
+${bPipeline.lines}
+
+Still open with a deadline in ${quarterLabels.current || 'this quarter'} (${bPlanned.count} total${bPlanned.truncNote} — ongoing threads likely to continue into next quarter):
+${bPlanned.lines}
+
+Based on this, suggest 6-10 concrete, specific action items ${currentUser} should consider adding as tasks for ${quarterLabels.next || 'next quarter'}. Favor: natural follow-ups to work already scheduled or in progress, recurring quarterly admin/reporting work implied by the data, and gaps you notice (e.g. a fund or workstream with pipeline activity but no explicit next step scheduled). Do not just restate existing pipeline items verbatim — add value by identifying what's NOT yet scheduled but implied.
+
+Respond with ONLY a raw JSON array, no markdown code fences, no prose before or after. Exact format:
+[{"name": "Verb-first task name, under 80 chars", "reason": "One short sentence, under 20 words, on why this is suggested"}]`;
+
+    try {
+      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [{ role: 'system', content: suggestPrompt }, { role: 'user', content: message }],
+          max_tokens: 700,
+          temperature: 0.6,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        console.error('Groq error (forecast-suggestions):', r.status, JSON.stringify(data).slice(0, 300));
+        const msg = r.status === 429 ? 'Rate limit hit — wait a moment and try again.'
+                  : r.status === 401 ? 'API key invalid — check GROQ_API_KEY in Vercel settings.'
+                  : r.status === 413 ? 'Too much data for one request — try again.'
+                  : `AI error (${r.status}) — please try again.`;
+        return res.status(r.status).json({ error: msg });
+      }
+      // Strip common LLM formatting quirks (markdown code fences) before handing back to the
+      // client, which expects to JSON.parse this directly.
+      let reply = (data.choices?.[0]?.message?.content || '').trim();
+      reply = reply.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+      return res.status(200).json({ reply });
+    } catch (e) {
+      console.error('Groq fetch error (forecast-suggestions):', e.message);
+      return res.status(502).json({ error: `Connection error: ${e.message}` });
+    }
+  }
+
   // ── Build task context (capped to keep payload small) ──
   const PRIO = { high: 1, med: 2, low: 3 };
   const STATUS_LABEL = { todo: 'todo', inprogress: 'in progress', review: 'in review', done: 'done' };

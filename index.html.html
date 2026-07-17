@@ -161,6 +161,8 @@
 .team-dash h1{font-size:19px;font-weight:800;color:var(--t1);margin-bottom:4px}
 .team-dash-sub{font-size:12px;color:var(--t3);margin-bottom:28px}
 .team-section{margin-bottom:32px}
+.team-section-side{background:var(--card);border:1px dashed #A78BFA;border-radius:12px;padding:16px 18px 18px;margin-bottom:32px}
+.team-section-side .team-section-hd{margin-bottom:12px}
 .team-section-hd{font-size:13px;font-weight:700;color:var(--t1);margin:0 0 14px;display:flex;align-items:center;gap:7px}
 .team-section-hd span{font-size:11px;font-weight:400;color:var(--t3)}
 .team-velocity-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
@@ -8644,6 +8646,13 @@ function renderTeamView() {
         </div>
       </div>
 
+      <div class="team-section team-section-side">
+        <div class="team-section-hd">🔮 Next Quarter — Suggested To-Dos <span>${esc(qNext.label)} · AI-suggested, admin only — review each before adding</span></div>
+        <div id="forecastSuggCard">
+          <button class="btn-add" id="forecastSuggBtn" onclick="generateForecastSuggestions()">Generate Suggestions</button>
+        </div>
+      </div>
+
       <div class="team-section">
         <div class="team-section-hd">👤 Member Profiles <span>total tasks · completion rate · work type & fund focus (open + last 30 days done)</span></div>
         <div class="team-profile-grid">${profileCards}</div>
@@ -8725,6 +8734,77 @@ async function generateQuarterlyReview() {
   } catch (e) {
     card.innerHTML = `<div class="team-empty">Could not reach the AI — try again.</div><button class="btn-add" id="quarterlyReviewBtn" onclick="generateQuarterlyReview()">Try again</button>`;
   }
+}
+
+// Holds the last-generated forecast suggestions so cards can reference one by index without
+// re-embedding AI-generated free text (which may contain quotes/apostrophes) into onclick HTML.
+let _forecastSuggestions = [];
+
+async function generateForecastSuggestions() {
+  const btn = document.getElementById('forecastSuggBtn');
+  const card = document.getElementById('forecastSuggCard');
+  if (btn) { btn.disabled = true; btn.textContent = 'Thinking…'; }
+
+  const now = new Date();
+  const qThis = _quarterBounds(now);
+  const qNext = _adjQuarter(qThis, 1);
+  const ds = d => _localDateStr(d);
+  const mapTask = t => ({ name: t.name.slice(0, 60), assignee: t.assignee, cat: t.cat, fund: (t.fund && t.fund !== 'none') ? t.fund : null, ws: (getWs(t.ws) || {}).name || null, deadline: t.deadline || null });
+  const sample = (list) => { const full = list.map(mapTask); return { items: full.slice(0, 25), total: full.length }; };
+
+  const pipelineNextQ = sample(tasks.filter(t => t.status !== 'done' && t.deadline && t.deadline >= ds(qNext.start) && t.deadline < ds(qNext.end)));
+  const plannedThisQ  = sample(tasks.filter(t => t.status !== 'done' && t.deadline && t.deadline >= ds(qThis.start) && t.deadline < ds(qThis.end)));
+
+  try {
+    const r = await fetch('/api/assistant', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'forecast-suggestions',
+        message: 'Suggest next-quarter to-dos.',
+        currentUser: state.currentUser,
+        today: todayLocal(),
+        quarterLabels: { current: qThis.label, next: qNext.label },
+        pipelineNextQ, plannedThisQ,
+      }),
+    });
+    const data = await r.json();
+    if (!r.ok || data.error) {
+      card.innerHTML = `<div class="team-empty">${esc(data.error || 'Something went wrong generating suggestions.')}</div><button class="btn-add" id="forecastSuggBtn" onclick="generateForecastSuggestions()">Try again</button>`;
+      return;
+    }
+    let suggestions;
+    try { suggestions = JSON.parse(data.reply); } catch { suggestions = null; }
+    if (!Array.isArray(suggestions) || !suggestions.length) {
+      card.innerHTML = `<div class="team-empty">Couldn't parse suggestions from the AI — try again.</div><button class="btn-add" id="forecastSuggBtn" onclick="generateForecastSuggestions()">Try again</button>`;
+      return;
+    }
+    _forecastSuggestions = suggestions;
+    card.innerHTML = suggestions.map((s, i) => `
+      <div class="gmail-suggestion" id="forecastSugg-${i}">
+        <div class="gmail-suggestion-task">${esc((s.name || '').slice(0, 90))}</div>
+        ${s.reason ? `<div class="gmail-suggestion-subject" style="font-weight:400;color:var(--t3)">${esc(s.reason.slice(0, 140))}</div>` : ''}
+        <div class="gmail-sugg-actions">
+          <button class="gmail-pill-add" onclick="openTaskModalFromSuggestion(${i})">Review & Add</button>
+          <button class="gmail-pill-skip" onclick="document.getElementById('forecastSugg-${i}').remove()">Dismiss</button>
+        </div>
+      </div>`).join('') +
+      `<button class="btn-ghost" style="margin-top:6px;font-size:11px;padding:4px 10px" onclick="generateForecastSuggestions()">Regenerate</button>`;
+  } catch (e) {
+    card.innerHTML = `<div class="team-empty">Could not reach the AI — try again.</div><button class="btn-add" id="forecastSuggBtn" onclick="generateForecastSuggestions()">Try again</button>`;
+  }
+}
+
+// Opens the New Task modal pre-filled from a suggestion so Victor can review/adjust
+// (assignee, fund, category, deadline, etc.) before actually saving — never auto-creates.
+function openTaskModalFromSuggestion(i) {
+  const s = _forecastSuggestions[i];
+  if (!s) return;
+  openTaskModal();
+  const nameEl = document.getElementById('fName');
+  const descEl = document.getElementById('fDesc');
+  if (nameEl) nameEl.value = s.name || '';
+  if (descEl) descEl.value = s.reason ? `Suggested for next quarter: ${s.reason}` : '';
 }
 
 /* ══════════════════════════════════════════════════════════
