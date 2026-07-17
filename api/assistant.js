@@ -12,10 +12,13 @@ export default async function handler(req, res) {
     });
   }
 
+  const emptyBucket = { items: [], total: 0 };
   const {
     message, tasks = [], currentUser, today, history = [], chronotype = '', userOnly = false, mode = '',
     completedTasks = [], stats = {},
-    quarterLabels = {}, completedLastQ = [], completedThisQ = [], plannedThisQ = [], pipelineNextQ = [], openNoDeadline = [],
+    quarterLabels = {},
+    completedLastQ = emptyBucket, completedThisQ = emptyBucket, plannedThisQ = emptyBucket,
+    pipelineNextQ = emptyBucket, openNoDeadline = emptyBucket,
   } = req.body || {};
   if (!message) return res.status(400).json({ error: 'No message provided' });
 
@@ -87,30 +90,44 @@ Keep it under 260 words, plain prose in short paragraphs (no headers, no bullet 
 
   // ── Quarterly mode: team-wide past-quarter summary, this-quarter plan, next-quarter forecast ──
   if (mode === 'quarterly') {
-    const fmtLines = list => list.map(t => {
-      const tags = [t.assignee, t.cat, t.fund, t.ws].filter(Boolean).join(', ');
-      const when = t.completedAt ? `completed ${t.completedAt.slice(0,10)}` : (t.deadline ? `due ${t.deadline}` : 'no deadline');
-      return `- "${(t.name || '').slice(0, 70)}"${tags ? ` [${tags}]` : ''} — ${when}`;
-    }).join('\n');
+    // Each bucket is { items: [...capped sample], total: <true count> } — the model only ever
+    // sees the capped sample (keeps the request well under Groq's payload limit), but the prompt
+    // states the true total so the narrative doesn't imply the sample is the whole picture.
+    const fmtBucket = (bucket, noun) => {
+      const { items = [], total = 0 } = bucket || {};
+      const lines = items.map(t => {
+        const tags = [t.assignee, t.cat, t.fund, t.ws].filter(Boolean).join(', ');
+        const when = t.completedAt ? `completed ${t.completedAt.slice(0,10)}` : (t.deadline ? `due ${t.deadline}` : 'no deadline');
+        return `- "${(t.name || '').slice(0, 60)}"${tags ? ` [${tags}]` : ''} — ${when}`;
+      }).join('\n');
+      const truncNote = total > items.length ? ` (showing a sample of ${items.length} — treat the total of ${total} as the real figure)` : '';
+      return { count: total, lines: lines || '(none)', truncNote };
+    };
+
+    const bLast = fmtBucket(completedLastQ);
+    const bThis = fmtBucket(completedThisQ);
+    const bPlanned = fmtBucket(plannedThisQ);
+    const bPipeline = fmtBucket(pipelineNextQ);
+    const bNoDeadline = fmtBucket(openNoDeadline);
 
     const quarterlyPrompt = `You are writing a quarterly business review for ${currentUser || 'the admin'}, who leads a small investment team using Chope, a work task manager. Today is ${today}. This is a team-wide view across everyone's tasks — ${currentUser} is the only person who sees this.
 
 Quarters: last = ${quarterLabels.last || '?'}, current = ${quarterLabels.current || '?'}, next = ${quarterLabels.next || '?'}.
 
-Completed in ${quarterLabels.last || 'last quarter'} (${completedLastQ.length} tasks):
-${fmtLines(completedLastQ) || '(none)'}
+Completed in ${quarterLabels.last || 'last quarter'} (${bLast.count} tasks total${bLast.truncNote}):
+${bLast.lines}
 
-Completed so far in ${quarterLabels.current || 'this quarter'} (${completedThisQ.length} tasks):
-${fmtLines(completedThisQ) || '(none)'}
+Completed so far in ${quarterLabels.current || 'this quarter'} (${bThis.count} tasks total${bThis.truncNote}):
+${bThis.lines}
 
-Still open, with a deadline falling in ${quarterLabels.current || 'this quarter'} (${plannedThisQ.length} tasks — this is the tentative plan for the rest of the quarter):
-${fmtLines(plannedThisQ) || '(none)'}
+Still open, with a deadline falling in ${quarterLabels.current || 'this quarter'} (${bPlanned.count} tasks total${bPlanned.truncNote} — this is the tentative plan for the rest of the quarter):
+${bPlanned.lines}
 
-Still open, with a deadline already falling in ${quarterLabels.next || 'next quarter'} (${pipelineNextQ.length} tasks — early pipeline visibility):
-${fmtLines(pipelineNextQ) || '(none)'}
+Still open, with a deadline already falling in ${quarterLabels.next || 'next quarter'} (${bPipeline.count} tasks total${bPipeline.truncNote} — early pipeline visibility):
+${bPipeline.lines}
 
-Open tasks with no deadline set at all (${openNoDeadline.length} — a blind spot: work that exists but isn't scheduled into any quarter):
-${fmtLines(openNoDeadline) || '(none)'}
+Open tasks with no deadline set at all (${bNoDeadline.count} total${bNoDeadline.truncNote} — a blind spot: work that exists but isn't scheduled into any quarter):
+${bNoDeadline.lines}
 
 Write a quarterly business review in three short sections, using real task names in quotes, real numbers, and grouping by theme/fund/workstream where the data supports it (not by individual task) — don't just list every task:
 1. "${quarterLabels.last || 'Last quarter'}" — what actually happened: the main themes of completed work, which people/funds/workstreams saw the most activity, and any notable deal or project progress.
@@ -135,6 +152,7 @@ Plain prose in short paragraphs under a bold-free heading per section (use the q
         console.error('Groq error (quarterly):', r.status, JSON.stringify(data).slice(0, 300));
         const msg = r.status === 429 ? 'Rate limit hit — wait a moment and try again.'
                   : r.status === 401 ? 'API key invalid — check GROQ_API_KEY in Vercel settings.'
+                  : r.status === 413 ? 'Too much data for one review — try again, or ask an admin to check the assistant.js task cap if this keeps happening.'
                   : `AI error (${r.status}) — please try again.`;
         return res.status(r.status).json({ error: msg });
       }

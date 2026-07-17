@@ -8682,13 +8682,24 @@ async function generateQuarterlyReview() {
   const qNext = _adjQuarter(qThis, 1);
   const ds = d => _localDateStr(d);
 
-  const mapTask = t => ({ name: t.name.slice(0, 70), assignee: t.assignee, cat: t.cat, fund: (t.fund && t.fund !== 'none') ? t.fund : null, ws: (getWs(t.ws) || {}).name || null, deadline: t.deadline || null, completedAt: t.completedAt || null });
+  const mapTask = t => ({ name: t.name.slice(0, 60), assignee: t.assignee, cat: t.cat, fund: (t.fund && t.fund !== 'none') ? t.fund : null, ws: (getWs(t.ws) || {}).name || null, deadline: t.deadline || null, completedAt: t.completedAt || null });
+  // Cap the enumerated sample well below what tipped Groq into a 413 (payload too large) — the
+  // true counts (used for the stat cards and sent alongside) still reflect everything, this is
+  // just the sample of real task names the model gets to ground the narrative in.
+  const CAP = 25;
+  const sample = (list) => { const full = list.map(mapTask); return { items: full.slice(0, CAP), total: full.length }; };
 
-  const completedLastQ = tasks.filter(t => t.status === 'done' && t.completedAt && t.completedAt.slice(0,10) >= ds(qLast.start) && t.completedAt.slice(0,10) < ds(qLast.end)).map(mapTask).slice(0, 100);
-  const completedThisQ = tasks.filter(t => t.status === 'done' && t.completedAt && t.completedAt.slice(0,10) >= ds(qThis.start) && t.completedAt.slice(0,10) < ds(qThis.end)).map(mapTask).slice(0, 100);
-  const plannedThisQ   = tasks.filter(t => t.status !== 'done' && t.deadline && t.deadline >= ds(qThis.start) && t.deadline < ds(qThis.end)).map(mapTask).slice(0, 100);
-  const pipelineNextQ  = tasks.filter(t => t.status !== 'done' && t.deadline && t.deadline >= ds(qNext.start) && t.deadline < ds(qNext.end)).map(mapTask).slice(0, 100);
-  const openNoDeadline = tasks.filter(t => t.status !== 'done' && !t.deadline).map(mapTask).slice(0, 60);
+  const completedLastQFull = tasks.filter(t => t.status === 'done' && t.completedAt && t.completedAt.slice(0,10) >= ds(qLast.start) && t.completedAt.slice(0,10) < ds(qLast.end));
+  const completedThisQFull = tasks.filter(t => t.status === 'done' && t.completedAt && t.completedAt.slice(0,10) >= ds(qThis.start) && t.completedAt.slice(0,10) < ds(qThis.end));
+  const plannedThisQFull   = tasks.filter(t => t.status !== 'done' && t.deadline && t.deadline >= ds(qThis.start) && t.deadline < ds(qThis.end));
+  const pipelineNextQFull  = tasks.filter(t => t.status !== 'done' && t.deadline && t.deadline >= ds(qNext.start) && t.deadline < ds(qNext.end));
+  const openNoDeadlineFull = tasks.filter(t => t.status !== 'done' && !t.deadline);
+
+  const completedLastQ = sample(completedLastQFull);
+  const completedThisQ = sample(completedThisQFull);
+  const plannedThisQ   = sample(plannedThisQFull);
+  const pipelineNextQ  = sample(pipelineNextQFull);
+  const openNoDeadline = { items: openNoDeadlineFull.map(mapTask).slice(0, 15), total: openNoDeadlineFull.length };
 
   try {
     const r = await fetch('/api/assistant', {
