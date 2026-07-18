@@ -9393,6 +9393,10 @@ if (window.visualViewport) {
 
   // Identity-only provider — no sensitive scopes, no warning
   const identityProvider = new GoogleAuthProvider();
+  // Without this, Google silently reuses whichever account is already active in the browser
+  // instead of showing a chooser — the reported "keeps logging me in with my personal email"
+  // bug. Forcing select_account makes every sign-in show the account picker explicitly.
+  identityProvider.setCustomParameters({ prompt: 'select_account' });
 
   // Gmail provider — sensitive scopes, shows warning once
   const gmailProvider = new GoogleAuthProvider();
