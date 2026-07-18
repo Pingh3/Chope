@@ -167,6 +167,13 @@
 .wf-task-chip:hover{border-color:var(--t3)}
 .wf-task-chip span{color:var(--t3);font-weight:700;cursor:pointer;padding:0 2px}
 .wf-task-chip span:hover{color:#DC2626}
+.wf-focus-display{font-size:13px;line-height:1.6;color:var(--t1);white-space:pre-wrap;word-break:break-word;cursor:text;padding:9px 11px;border:1px solid transparent;border-radius:8px;min-height:22px}
+.wf-focus-display:hover{background:var(--bg);border-color:var(--border)}
+.wf-focus-empty{color:var(--t3);font-style:italic}
+.wf-task-dropdown{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--sh-md);max-height:220px;overflow-y:auto;z-index:20}
+.wf-task-dropdown-item{padding:8px 12px;font-size:12px;color:var(--t1);cursor:pointer}
+.wf-task-dropdown-item:hover{background:var(--bg)}
+.wf-task-dropdown-empty{padding:8px 12px;font-size:12px;color:var(--t3)}
 .team-section-hd{font-size:13px;font-weight:700;color:var(--t1);margin:0 0 14px;display:flex;align-items:center;gap:7px}
 .team-section-hd span{font-size:11px;font-weight:400;color:var(--t3)}
 .team-velocity-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
@@ -8437,17 +8444,21 @@ function toggleDarkMode() {
 //   VICTOR TEAM DASHBOARD
 // ══════════════════════════════════════════════════════════
 
-function renderTeamView() {
+function renderTeamView(force) {
   const el = document.getElementById('teamContent');
   if (!el) return;
   if (state.currentUser !== 'Victor') {
     el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--t3);font-size:13px">This view is only available to admins.</div>';
     return;
   }
-  // Never rebuild this view's HTML while the focus textarea is actively being typed in — the
-  // periodic setInterval(renderAll, 60000) refresh was silently wiping out unsaved text before
-  // the user got a chance to click Save, especially for anything longer than a minute to type.
-  if (document.activeElement?.id === 'weekFocusText') return;
+  // Never rebuild this view's HTML while the focus textarea or task search is actively being
+  // used — the periodic setInterval(renderAll, 60000) refresh was silently wiping out unsaved
+  // text (or an in-progress search) before the user got a chance to finish. force=true bypasses
+  // this for the deliberate re-render right after linking/unlinking a task, which itself runs
+  // while the search input is still focused (onmousedown is used specifically so linking a task
+  // doesn't blur/close the dropdown) — that re-render must go through, not be silently dropped.
+  const _activeId = document.activeElement?.id;
+  if (!force && (_activeId === 'weekFocusText' || _activeId === 'weekFocusTaskSearch')) return;
 
   const now = new Date();
   const todayStr = todayLocal();
@@ -8668,9 +8679,8 @@ function renderTeamView() {
           <span onclick="event.stopPropagation();removeTaskFromWeekFocus('${t.id}')" title="Unlink">×</span>
         </span>`).join('')
     : '<span style="font-size:11px;color:var(--t3)">No tasks linked yet</span>';
-  const focusTaskOptions = linkableTasks.map(t =>
-    `<option value="${t.id}">${esc(t.name.length > 55 ? t.name.slice(0,55) + '…' : t.name)}</option>`
-  ).join('');
+  // Cached by search box's oninput — avoids re-deriving the linkable list on every keystroke
+  _weekFocusLinkableCache = linkableTasks;
 
   el.innerHTML = `
     <div class="team-dash">
@@ -8682,18 +8692,17 @@ function renderTeamView() {
 
       <div class="team-section team-section-side" style="border-color:#FDE68A">
         <div class="team-section-hd">🎯 This Week's Focus <span>Week of ${esc(weekLabel)} · private, only you can see this</span></div>
-        <textarea id="weekFocusText" class="fi" rows="2" placeholder="What's the one thing you want to make sure happens this week?" style="width:100%;resize:vertical;font-family:inherit;box-sizing:border-box">${esc(wf.text)}</textarea>
-        <div style="display:flex;justify-content:flex-end;margin-top:8px">
-          <button class="btn-add" style="font-size:12px;padding:5px 12px" onclick="saveWeekFocusText()">Save</button>
-        </div>
+        <div id="weekFocusDisplay" class="wf-focus-display${wf.text ? '' : ' wf-focus-empty'}" onclick="editWeekFocus()">${wf.text ? esc(wf.text) : 'Click to add your focus for the week…'}</div>
+        <textarea id="weekFocusText" class="fi wf-focus-edit" rows="3" style="display:none;width:100%;resize:vertical;font-family:inherit;box-sizing:border-box" onblur="saveWeekFocusText()">${esc(wf.text)}</textarea>
         <div class="team-profile-section" style="margin-top:14px">Linked tasks</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px">${focusChipsHtml}</div>
-        <div style="display:flex;gap:8px">
-          <select id="weekFocusTaskSel" class="fi" style="flex:1">
-            <option value="">Link a task…</option>
-            ${focusTaskOptions}
-          </select>
-          <button class="btn-sm" onclick="addTaskToWeekFocus()">+ Link</button>
+        <div style="position:relative">
+          <input type="text" id="weekFocusTaskSearch" class="fi" placeholder="Search open tasks to link…" autocomplete="off"
+            style="width:100%;box-sizing:border-box"
+            oninput="filterWeekFocusTaskOptions(this.value)"
+            onfocus="filterWeekFocusTaskOptions(this.value)"
+            onblur="setTimeout(()=>{const d=document.getElementById('weekFocusTaskDropdown');if(d)d.style.display='none';},150)">
+          <div id="weekFocusTaskDropdown" class="wf-task-dropdown" style="display:none"></div>
         </div>
       </div>
 
@@ -8753,28 +8762,63 @@ function _currentWeekFocus() {
   return weekFocus[key];
 }
 
-function saveWeekFocusText() {
-  const el = document.getElementById('weekFocusText');
-  if (!el) return;
-  const wf = _currentWeekFocus();
-  wf.text = el.value.trim();
-  wf.updatedAt = new Date().toISOString();
-  persist();
-  toast('This week\'s focus saved');
+// Click-to-edit: the display div is shown by default; clicking it reveals the textarea.
+// Saving happens on blur (no explicit Save button) and swaps back to display mode in place,
+// without a full renderTeamView() — keeps the rest of the dashboard (and any in-progress
+// search) untouched.
+function editWeekFocus() {
+  const display = document.getElementById('weekFocusDisplay');
+  const ta = document.getElementById('weekFocusText');
+  if (!display || !ta) return;
+  display.style.display = 'none';
+  ta.style.display = '';
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
 }
 
-function addTaskToWeekFocus() {
-  const sel = document.getElementById('weekFocusTaskSel');
-  if (!sel || !sel.value) { toast('Select a task first'); return; }
+function saveWeekFocusText() {
+  const ta = document.getElementById('weekFocusText');
+  const display = document.getElementById('weekFocusDisplay');
+  if (!ta || !display) return;
   const wf = _currentWeekFocus();
-  if (!wf.taskIds.includes(sel.value)) wf.taskIds.push(sel.value);
-  persist(); renderTeamView();
+  const text = ta.value.trim();
+  const changed = text !== wf.text;
+  wf.text = text;
+  wf.updatedAt = new Date().toISOString();
+  if (changed) persist();
+  display.textContent = text || 'Click to add your focus for the week…';
+  display.classList.toggle('wf-focus-empty', !text);
+  ta.style.display = 'none';
+  display.style.display = '';
+}
+
+// Searchable "link a task" combobox — the plain <select> got unwieldy once there were a lot
+// of open tasks. Typing filters _weekFocusLinkableCache (set by renderTeamView); clicking a
+// result links it immediately via mousedown (fires before the input's blur, so the click
+// registers instead of being swallowed by the dropdown closing first).
+let _weekFocusLinkableCache = [];
+
+function filterWeekFocusTaskOptions(query) {
+  const dropdown = document.getElementById('weekFocusTaskDropdown');
+  if (!dropdown) return;
+  const q = query.trim().toLowerCase();
+  const matches = _weekFocusLinkableCache.filter(t => !q || t.name.toLowerCase().includes(q)).slice(0, 30);
+  dropdown.innerHTML = matches.length
+    ? matches.map(t => `<div class="wf-task-dropdown-item" onmousedown="linkWeekFocusTask('${t.id}')">${esc(t.name)}</div>`).join('')
+    : `<div class="wf-task-dropdown-empty">${q ? 'No matching open tasks' : 'No open tasks to link'}</div>`;
+  dropdown.style.display = 'block';
+}
+
+function linkWeekFocusTask(taskId) {
+  const wf = _currentWeekFocus();
+  if (!wf.taskIds.includes(taskId)) wf.taskIds.push(taskId);
+  persist(); renderTeamView(true);
 }
 
 function removeTaskFromWeekFocus(taskId) {
   const wf = _currentWeekFocus();
   wf.taskIds = wf.taskIds.filter(id => id !== taskId);
-  persist(); renderTeamView();
+  persist(); renderTeamView(true);
 }
 
 function exportTasksMarkdown() {
