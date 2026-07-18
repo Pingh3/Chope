@@ -174,6 +174,16 @@
 .wf-task-dropdown-item{padding:8px 12px;font-size:12px;color:var(--t1);cursor:pointer}
 .wf-task-dropdown-item:hover{background:var(--bg)}
 .wf-task-dropdown-empty{padding:8px 12px;font-size:12px;color:var(--t3)}
+.wf-focus-collapsed{max-height:112px;overflow:hidden;position:relative}
+.wf-focus-collapsed::after{content:'';position:absolute;left:0;right:0;bottom:0;height:26px;background:linear-gradient(transparent,var(--card));pointer-events:none}
+.wf-focus-expand-toggle{font-size:11px;font-weight:600;color:var(--col-ip);cursor:pointer;margin-top:2px;display:inline-block}
+.wf-focus-expand-toggle:hover{text-decoration:underline}
+.wf-focus-display ul{margin:2px 0;padding-left:20px}
+.wf-focus-display li{margin-bottom:2px}
+.wf-toolbar{display:flex;align-items:center;gap:4px;margin-bottom:6px}
+.wf-tb-btn{width:26px;height:26px;border:1px solid var(--border);background:var(--card);border-radius:6px;cursor:pointer;font-size:12px;color:var(--t1);display:flex;align-items:center;justify-content:center;font-family:inherit}
+.wf-tb-btn:hover{background:var(--bg);border-color:var(--t3)}
+.wf-toolbar-hint{font-size:10px;color:var(--t3);margin-left:4px}
 .team-section-hd{font-size:13px;font-weight:700;color:var(--t1);margin:0 0 14px;display:flex;align-items:center;gap:7px}
 .team-section-hd span{font-size:11px;font-weight:400;color:var(--t3)}
 .team-velocity-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
@@ -2545,6 +2555,10 @@ function _pushUndo() {
 function undo() {
   if (!_undoStack.length) { toast('Nothing to undo'); return; }
   tasks = JSON.parse(_undoStack.pop());
+  // A whole-array undo can restore any deleted task(s) it happened to contain — we don't track
+  // which ids specifically, so just clear all pending deletion-exclusions rather than risk
+  // silently re-deleting something the user just explicitly restored via Ctrl+Z.
+  _recentlyDeletedIds.clear();
   persist(); renderAll();
   toast('Undone ↩');
 }
@@ -2555,6 +2569,17 @@ function undo() {
 
 let _lastLocalWrite = 0;
 let _localTaskOverrides = {}; // taskId → { ...taskData, _ts: timestamp } — protects recent saves from remote overwrites
+
+// A task/workstream id being simply ABSENT from the local array isn't enough to tell the
+// merge-before-write (see _mergeById) "delete this" — it's indistinguishable from "I just
+// haven't synced this id from the server yet". Every deletion path must explicitly mark its
+// id here so the merge knows to actually drop it instead of resurrecting it from a stale
+// server copy. Entries expire after 60s — long enough to cover the merge race window.
+let _recentlyDeletedIds = new Set();
+function _markDeleted(id) {
+  _recentlyDeletedIds.add(id);
+  setTimeout(() => _recentlyDeletedIds.delete(id), 60000);
+}
 
 async function load() {
   // localStorage first — instant paint while Firestore loads
@@ -2647,15 +2672,56 @@ async function load() {
   }
 }
 
+let _persistChain = Promise.resolve(); // serializes Firestore writes so a merge-before-write
+                                        // below never races against another in-flight write
+
 function persist() {
   localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, weekFocus, activityLog }));
   try { bc.postMessage({ tasks, workstreams, team, funds, weekFocus, activityLog, scheduleData }); } catch {}
   if (window._chopeFb) {
     _lastLocalWrite = Date.now();
-    const { db, doc, setDoc } = window._chopeFb;
-    setDoc(doc(db, 'chope', 'main'), { tasks, workstreams, team, funds, weekFocus, activityLog, scheduleData, _savedAt: _lastLocalWrite })
-      .catch(e => console.warn('Firestore write failed:', e));
+    const snapshot = { tasks, workstreams, team, funds, weekFocus, activityLog, scheduleData, savedAt: _lastLocalWrite };
+    _persistChain = _persistChain.then(() => _persistToFirestoreMerged(snapshot));
   }
+}
+
+// Firestore stores tasks/workstreams as single array fields on one document (not one document
+// per task), so a plain setDoc() overwrites the ENTIRE array with whatever this device's
+// in-memory copy happens to be. If a teammate added or edited something moments ago and this
+// device's local snapshot hasn't caught up yet (very possible — onSnapshot has real latency,
+// and the 8s local-write guard elsewhere widens that window further), a blind overwrite
+// silently deletes their change for everyone. This is almost certainly what caused tasks to
+// "go missing". Fix: read the freshest server copy immediately before writing and union-merge
+// by id, preferring the local version on conflict (that's what's actively being saved) — a
+// concurrent teammate's task can now only ever be kept, never silently dropped. Writes are
+// serialized via _persistChain so overlapping saves can't race each other's read-then-write.
+async function _persistToFirestoreMerged(snapshot) {
+  const { db, doc, setDoc, getDoc } = window._chopeFb;
+  const ref = doc(db, 'chope', 'main');
+  let mergedTasks = snapshot.tasks, mergedWorkstreams = snapshot.workstreams;
+  try {
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      const server = snap.data();
+      mergedTasks = _mergeById(server.tasks, snapshot.tasks);
+      mergedWorkstreams = _mergeById(server.workstreams, snapshot.workstreams);
+    }
+  } catch (e) { console.warn('Pre-write reconciliation read failed, writing local state as-is:', e); }
+  try {
+    await setDoc(ref, {
+      tasks: mergedTasks, workstreams: mergedWorkstreams,
+      team: snapshot.team, funds: snapshot.funds, weekFocus: snapshot.weekFocus,
+      activityLog: snapshot.activityLog, scheduleData: snapshot.scheduleData,
+      _savedAt: snapshot.savedAt,
+    });
+  } catch (e) { console.warn('Firestore write failed:', e); }
+}
+
+function _mergeById(serverList, localList) {
+  const byId = new Map((serverList || []).map(x => [x.id, x]));
+  (localList || []).forEach(x => byId.set(x.id, x));
+  _recentlyDeletedIds.forEach(id => byId.delete(id));
+  return [...byId.values()];
 }
 function persistFeedback() {
   if (window._chopeFb) {
@@ -4935,6 +5001,7 @@ function deleteTask() {
   _pushUndo();
   const t = tasks.find(x => x.id === editTaskId);
   if (t) _tdDelete(t.todoistId);
+  _markDeleted(editTaskId);
   tasks = tasks.filter(x => x.id !== editTaskId);
   persist(); closeTaskModal(); renderAll();
   toast('Task deleted');
@@ -4994,7 +5061,7 @@ function deleteSelected() {
   _pushUndo();
   const ids = [...selectedTaskIds];
   const count = ids.length;
-  ids.forEach(id => { const t = tasks.find(x => x.id === id); if (t) _tdDelete(t.todoistId); });
+  ids.forEach(id => { const t = tasks.find(x => x.id === id); if (t) _tdDelete(t.todoistId); _markDeleted(id); });
   tasks = tasks.filter(t => !selectedTaskIds.has(t.id));
   clearSelection();
   persist(); renderAll();
@@ -5824,6 +5891,7 @@ function deleteTaskDirect(id) {
   if (!t) return;
   _tdDelete(t.todoistId);
   _lastDeleted = { task: { ...t }, index: tasks.indexOf(t) };
+  _markDeleted(id);
   tasks = tasks.filter(x => x.id !== id);
   hoveredCardId = null;
   selectedTaskIds.delete(id); updateSelectionBar();
@@ -5841,6 +5909,7 @@ function deleteTaskDirect(id) {
 }
 function undoDelete() {
   if (!_lastDeleted) return;
+  _recentlyDeletedIds.delete(_lastDeleted.task.id);
   tasks.splice(_lastDeleted.index, 0, _lastDeleted.task);
   _lastDeleted = null;
   persist(); renderAll();
@@ -6146,6 +6215,7 @@ function deleteWs() {
       _localTaskOverrides[t.id] = { ...t, _ts: Date.now() };
     }
   });
+  _markDeleted(editWsId);
   workstreams = workstreams.filter(x => x.id !== editWsId);
   persist(); renderAll(); closeWsModal();
   toast('Workstream deleted');
@@ -8692,8 +8762,18 @@ function renderTeamView(force) {
 
       <div class="team-section team-section-side" style="border-color:#FDE68A">
         <div class="team-section-hd">🎯 This Week's Focus <span>Week of ${esc(weekLabel)} · private, only you can see this</span></div>
-        <div id="weekFocusDisplay" class="wf-focus-display${wf.text ? '' : ' wf-focus-empty'}" onclick="editWeekFocus()">${wf.text ? esc(wf.text) : 'Click to add your focus for the week…'}</div>
-        <textarea id="weekFocusText" class="fi wf-focus-edit" rows="3" style="display:none;width:100%;resize:vertical;font-family:inherit;box-sizing:border-box" onblur="saveWeekFocusText()">${esc(wf.text)}</textarea>
+        <div id="weekFocusDisplay" class="wf-focus-display wf-focus-collapsed${wf.text ? '' : ' wf-focus-empty'}" onclick="editWeekFocus()">${wf.text ? _renderFocusMarkup(wf.text) : 'Click to add your focus for the week…'}</div>
+        <div id="weekFocusExpandToggle" class="wf-focus-expand-toggle" style="display:none" onclick="event.stopPropagation();toggleWeekFocusExpand()">Show more ▾</div>
+        <div id="weekFocusEditWrap" style="display:none">
+          <div class="wf-toolbar">
+            <button type="button" class="wf-tb-btn" onmousedown="event.preventDefault();wfWrapSelection('**','**')" title="Bold (Ctrl+B)"><b>B</b></button>
+            <button type="button" class="wf-tb-btn" onmousedown="event.preventDefault();wfWrapSelection('*','*')" title="Italic (Ctrl+I)"><i>I</i></button>
+            <button type="button" class="wf-tb-btn" onmousedown="event.preventDefault();wfWrapSelection('__','__')" title="Underline (Ctrl+U)"><u>U</u></button>
+            <button type="button" class="wf-tb-btn" onmousedown="event.preventDefault();wfToggleBulletLines()" title="Bullet list">☰</button>
+            <span class="wf-toolbar-hint">Ctrl+B / Ctrl+I / Ctrl+U</span>
+          </div>
+          <textarea id="weekFocusText" class="fi wf-focus-edit" rows="4" style="width:100%;resize:vertical;font-family:inherit;box-sizing:border-box" onkeydown="handleWeekFocusKeydown(event)" onblur="saveWeekFocusText()">${esc(wf.text)}</textarea>
+        </div>
         <div class="team-profile-section" style="margin-top:14px">Linked tasks</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px">${focusChipsHtml}</div>
         <div style="position:relative">
@@ -8751,6 +8831,7 @@ function renderTeamView(force) {
         ${feedHtml}
       </div>
     </div>`;
+  _updateWeekFocusExpandToggle();
 }
 
 // Exports every task (completed + open) as a Markdown file — team-wide, unfiltered, Victor only.
@@ -8762,16 +8843,42 @@ function _currentWeekFocus() {
   return weekFocus[key];
 }
 
-// Click-to-edit: the display div is shown by default; clicking it reveals the textarea.
-// Saving happens on blur (no explicit Save button) and swaps back to display mode in place,
-// without a full renderTeamView() — keeps the rest of the dashboard (and any in-progress
-// search) untouched.
+// Lightweight markup for the focus note — **bold**, *italic*, __underline__, "- " bullet
+// lines. Stored as plain text (safe, portable, shows up sanely in the Markdown export too);
+// only the read-only display renders it as HTML. The textarea always shows/edits the raw
+// markup characters, same tradeoff any plain-text markdown editor makes.
+function _renderFocusMarkup(text) {
+  const inlineFmt = raw => esc(raw)
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    .replace(/__(.+?)__/g, '<u>$1</u>')
+    .replace(/\*(.+?)\*/g, '<i>$1</i>');
+  let html = '', inList = false;
+  text.split('\n').forEach(line => {
+    const bullet = line.match(/^\s*-\s+(.*)$/);
+    if (bullet) {
+      if (!inList) { html += '<ul>'; inList = true; }
+      html += `<li>${inlineFmt(bullet[1])}</li>`;
+    } else {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += line.trim() ? `<div>${inlineFmt(line)}</div>` : '<div>&nbsp;</div>';
+    }
+  });
+  if (inList) html += '</ul>';
+  return html;
+}
+
+// Click-to-edit: the display div is shown by default; clicking it reveals the toolbar +
+// textarea. Saving happens on blur (no explicit Save button) and swaps back to display mode
+// in place, without a full renderTeamView() — keeps the rest of the dashboard (and any
+// in-progress search) untouched.
 function editWeekFocus() {
   const display = document.getElementById('weekFocusDisplay');
+  const wrap = document.getElementById('weekFocusEditWrap');
   const ta = document.getElementById('weekFocusText');
-  if (!display || !ta) return;
+  if (!display || !wrap || !ta) return;
   display.style.display = 'none';
-  ta.style.display = '';
+  document.getElementById('weekFocusExpandToggle').style.display = 'none';
+  wrap.style.display = '';
   ta.focus();
   ta.setSelectionRange(ta.value.length, ta.value.length);
 }
@@ -8779,17 +8886,104 @@ function editWeekFocus() {
 function saveWeekFocusText() {
   const ta = document.getElementById('weekFocusText');
   const display = document.getElementById('weekFocusDisplay');
-  if (!ta || !display) return;
+  const wrap = document.getElementById('weekFocusEditWrap');
+  if (!ta || !display || !wrap) return;
   const wf = _currentWeekFocus();
   const text = ta.value.trim();
   const changed = text !== wf.text;
   wf.text = text;
   wf.updatedAt = new Date().toISOString();
   if (changed) persist();
-  display.textContent = text || 'Click to add your focus for the week…';
+  display.innerHTML = text ? _renderFocusMarkup(text) : 'Click to add your focus for the week…';
   display.classList.toggle('wf-focus-empty', !text);
-  ta.style.display = 'none';
+  wrap.style.display = 'none';
   display.style.display = '';
+  _updateWeekFocusExpandToggle();
+}
+
+// Expand/collapse the read-only display once it gets long. Re-measured after every render and
+// after every save, since editing can push content over (or back under) the collapse threshold.
+function _updateWeekFocusExpandToggle() {
+  const display = document.getElementById('weekFocusDisplay');
+  const toggle = document.getElementById('weekFocusExpandToggle');
+  if (!display || !toggle) return;
+  const wasExpanded = toggle.dataset.expanded === '1';
+  display.classList.remove('wf-focus-collapsed'); // measure uncapped height first
+  const overflows = display.scrollHeight > 130;
+  if (!overflows) {
+    toggle.style.display = 'none';
+    toggle.dataset.expanded = '0';
+    return;
+  }
+  toggle.style.display = '';
+  if (wasExpanded) {
+    toggle.textContent = 'Show less ▴';
+  } else {
+    display.classList.add('wf-focus-collapsed');
+    toggle.textContent = 'Show more ▾';
+  }
+}
+
+function toggleWeekFocusExpand() {
+  const display = document.getElementById('weekFocusDisplay');
+  const toggle = document.getElementById('weekFocusExpandToggle');
+  if (!display || !toggle) return;
+  const expanded = toggle.dataset.expanded === '1';
+  if (expanded) {
+    display.classList.add('wf-focus-collapsed');
+    toggle.textContent = 'Show more ▾';
+    toggle.dataset.expanded = '0';
+  } else {
+    display.classList.remove('wf-focus-collapsed');
+    toggle.textContent = 'Show less ▴';
+    toggle.dataset.expanded = '1';
+  }
+}
+
+// Wraps the textarea's current selection with formatting markers (toolbar buttons and
+// Ctrl+B/I/U both call this). If nothing is selected, inserts an empty pair with the cursor
+// placed in the middle, matching standard rich-text editor behavior.
+function wfWrapSelection(before, after) {
+  const ta = document.getElementById('weekFocusText');
+  if (!ta) return;
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const val = ta.value;
+  const selected = val.slice(start, end);
+  ta.value = val.slice(0, start) + before + selected + after + val.slice(end);
+  const newStart = start + before.length;
+  const newEnd = newStart + selected.length;
+  ta.focus();
+  ta.setSelectionRange(newStart, newEnd);
+}
+
+// Toggles "- " bullet prefixes on every line the selection touches (adds if any line in the
+// block isn't bulleted yet, removes if they all already are — same convention as most editors).
+function wfToggleBulletLines() {
+  const ta = document.getElementById('weekFocusText');
+  if (!ta) return;
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const val = ta.value;
+  const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+  let lineEnd = val.indexOf('\n', end);
+  if (lineEnd === -1) lineEnd = val.length;
+  const lines = val.slice(lineStart, lineEnd).split('\n');
+  const allBulleted = lines.every(l => !l.trim() || /^\s*-\s/.test(l));
+  const newLines = lines.map(l => {
+    if (!l.trim()) return l;
+    return allBulleted ? l.replace(/^(\s*)-\s+/, '$1') : (/^\s*-\s/.test(l) ? l : '- ' + l);
+  });
+  const newBlock = newLines.join('\n');
+  ta.value = val.slice(0, lineStart) + newBlock + val.slice(lineEnd);
+  ta.focus();
+  ta.setSelectionRange(lineStart, lineStart + newBlock.length);
+}
+
+function handleWeekFocusKeydown(e) {
+  if (!(e.ctrlKey || e.metaKey)) return;
+  const k = e.key.toLowerCase();
+  if (k === 'b') { e.preventDefault(); wfWrapSelection('**', '**'); }
+  else if (k === 'i') { e.preventDefault(); wfWrapSelection('*', '*'); }
+  else if (k === 'u') { e.preventDefault(); wfWrapSelection('__', '__'); }
 }
 
 // Searchable "link a task" combobox — the plain <select> got unwieldy once there were a lot
