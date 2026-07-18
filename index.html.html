@@ -163,6 +163,10 @@
 .team-section{margin-bottom:32px}
 .team-section-side{background:var(--card);border:1px dashed #A78BFA;border-radius:12px;padding:16px 18px 18px;margin-bottom:32px}
 .team-section-side .team-section-hd{margin-bottom:12px}
+.wf-task-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:500;color:var(--t2);background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:3px 8px 3px 10px;cursor:pointer}
+.wf-task-chip:hover{border-color:var(--t3)}
+.wf-task-chip span{color:var(--t3);font-weight:700;cursor:pointer;padding:0 2px}
+.wf-task-chip span:hover{color:#DC2626}
 .team-section-hd{font-size:13px;font-weight:700;color:var(--t1);margin:0 0 14px;display:flex;align-items:center;gap:7px}
 .team-section-hd span{font-size:11px;font-weight:400;color:var(--t3)}
 .team-velocity-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
@@ -2491,6 +2495,10 @@ const LOW_KW  = ['draft','research','track','monitor','log','archive','note','do
 
 let tasks = [], workstreams = [], team = [];
 let funds = [...DEFAULT_FUNDS];
+// Victor's private weekly focus note + linked tasks, keyed by the Monday date of that week
+// (e.g. "2026-07-14"). Synced like other shared data, but only ever shown in the Victor-gated
+// Team Dashboard — nobody else's UI reads or displays it.
+let weekFocus = {};
 let feedback = [];
 let state = {
   view: 'daily',
@@ -2544,7 +2552,7 @@ async function load() {
   // localStorage first — instant paint while Firestore loads
   try {
     const d = JSON.parse(localStorage.getItem('chope_v2') || 'null');
-    if (d) { tasks = d.tasks || []; workstreams = d.workstreams || []; team = d.team || DEFAULT_TEAM; funds = Array.isArray(d.funds) && d.funds.length ? d.funds : DEFAULT_FUNDS; if (Array.isArray(d.activityLog)) activityLog = d.activityLog; }
+    if (d) { tasks = d.tasks || []; workstreams = d.workstreams || []; team = d.team || DEFAULT_TEAM; funds = Array.isArray(d.funds) && d.funds.length ? d.funds : DEFAULT_FUNDS; weekFocus = d.weekFocus || {}; if (Array.isArray(d.activityLog)) activityLog = d.activityLog; }
     else   { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; funds = DEFAULT_FUNDS; }
   } catch { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; funds = DEFAULT_FUNDS; }
 
@@ -2567,15 +2575,16 @@ async function load() {
         workstreams = d.workstreams || workstreams;
         team = d.team || team;
         funds = Array.isArray(d.funds) && d.funds.length ? d.funds : funds;
+        weekFocus = d.weekFocus || weekFocus;
         if (Array.isArray(d.activityLog)) activityLog = d.activityLog;
         if (d.scheduleData && typeof d.scheduleData === 'object') {
           scheduleData = d.scheduleData;
           localStorage.setItem('chope_schedule', JSON.stringify(scheduleData));
         }
-        localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, activityLog }));
+        localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, weekFocus, activityLog }));
       } else {
         // First ever load — push local data to Firestore
-        await setDoc(ref, { tasks, workstreams, team, funds, activityLog, scheduleData });
+        await setDoc(ref, { tasks, workstreams, team, funds, weekFocus, activityLog, scheduleData });
       }
     } catch(e) { console.warn('Firestore load failed, falling back to localStorage', e); }
 
@@ -2593,6 +2602,7 @@ async function load() {
       workstreams = d.workstreams || [];
       team = d.team || DEFAULT_TEAM;
       funds = Array.isArray(d.funds) && d.funds.length ? d.funds : DEFAULT_FUNDS;
+      weekFocus = d.weekFocus || {};
       if (Array.isArray(d.activityLog)) activityLog = d.activityLog;
       if (d.scheduleData && typeof d.scheduleData === 'object') {
         scheduleData = d.scheduleData;
@@ -2608,7 +2618,7 @@ async function load() {
         const idx = tasks.findIndex(t => t.id === id);
         if (idx >= 0) { const { _ts, ...td } = ov; tasks[idx] = td; }
       });
-      localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, activityLog }));
+      localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, weekFocus, activityLog }));
       renderAll();
       toast('🔄 Board updated by a colleague');
     });
@@ -2630,12 +2640,12 @@ async function load() {
 }
 
 function persist() {
-  localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, activityLog }));
-  try { bc.postMessage({ tasks, workstreams, team, funds, activityLog, scheduleData }); } catch {}
+  localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, weekFocus, activityLog }));
+  try { bc.postMessage({ tasks, workstreams, team, funds, weekFocus, activityLog, scheduleData }); } catch {}
   if (window._chopeFb) {
     _lastLocalWrite = Date.now();
     const { db, doc, setDoc } = window._chopeFb;
-    setDoc(doc(db, 'chope', 'main'), { tasks, workstreams, team, funds, activityLog, scheduleData, _savedAt: _lastLocalWrite })
+    setDoc(doc(db, 'chope', 'main'), { tasks, workstreams, team, funds, weekFocus, activityLog, scheduleData, _savedAt: _lastLocalWrite })
       .catch(e => console.warn('Firestore write failed:', e));
   }
 }
@@ -2652,6 +2662,7 @@ bc.onmessage = e => {
   if (!e.data) return;
   tasks = e.data.tasks; workstreams = e.data.workstreams; team = e.data.team;
   if (Array.isArray(e.data.funds) && e.data.funds.length) funds = e.data.funds;
+  if (e.data.weekFocus) weekFocus = e.data.weekFocus;
   if (Array.isArray(e.data.activityLog)) activityLog = e.data.activityLog;
   if (e.data.scheduleData && typeof e.data.scheduleData === 'object') scheduleData = e.data.scheduleData;
   renderAll(); toast('Board updated by a colleague');
@@ -6880,6 +6891,14 @@ function _adjQuarter(qb, deltaQuarters) {
   return _quarterBounds(d);
 }
 
+// Monday date string of the week containing d — the key used for weekFocus entries.
+function _weekFocusKey(d) {
+  const dow = d.getDay();
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+  return _localDateStr(mon);
+}
+
 function setPlanStart(offsetDays) {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
@@ -8628,6 +8647,25 @@ function renderTeamView() {
       <div class="team-vel-row"><span class="team-vel-num" style="font-size:22px">${n}</span><span class="team-vel-label">${esc(sub)}</span></div>
     </div>`;
 
+  // ── Section: This Week's Focus (Victor's private note, linked tasks) ──
+  const wfKey = _weekFocusKey(now);
+  const wf = weekFocus[wfKey] || { text: '', taskIds: [] };
+  const weekEnd = new Date(startThisWeek.getTime() + 6 * 86400000);
+  const weekLabel = `${startThisWeek.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${weekEnd.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;
+  const linkedTasks = (wf.taskIds || []).map(id => tasks.find(t => t.id === id)).filter(Boolean);
+  const linkableTasks = tasks.filter(t => t.status !== 'done' && !(wf.taskIds || []).includes(t.id));
+
+  const focusChipsHtml = linkedTasks.length
+    ? linkedTasks.map(t => `
+        <span class="wf-task-chip" onclick="openTaskModal('${t.id}')" title="${esc(t.name)}">
+          ${esc(t.name.length > 34 ? t.name.slice(0,34) + '…' : t.name)}
+          <span onclick="event.stopPropagation();removeTaskFromWeekFocus('${t.id}')" title="Unlink">×</span>
+        </span>`).join('')
+    : '<span style="font-size:11px;color:var(--t3)">No tasks linked yet</span>';
+  const focusTaskOptions = linkableTasks.map(t =>
+    `<option value="${t.id}">${esc(t.name.length > 55 ? t.name.slice(0,55) + '…' : t.name)}</option>`
+  ).join('');
+
   el.innerHTML = `
     <div class="team-dash">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
@@ -8635,6 +8673,23 @@ function renderTeamView() {
         <button class="btn-ws" onclick="exportTasksMarkdown()" title="Download all completed and open tasks as a Markdown file">⬇ Export Tasks (.md)</button>
       </div>
       <div class="team-dash-sub">Only visible to you, Victor · Click any workload card to filter the Board to that person</div>
+
+      <div class="team-section team-section-side" style="border-color:#FDE68A">
+        <div class="team-section-hd">🎯 This Week's Focus <span>Week of ${esc(weekLabel)} · private, only you can see this</span></div>
+        <textarea id="weekFocusText" class="fi" rows="2" placeholder="What's the one thing you want to make sure happens this week?" style="width:100%;resize:vertical;font-family:inherit;box-sizing:border-box">${esc(wf.text)}</textarea>
+        <div style="display:flex;justify-content:flex-end;margin-top:8px">
+          <button class="btn-add" style="font-size:12px;padding:5px 12px" onclick="saveWeekFocusText()">Save</button>
+        </div>
+        <div class="team-profile-section" style="margin-top:14px">Linked tasks</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px">${focusChipsHtml}</div>
+        <div style="display:flex;gap:8px">
+          <select id="weekFocusTaskSel" class="fi" style="flex:1">
+            <option value="">Link a task…</option>
+            ${focusTaskOptions}
+          </select>
+          <button class="btn-sm" onclick="addTaskToWeekFocus()">+ Link</button>
+        </div>
+      </div>
 
       <div class="team-section">
         <div class="team-section-hd">🗓️ Quarterly Review & Forecast <span>${esc(qLast.label)} → ${esc(qThis.label)} → ${esc(qNext.label)} · admin only</span></div>
@@ -8686,6 +8741,36 @@ function renderTeamView() {
 // Exports every task (completed + open) as a Markdown file — team-wide, unfiltered, Victor only.
 // Plain download, no server round-trip; meant to be pasted/uploaded into Claude (or anywhere else)
 // for ad-hoc analysis outside the app.
+function _currentWeekFocus() {
+  const key = _weekFocusKey(new Date());
+  if (!weekFocus[key]) weekFocus[key] = { text: '', taskIds: [] };
+  return weekFocus[key];
+}
+
+function saveWeekFocusText() {
+  const el = document.getElementById('weekFocusText');
+  if (!el) return;
+  const wf = _currentWeekFocus();
+  wf.text = el.value.trim();
+  wf.updatedAt = new Date().toISOString();
+  persist();
+  toast('This week\'s focus saved');
+}
+
+function addTaskToWeekFocus() {
+  const sel = document.getElementById('weekFocusTaskSel');
+  if (!sel || !sel.value) { toast('Select a task first'); return; }
+  const wf = _currentWeekFocus();
+  if (!wf.taskIds.includes(sel.value)) wf.taskIds.push(sel.value);
+  persist(); renderTeamView();
+}
+
+function removeTaskFromWeekFocus(taskId) {
+  const wf = _currentWeekFocus();
+  wf.taskIds = wf.taskIds.filter(id => id !== taskId);
+  persist(); renderTeamView();
+}
+
 function exportTasksMarkdown() {
   const todayStr = todayLocal();
   const escMd = s => String(s || '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').trim();
