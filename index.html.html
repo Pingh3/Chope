@@ -8772,7 +8772,7 @@ function renderTeamView(force) {
             <button type="button" class="wf-tb-btn" onmousedown="event.preventDefault();wfToggleBulletLines()" title="Bullet list">☰</button>
             <span class="wf-toolbar-hint">Ctrl+B / Ctrl+I / Ctrl+U</span>
           </div>
-          <textarea id="weekFocusText" class="fi wf-focus-edit" rows="4" style="width:100%;resize:vertical;font-family:inherit;box-sizing:border-box" onkeydown="handleWeekFocusKeydown(event)" onblur="saveWeekFocusText()">${esc(wf.text)}</textarea>
+          <textarea id="weekFocusText" class="fi wf-focus-edit" rows="10" style="width:100%;min-height:200px;resize:vertical;font-family:inherit;box-sizing:border-box" onkeydown="handleWeekFocusKeydown(event)" onblur="saveWeekFocusText()">${esc(wf.text)}</textarea>
         </div>
         <div class="team-profile-section" style="margin-top:14px">Linked tasks</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px">${focusChipsHtml}</div>
