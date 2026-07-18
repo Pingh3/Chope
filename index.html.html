@@ -2317,6 +2317,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
         <div class="sc-row"><kbd>2</kbd><span>My Day view</span></div>
         <div class="sc-row"><kbd>3</kbd><span>Our Week view</span></div>
         <div class="sc-row"><kbd>4</kbd><span>Workstreams view</span></div>
+        <div class="sc-row"><kbd>5</kbd><span>Team view (admin only)</span></div>
       </div>
       <div class="sc-group">
         <div class="sc-group-label">Filters</div>
@@ -6635,6 +6636,7 @@ document.addEventListener('keydown', e => {
     case '2': document.querySelector('[data-view="daily"]')?.click(); break;
     case '3': document.querySelector('[data-view="week"]')?.click(); break;
     case '4': document.querySelector('[data-view="ws"]')?.click(); break;
+    case '5': document.querySelector('[data-view="team"]')?.click(); break;
     case 'g': case 'G': if (!gmailOpen) toggleGmailPanel(); setTimeout(() => gmailScanInbox(), 300); break;
     case 'd': case 'D': if (hoveredCardId) duplicateTask(hoveredCardId); break;
     case 'c': case 'C': if (hoveredCardId) toggleTaskDone(hoveredCardId); break;
