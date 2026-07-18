@@ -8444,6 +8444,10 @@ function renderTeamView() {
     el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--t3);font-size:13px">This view is only available to admins.</div>';
     return;
   }
+  // Never rebuild this view's HTML while the focus textarea is actively being typed in — the
+  // periodic setInterval(renderAll, 60000) refresh was silently wiping out unsaved text before
+  // the user got a chance to click Save, especially for anything longer than a minute to type.
+  if (document.activeElement?.id === 'weekFocusText') return;
 
   const now = new Date();
   const todayStr = todayLocal();
