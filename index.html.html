@@ -5920,7 +5920,19 @@ function undoDelete() {
    TODOIST INTEGRATION
 ══════════════════════════════════════════════════════════ */
 
-let _todoistToken = localStorage.getItem('chope_todoist_token') || '';
+// Strips anything outside printable ASCII — a stray invisible/smart-quote/non-Latin1 character
+// (common when copy-pasting an API token from Notion, a PDF, or a chat app) makes the browser's
+// fetch() throw a cryptic "String contains non ISO-8859-1 code point" error on every request
+// instead of a clean 401, since header values must be Latin-1-safe.
+function _sanitizeToken(raw) { return String(raw || '').replace(/[^\x20-\x7E]/g, '').trim(); }
+
+let _todoistToken = _sanitizeToken(localStorage.getItem('chope_todoist_token') || '');
+// Auto-repair: if the previously-saved token had invisible characters (the exact bug behind
+// "String contains non ISO-8859-1 code point"), write the cleaned version back immediately so
+// this fixes itself on next load without the user needing to re-paste anything.
+if (_todoistToken && _todoistToken !== (localStorage.getItem('chope_todoist_token') || '')) {
+  localStorage.setItem('chope_todoist_token', _todoistToken);
+}
 let _todoistProjectId = localStorage.getItem('chope_todoist_project_id') || '';
 const _TODOIST = '/api/todoist'; // proxied via Vercel Function to avoid CORS
 
@@ -6094,12 +6106,14 @@ async function syncAllToTodoist(btn) {
 }
 
 function saveTodoistToken() {
-  const val = document.getElementById('todoistTokenInput').value.trim();
+  const raw = document.getElementById('todoistTokenInput').value;
+  const val = _sanitizeToken(raw);
+  const hadInvisibleChars = val !== raw.trim();
   _todoistToken = val;
   _todoistProjectId = '';
   localStorage.setItem('chope_todoist_token', val);
   localStorage.removeItem('chope_todoist_project_id');
-  if (val) toast('Todoist connected — your tasks will sync automatically');
+  if (val) toast(hadInvisibleChars ? 'Todoist connected — removed some invisible characters from the pasted token' : 'Todoist connected — your tasks will sync automatically');
   else toast('Todoist disconnected');
   renderTodoistStatus();
 }
