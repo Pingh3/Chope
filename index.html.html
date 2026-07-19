@@ -5945,6 +5945,32 @@ function _tdUUID() {
   });
 }
 
+// Deterministic hash → UUID-v4-shaped string. The SAME Chope task id always produces the SAME
+// key, unlike _tdUUID() (random every call). Used as Todoist's X-Request-Id idempotency header
+// on task creation: if a create's todoistId never made it back into persisted state (tab closed
+// /refreshed between the Todoist API call succeeding and persist() finishing) and the same task
+// gets synced again later, Todoist recognizes the repeated key and returns the already-created
+// task instead of making a duplicate — a random key defeats this entirely, which is what was
+// actually causing duplicates.
+function _tdIdempotencyKey(taskId) {
+  let h = 2166136261 >>> 0;
+  const s = 'chope-td-' + taskId;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  let hex = '', x = h;
+  for (let i = 0; i < 4; i++) {
+    x = Math.imul(x ^ (x >>> 15), 2246822519) >>> 0;
+    x = Math.imul(x ^ (x >>> 13), 3266489917) >>> 0;
+    x = (x ^ (x >>> 16)) >>> 0;
+    hex += x.toString(16).padStart(8, '0');
+  }
+  return [
+    hex.slice(0, 8), hex.slice(8, 12),
+    '4' + hex.slice(13, 16),
+    ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16) + hex.slice(17, 20),
+    hex.slice(20, 32),
+  ].join('-');
+}
+
 async function _tdEnsureProject() {
   if (_todoistProjectId) return _todoistProjectId;
   const r = await fetch(`${_TODOIST}/projects`, { headers: { Authorization: `Bearer ${_todoistToken}` } });
@@ -6009,7 +6035,7 @@ async function _tdSyncThrows(task) {
   if (!task.todoistId) {
     const res = await fetch(`${_TODOIST}/tasks`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${_todoistToken}`, 'Content-Type': 'application/json', 'X-Request-Id': _tdUUID() },
+      headers: { Authorization: `Bearer ${_todoistToken}`, 'Content-Type': 'application/json', 'X-Request-Id': _tdIdempotencyKey(task.id) },
       body: JSON.stringify(body)
     });
     if (!res.ok) {
