@@ -6012,12 +6012,24 @@ async function _tdSync(task) {
 async function _tdSyncThrows(task) {
   if (!_todoistToken || task.assignee !== state.currentUser) return;
   const projectId = await _tdEnsureProject();
-  // Todoist API v1 field names (api.todoist.com/api/v1):
-  //   due date → due: { date: "YYYY-MM-DD" }  (was due_date in REST v2)
-  //   description → description ✓, priority → priority ✓, project_id → project_id ✓
+  // Todoist API v1 create/update task fields are flat (not nested), confirmed against
+  // the live OpenAPI spec at developer.todoist.com/api/v1/:
+  //   due_date       → "YYYY-MM-DD", the date you plan to start working on it
+  //   deadline_date  → "YYYY-MM-DD", the hard completion deadline (separate concept from due)
+  // Chope's task.startDate maps to Todoist's due (start/scheduled date), and Chope's
+  // task.deadline maps to Todoist's deadline (hard due date) — not due, which is a
+  // start-date concept in Todoist's model, not a hard deadline.
   const body = { content: task.name, priority: _tdPriority(task.priority), project_id: projectId };
-  if (task.desc)     body.description = task.desc;
-  if (task.deadline) body.due         = { date: task.deadline };
+  if (task.desc) body.description = task.desc;
+  if (task.todoistId) {
+    // On update, explicitly clear a date that was removed in Chope (omitting the field
+    // would leave Todoist's stale value in place).
+    body.due_date = task.startDate || null;
+    body.deadline_date = task.deadline || null;
+  } else {
+    if (task.startDate) body.due_date = task.startDate;
+    if (task.deadline)  body.deadline_date = task.deadline;
+  }
   if (task.todoistId) {
     const r = await fetch(`${_TODOIST}/tasks/${task.todoistId}`, {
       method: 'POST',
