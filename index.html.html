@@ -2517,6 +2517,10 @@ let funds = [...DEFAULT_FUNDS];
 // (e.g. "2026-07-14"). Synced like other shared data, but only ever shown in the Victor-gated
 // Team Dashboard — nobody else's UI reads or displays it.
 let weekFocus = {};
+// Per-person weekly status: "done this week" + "planned next week", keyed by
+// "<mondayDateOfWeek>__<username>" (e.g. "2026-07-20__Danial"). Each person can only edit
+// their own entry (state.currentUser); Victor's Team Dashboard shows everyone's read-only.
+let weeklySummaries = {};
 let feedback = [];
 let state = {
   view: 'daily',
@@ -2585,7 +2589,7 @@ async function load() {
   // localStorage first — instant paint while Firestore loads
   try {
     const d = JSON.parse(localStorage.getItem('chope_v2') || 'null');
-    if (d) { tasks = d.tasks || []; workstreams = d.workstreams || []; team = d.team || DEFAULT_TEAM; funds = Array.isArray(d.funds) && d.funds.length ? d.funds : DEFAULT_FUNDS; weekFocus = d.weekFocus || {}; if (Array.isArray(d.activityLog)) activityLog = d.activityLog; }
+    if (d) { tasks = d.tasks || []; workstreams = d.workstreams || []; team = d.team || DEFAULT_TEAM; funds = Array.isArray(d.funds) && d.funds.length ? d.funds : DEFAULT_FUNDS; weekFocus = d.weekFocus || {}; weeklySummaries = d.weeklySummaries || {}; if (Array.isArray(d.activityLog)) activityLog = d.activityLog; }
     else   { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; funds = DEFAULT_FUNDS; }
   } catch { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; funds = DEFAULT_FUNDS; }
 
@@ -2609,15 +2613,16 @@ async function load() {
         team = d.team || team;
         funds = Array.isArray(d.funds) && d.funds.length ? d.funds : funds;
         weekFocus = d.weekFocus || weekFocus;
+        weeklySummaries = d.weeklySummaries || weeklySummaries;
         if (Array.isArray(d.activityLog)) activityLog = d.activityLog;
         if (d.scheduleData && typeof d.scheduleData === 'object') {
           scheduleData = d.scheduleData;
           localStorage.setItem('chope_schedule', JSON.stringify(scheduleData));
         }
-        localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, weekFocus, activityLog }));
+        localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, weekFocus, weeklySummaries, activityLog }));
       } else {
         // First ever load — push local data to Firestore
-        await setDoc(ref, { tasks, workstreams, team, funds, weekFocus, activityLog, scheduleData });
+        await setDoc(ref, { tasks, workstreams, team, funds, weekFocus, weeklySummaries, activityLog, scheduleData });
       }
     } catch(e) { console.warn('Firestore load failed, falling back to localStorage', e); }
 
@@ -2636,6 +2641,7 @@ async function load() {
       team = d.team || DEFAULT_TEAM;
       funds = Array.isArray(d.funds) && d.funds.length ? d.funds : DEFAULT_FUNDS;
       weekFocus = d.weekFocus || {};
+      weeklySummaries = d.weeklySummaries || {};
       if (Array.isArray(d.activityLog)) activityLog = d.activityLog;
       if (d.scheduleData && typeof d.scheduleData === 'object') {
         scheduleData = d.scheduleData;
@@ -2651,7 +2657,7 @@ async function load() {
         const idx = tasks.findIndex(t => t.id === id);
         if (idx >= 0) { const { _ts, ...td } = ov; tasks[idx] = td; }
       });
-      localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, weekFocus, activityLog }));
+      localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, weekFocus, weeklySummaries, activityLog }));
       renderAll();
       toast('🔄 Board updated by a colleague');
     });
@@ -2676,11 +2682,11 @@ let _persistChain = Promise.resolve(); // serializes Firestore writes so a merge
                                         // below never races against another in-flight write
 
 function persist() {
-  localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, weekFocus, activityLog }));
-  try { bc.postMessage({ tasks, workstreams, team, funds, weekFocus, activityLog, scheduleData }); } catch {}
+  localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, weekFocus, weeklySummaries, activityLog }));
+  try { bc.postMessage({ tasks, workstreams, team, funds, weekFocus, weeklySummaries, activityLog, scheduleData }); } catch {}
   if (window._chopeFb) {
     _lastLocalWrite = Date.now();
-    const snapshot = { tasks, workstreams, team, funds, weekFocus, activityLog, scheduleData, savedAt: _lastLocalWrite };
+    const snapshot = { tasks, workstreams, team, funds, weekFocus, weeklySummaries, activityLog, scheduleData, savedAt: _lastLocalWrite };
     _persistChain = _persistChain.then(() => _persistToFirestoreMerged(snapshot));
   }
 }
@@ -2699,18 +2705,27 @@ async function _persistToFirestoreMerged(snapshot) {
   const { db, doc, setDoc, getDoc } = window._chopeFb;
   const ref = doc(db, 'chope', 'main');
   let mergedTasks = snapshot.tasks, mergedWorkstreams = snapshot.workstreams;
+  let mergedWeekFocus = snapshot.weekFocus, mergedWeeklySummaries = snapshot.weeklySummaries;
   try {
     const snap = await getDoc(ref);
     if (snap.exists()) {
       const server = snap.data();
       mergedTasks = _mergeById(server.tasks, snapshot.tasks);
       mergedWorkstreams = _mergeById(server.workstreams, snapshot.workstreams);
+      // weekFocus/weeklySummaries are plain objects keyed by week (and, for weeklySummaries,
+      // by week+user) rather than id-arrays — same blind-overwrite risk as tasks/workstreams
+      // above, but worse for weeklySummaries since every team member writes to it (not just
+      // Victor), so two people saving their own entries moments apart could otherwise stomp
+      // each other's key entirely. A shallow key merge (local wins per key) fixes both.
+      mergedWeekFocus = _mergeFlat(server.weekFocus, snapshot.weekFocus);
+      mergedWeeklySummaries = _mergeFlat(server.weeklySummaries, snapshot.weeklySummaries);
     }
   } catch (e) { console.warn('Pre-write reconciliation read failed, writing local state as-is:', e); }
   try {
     await setDoc(ref, {
       tasks: mergedTasks, workstreams: mergedWorkstreams,
-      team: snapshot.team, funds: snapshot.funds, weekFocus: snapshot.weekFocus,
+      team: snapshot.team, funds: snapshot.funds, weekFocus: mergedWeekFocus,
+      weeklySummaries: mergedWeeklySummaries,
       activityLog: snapshot.activityLog, scheduleData: snapshot.scheduleData,
       _savedAt: snapshot.savedAt,
     });
@@ -2722,6 +2737,9 @@ function _mergeById(serverList, localList) {
   (localList || []).forEach(x => byId.set(x.id, x));
   _recentlyDeletedIds.forEach(id => byId.delete(id));
   return [...byId.values()];
+}
+function _mergeFlat(serverObj, localObj) {
+  return { ...(serverObj || {}), ...(localObj || {}) };
 }
 function persistFeedback() {
   if (window._chopeFb) {
@@ -2737,6 +2755,7 @@ bc.onmessage = e => {
   tasks = e.data.tasks; workstreams = e.data.workstreams; team = e.data.team;
   if (Array.isArray(e.data.funds) && e.data.funds.length) funds = e.data.funds;
   if (e.data.weekFocus) weekFocus = e.data.weekFocus;
+  if (e.data.weeklySummaries) weeklySummaries = e.data.weeklySummaries;
   if (Array.isArray(e.data.activityLog)) activityLog = e.data.activityLog;
   if (e.data.scheduleData && typeof e.data.scheduleData === 'object') scheduleData = e.data.scheduleData;
   renderAll(); toast('Board updated by a colleague');
@@ -8804,6 +8823,19 @@ function renderTeamView(force) {
   // Cached by search box's oninput — avoids re-deriving the linkable list on every keystroke
   _weekFocusLinkableCache = linkableTasks;
 
+  // ── Section: Team Weekly Summaries — read-only rollup of everyone's own entry ──
+  const teamSummaryCards = team.map(m => {
+    const ws = weeklySummaries[wfKey + '__' + m.name] || { done: '', next: '' };
+    return `
+      <div class="team-profile-card">
+        <div class="team-profile-section">${esc(m.name)}</div>
+        <div style="font-size:11px;color:var(--t3);margin:2px 0 4px">Done this week</div>
+        <div style="font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word">${ws.done ? _renderFocusMarkup(ws.done) : '<span class="wf-focus-empty">No summary yet</span>'}</div>
+        <div style="font-size:11px;color:var(--t3);margin:10px 0 4px">Planned next week</div>
+        <div style="font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word">${ws.next ? _renderFocusMarkup(ws.next) : '<span class="wf-focus-empty">Nothing noted yet</span>'}</div>
+      </div>`;
+  }).join('');
+
   el.innerHTML = `
     <div class="team-dash">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
@@ -8836,6 +8868,11 @@ function renderTeamView(force) {
             onblur="setTimeout(()=>{const d=document.getElementById('weekFocusTaskDropdown');if(d)d.style.display='none';},150)">
           <div id="weekFocusTaskDropdown" class="wf-task-dropdown" style="display:none"></div>
         </div>
+      </div>
+
+      <div class="team-section">
+        <div class="team-section-hd">📝 Team Weekly Summaries <span>Week of ${esc(weekLabel)} · what each person wrote for themselves — read-only, admin only</span></div>
+        <div class="team-profile-grid">${teamSummaryCards}</div>
       </div>
 
       <div class="team-section">
@@ -9245,6 +9282,10 @@ function openTaskModalFromSuggestion(i) {
 function renderInsightsView() {
   const el = document.getElementById('insightsContent');
   if (!el) return;
+  // Same reasoning as renderTeamView's weekFocusText guard: the periodic setInterval(renderAll,
+  // 60000) refresh would otherwise wipe out an in-progress, unsaved Weekly Summary edit.
+  const _activeId = document.activeElement?.id;
+  if (_activeId === 'wsDoneText' || _activeId === 'wsNextText') return;
   const cu = state.currentUser;
   const me = getMember(cu);
   const now = new Date();
@@ -9256,6 +9297,9 @@ function renderInsightsView() {
   const msSinceMon = ((dow === 0 ? 6 : dow - 1)) * 86400000;
   const startThisWeek = new Date(now.getTime() - msSinceMon);
   startThisWeek.setHours(0, 0, 0, 0);
+  const weekEndForLabel = new Date(startThisWeek.getTime() + 6 * 86400000);
+  const weekLabel = `${startThisWeek.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${weekEndForLabel.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;
+  const wsData = _currentWeeklySummary(cu);
 
   const WEEKS = 6;
   const weekBuckets = [];
@@ -9349,6 +9393,40 @@ function renderInsightsView() {
       <h1>Insights</h1>
       <div class="team-dash-sub">Your productivity & workload — only visible to you</div>
 
+      <div class="team-section team-section-side" style="border-color:#BFDBFE">
+        <div class="team-section-hd">📝 Weekly Summary <span>Week of ${esc(weekLabel)} · visible to you and Victor</span></div>
+
+        <div class="team-profile-section">Done this week</div>
+        <div id="wsDoneDisplay" class="wf-focus-display wf-focus-collapsed${wsData.done ? '' : ' wf-focus-empty'}" onclick="editWeeklySummary('done')">${wsData.done ? _renderFocusMarkup(wsData.done) : 'Click to add what you’ve done this week…'}</div>
+        <div id="wsDoneExpandToggle" class="wf-focus-expand-toggle" style="display:none" onclick="event.stopPropagation();toggleWeeklySummaryExpand('done')">Show more ▾</div>
+        <div id="wsDoneEditWrap" style="display:none">
+          <div class="wf-toolbar">
+            <button type="button" class="wf-tb-btn" onmousedown="event.preventDefault();wsWrapSelection('done','**','**')" title="Bold (Ctrl+B)"><b>B</b></button>
+            <button type="button" class="wf-tb-btn" onmousedown="event.preventDefault();wsWrapSelection('done','*','*')" title="Italic (Ctrl+I)"><i>I</i></button>
+            <button type="button" class="wf-tb-btn" onmousedown="event.preventDefault();wsWrapSelection('done','__','__')" title="Underline (Ctrl+U)"><u>U</u></button>
+            <button type="button" class="wf-tb-btn" onmousedown="event.preventDefault();wsToggleBulletLines('done')" title="Bullet list">☰</button>
+            <span class="wf-toolbar-hint">Ctrl+B / Ctrl+I / Ctrl+U</span>
+          </div>
+          <textarea id="wsDoneText" class="fi wf-focus-edit" rows="8" style="width:100%;min-height:140px;resize:vertical;font-family:inherit;box-sizing:border-box" onkeydown="handleWeeklySummaryKeydown('done',event)" onblur="saveWeeklySummaryText('done')">${esc(wsData.done)}</textarea>
+        </div>
+        <div style="margin:6px 0 16px"><button class="btn-ghost" style="font-size:11px;padding:3px 10px" onclick="autoDraftWeeklySummary('done')">✨ Auto-draft from completed tasks</button></div>
+
+        <div class="team-profile-section">Planned for next week</div>
+        <div id="wsNextDisplay" class="wf-focus-display wf-focus-collapsed${wsData.next ? '' : ' wf-focus-empty'}" onclick="editWeeklySummary('next')">${wsData.next ? _renderFocusMarkup(wsData.next) : 'Click to add what’s planned for next week…'}</div>
+        <div id="wsNextExpandToggle" class="wf-focus-expand-toggle" style="display:none" onclick="event.stopPropagation();toggleWeeklySummaryExpand('next')">Show more ▾</div>
+        <div id="wsNextEditWrap" style="display:none">
+          <div class="wf-toolbar">
+            <button type="button" class="wf-tb-btn" onmousedown="event.preventDefault();wsWrapSelection('next','**','**')" title="Bold (Ctrl+B)"><b>B</b></button>
+            <button type="button" class="wf-tb-btn" onmousedown="event.preventDefault();wsWrapSelection('next','*','*')" title="Italic (Ctrl+I)"><i>I</i></button>
+            <button type="button" class="wf-tb-btn" onmousedown="event.preventDefault();wsWrapSelection('next','__','__')" title="Underline (Ctrl+U)"><u>U</u></button>
+            <button type="button" class="wf-tb-btn" onmousedown="event.preventDefault();wsToggleBulletLines('next')" title="Bullet list">☰</button>
+            <span class="wf-toolbar-hint">Ctrl+B / Ctrl+I / Ctrl+U</span>
+          </div>
+          <textarea id="wsNextText" class="fi wf-focus-edit" rows="8" style="width:100%;min-height:140px;resize:vertical;font-family:inherit;box-sizing:border-box" onkeydown="handleWeeklySummaryKeydown('next',event)" onblur="saveWeeklySummaryText('next')">${esc(wsData.next)}</textarea>
+        </div>
+        <div style="margin:6px 0 4px"><button class="btn-ghost" style="font-size:11px;padding:3px 10px" onclick="autoDraftWeeklySummary('next')">✨ Auto-draft from open tasks</button></div>
+      </div>
+
       <div class="team-section">
         <div class="team-section-hd">📈 Volume Trend <span>completions per week vs your ${goal}/wk goal (dashed line)</span></div>
         <div class="ins-trend-card">
@@ -9424,7 +9502,173 @@ function renderInsightsView() {
       </div>
     </div>`;
 
+  _updateWsExpandToggle('wsDoneDisplay', 'wsDoneExpandToggle');
+  _updateWsExpandToggle('wsNextDisplay', 'wsNextExpandToggle');
   if (gmailToken) _loadInsightsCalendarLoad(startThisWeek);
+}
+
+/* ══════════════════════════════════════════════════════════
+   WEEKLY SUMMARY — "done this week" + "planned next week", per person.
+   Same click-to-edit / rich-text pattern as Week Focus (see wfWrapSelection etc.), but
+   parameterized by field ('done' | 'next') since there are two independent text blocks
+   instead of one. Kept as a separate implementation rather than generalizing the Week
+   Focus functions themselves — Week Focus is Victor-only and already stable; touching it
+   to share code isn't worth the regression risk for a single admin-only feature.
+══════════════════════════════════════════════════════════ */
+
+function _weeklySummaryKey(user, weekKey) {
+  return `${weekKey || _weekFocusKey(new Date())}__${user}`;
+}
+function _currentWeeklySummary(user) {
+  user = user || state.currentUser;
+  const key = _weeklySummaryKey(user);
+  if (!weeklySummaries[key]) weeklySummaries[key] = { done: '', next: '', updatedAt: null };
+  return weeklySummaries[key];
+}
+function _wsIds(field) {
+  const cap = field === 'done' ? 'Done' : 'Next';
+  return { display: 'ws' + cap + 'Display', toggle: 'ws' + cap + 'ExpandToggle', wrap: 'ws' + cap + 'EditWrap', text: 'ws' + cap + 'Text' };
+}
+
+function editWeeklySummary(field) {
+  const ids = _wsIds(field);
+  const display = document.getElementById(ids.display);
+  const wrap = document.getElementById(ids.wrap);
+  const ta = document.getElementById(ids.text);
+  if (!display || !wrap || !ta) return;
+  display.style.display = 'none';
+  const toggle = document.getElementById(ids.toggle);
+  if (toggle) toggle.style.display = 'none';
+  wrap.style.display = '';
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+}
+
+function saveWeeklySummaryText(field) {
+  const ids = _wsIds(field);
+  const ta = document.getElementById(ids.text);
+  const display = document.getElementById(ids.display);
+  const wrap = document.getElementById(ids.wrap);
+  if (!ta || !display || !wrap) return;
+  const ws = _currentWeeklySummary();
+  const text = ta.value.trim();
+  const changed = text !== ws[field];
+  ws[field] = text;
+  ws.updatedAt = new Date().toISOString();
+  if (changed) persist();
+  const placeholder = field === 'done' ? 'Click to add what you’ve done this week…' : 'Click to add what’s planned for next week…';
+  display.innerHTML = text ? _renderFocusMarkup(text) : placeholder;
+  display.classList.toggle('wf-focus-empty', !text);
+  wrap.style.display = 'none';
+  display.style.display = '';
+  _updateWsExpandToggle(ids.display, ids.toggle);
+}
+
+function _updateWsExpandToggle(displayId, toggleId) {
+  const display = document.getElementById(displayId);
+  const toggle = document.getElementById(toggleId);
+  if (!display || !toggle) return;
+  const wasExpanded = toggle.dataset.expanded === '1';
+  display.classList.remove('wf-focus-collapsed');
+  const overflows = display.scrollHeight > 130;
+  if (!overflows) { toggle.style.display = 'none'; toggle.dataset.expanded = '0'; return; }
+  toggle.style.display = '';
+  if (wasExpanded) { toggle.textContent = 'Show less ▴'; }
+  else { display.classList.add('wf-focus-collapsed'); toggle.textContent = 'Show more ▾'; }
+}
+
+function toggleWeeklySummaryExpand(field) {
+  const ids = _wsIds(field);
+  const display = document.getElementById(ids.display);
+  const toggle = document.getElementById(ids.toggle);
+  if (!display || !toggle) return;
+  const expanded = toggle.dataset.expanded === '1';
+  if (expanded) { display.classList.add('wf-focus-collapsed'); toggle.textContent = 'Show more ▾'; toggle.dataset.expanded = '0'; }
+  else { display.classList.remove('wf-focus-collapsed'); toggle.textContent = 'Show less ▴'; toggle.dataset.expanded = '1'; }
+}
+
+function wsWrapSelection(field, before, after) {
+  const ids = _wsIds(field);
+  const ta = document.getElementById(ids.text);
+  if (!ta) return;
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const val = ta.value;
+  const selected = val.slice(start, end);
+  ta.value = val.slice(0, start) + before + selected + after + val.slice(end);
+  const newStart = start + before.length;
+  const newEnd = newStart + selected.length;
+  ta.focus();
+  ta.setSelectionRange(newStart, newEnd);
+}
+
+function wsToggleBulletLines(field) {
+  const ids = _wsIds(field);
+  const ta = document.getElementById(ids.text);
+  if (!ta) return;
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const val = ta.value;
+  const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+  let lineEnd = val.indexOf('\n', end);
+  if (lineEnd === -1) lineEnd = val.length;
+  const lines = val.slice(lineStart, lineEnd).split('\n');
+  const allBulleted = lines.every(l => !l.trim() || /^\s*-\s/.test(l));
+  const newLines = lines.map(l => {
+    if (!l.trim()) return l;
+    return allBulleted ? l.replace(/^(\s*)-\s+/, '$1') : (/^\s*-\s/.test(l) ? l : '- ' + l);
+  });
+  const newBlock = newLines.join('\n');
+  ta.value = val.slice(0, lineStart) + newBlock + val.slice(lineEnd);
+  ta.focus();
+  ta.setSelectionRange(lineStart, lineStart + newBlock.length);
+}
+
+function handleWeeklySummaryKeydown(field, e) {
+  if (!(e.ctrlKey || e.metaKey)) return;
+  const k = e.key.toLowerCase();
+  if (k === 'b') { e.preventDefault(); wsWrapSelection(field, '**', '**'); }
+  else if (k === 'i') { e.preventDefault(); wsWrapSelection(field, '*', '*'); }
+  else if (k === 'u') { e.preventDefault(); wsWrapSelection(field, '__', '__'); }
+}
+
+// Deterministic draft (no AI call) — lists this week's actual completions, or the assignee's
+// open tasks ranked overdue-first / priority / soonest-deadline. Fills the textarea in place;
+// user reviews and edits before it's saved on blur, same as everything else in this section.
+function autoDraftWeeklySummary(field) {
+  const cu = state.currentUser;
+  const todayStr = todayLocal();
+  const now = new Date();
+  const dow = now.getDay();
+  const msSinceMon = ((dow === 0 ? 6 : dow - 1)) * 86400000;
+  const startThisWeek = new Date(now.getTime() - msSinceMon);
+  startThisWeek.setHours(0, 0, 0, 0);
+
+  let lines;
+  if (field === 'done') {
+    const done = tasks
+      .filter(t => t.assignee === cu && t.status === 'done' && t.completedAt && new Date(t.completedAt) >= startThisWeek)
+      .sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''));
+    lines = done.map(t => `- ${t.name}`);
+    if (!lines.length) lines = ['- Nothing marked complete yet this week'];
+  } else {
+    const priorityRank = { high: 0, med: 1, low: 2 };
+    const open = tasks
+      .filter(t => t.assignee === cu && t.status !== 'done')
+      .sort((a, b) => {
+        const aOverdue = a.deadline && a.deadline < todayStr ? 0 : 1;
+        const bOverdue = b.deadline && b.deadline < todayStr ? 0 : 1;
+        if (aOverdue !== bOverdue) return aOverdue - bOverdue;
+        const pr = (priorityRank[a.priority] ?? 1) - (priorityRank[b.priority] ?? 1);
+        if (pr !== 0) return pr;
+        return (a.deadline || '9999-99-99').localeCompare(b.deadline || '9999-99-99');
+      })
+      .slice(0, 8);
+    lines = open.map(t => `- ${t.name}${t.deadline ? ` (due ${t.deadline})` : ''}`);
+    if (!lines.length) lines = ['- No open tasks assigned right now'];
+  }
+  const ta = document.getElementById(_wsIds(field).text);
+  if (!ta) return;
+  ta.value = lines.join('\n');
+  ta.focus();
 }
 
 let _insCalListCache = null; // cached calendar list for the picker, avoids refetching on every open
