@@ -9394,7 +9394,7 @@ function renderInsightsView() {
       <div class="team-dash-sub">Your productivity & workload — only visible to you</div>
 
       <div class="team-section team-section-side" style="border-color:#BFDBFE">
-        <div class="team-section-hd">📝 Weekly Summary <span>Week of ${esc(weekLabel)} · visible to you and Victor</span></div>
+        <div class="team-section-hd">📝 Weekly Summary <span>Week of ${esc(weekLabel)}</span></div>
 
         <div class="team-profile-section">Done this week</div>
         <div id="wsDoneDisplay" class="wf-focus-display wf-focus-collapsed${wsData.done ? '' : ' wf-focus-empty'}" onclick="editWeeklySummary('done')">${wsData.done ? _renderFocusMarkup(wsData.done) : 'Click to add what you’ve done this week…'}</div>
