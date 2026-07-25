@@ -9648,7 +9648,22 @@ function autoDraftWeeklySummary(field) {
       .filter(t => t.assignee === cu && t.status === 'done' && t.completedAt && new Date(t.completedAt) >= startThisWeek)
       .sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''));
     lines = done.map(t => `- ${t.name}`);
-    if (!lines.length) lines = ['- Nothing marked complete yet this week'];
+    if (!lines.length) {
+      lines = ['- Nothing marked complete yet this week'];
+    } else {
+      // Breakdown insight: what kind of work the completions skewed toward this week —
+      // same category/fund taxonomy as the "Where Your Attention Is" chart, but scoped to
+      // just this week's completions rather than a rolling 30-day window.
+      const countBy = keyFn => {
+        const counts = {};
+        done.forEach(t => { const k = keyFn(t); if (!k) return; counts[k] = (counts[k] || 0) + 1; });
+        return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      };
+      const catBreakdown = countBy(t => t.cat).map(([k, n]) => `${(CATEGORIES[k] || { label: k }).label} (${n})`).join(', ');
+      const fundBreakdown = countBy(t => (t.fund && t.fund !== 'none') ? t.fund : null).map(([k, n]) => `${k} (${n})`).join(', ');
+      lines.push('');
+      lines.push(`Summary: ${done.length} task${done.length === 1 ? '' : 's'} completed — ${catBreakdown}${fundBreakdown ? '. Funds: ' + fundBreakdown : ''}.`);
+    }
   } else {
     const priorityRank = { high: 0, med: 1, low: 2 };
     const open = tasks
@@ -9668,7 +9683,10 @@ function autoDraftWeeklySummary(field) {
   const ta = document.getElementById(_wsIds(field).text);
   if (!ta) return;
   ta.value = lines.join('\n');
-  ta.focus();
+  // Reveal + focus the (now-populated) textarea immediately — previously the draft only
+  // landed in the hidden textarea, so it looked like nothing happened until the user
+  // separately clicked into the field.
+  editWeeklySummary(field);
 }
 
 let _insCalListCache = null; // cached calendar list for the picker, avoids refetching on every open
