@@ -2655,7 +2655,7 @@ async function load() {
         localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, weekFocus, weeklySummaries, activityLog }));
       } else {
         // First ever load — push local data to Firestore
-        await setDoc(ref, { tasks, workstreams, team, funds, weekFocus, weeklySummaries, activityLog, scheduleData });
+        await setDoc(ref, _stripUndefinedDeep({ tasks, workstreams, team, funds, weekFocus, weeklySummaries, activityLog, scheduleData }));
       }
     } catch(e) {
       console.warn('Firestore load failed, falling back to localStorage', e);
@@ -2762,13 +2762,13 @@ async function _persistToFirestoreMerged(snapshot) {
     }
   } catch (e) { console.warn('Pre-write reconciliation read failed, writing local state as-is:', e); }
   try {
-    await setDoc(ref, {
+    await setDoc(ref, _stripUndefinedDeep({
       tasks: mergedTasks, workstreams: mergedWorkstreams,
       team: snapshot.team, funds: snapshot.funds, weekFocus: mergedWeekFocus,
       weeklySummaries: mergedWeeklySummaries,
       activityLog: snapshot.activityLog, scheduleData: snapshot.scheduleData,
       _savedAt: snapshot.savedAt,
-    });
+    }));
   } catch (e) {
     // This is the change actually failing to reach the shared board — previously only a
     // console.warn, so a device with a broken write path (stale auth, revoked permission,
@@ -2780,6 +2780,20 @@ async function _persistToFirestoreMerged(snapshot) {
   }
 }
 
+// Root cause of "changes stopped syncing on one device": Firestore's setDoc() throws (and
+// aborts the ENTIRE write — every field, not just the bad one) if any nested value anywhere in
+// the payload is `undefined` — e.g. task.todoistId briefly went `undefined` via an `a || (b &&
+// b.c)` fallback that doesn't short-circuit to null (see _tdSyncThrows). Once a task like that
+// sits in memory, every subsequent persist() from that device re-includes it and keeps failing
+// the same way — silently, since the write error was only ever console.warn'd — until the tab
+// is reloaded and Firestore's own (never-corrupted) copy is re-fetched. Fixing the one known
+// trigger isn't enough on its own since the same failure mode can happen from any future bad
+// field; this stops the whole class of bug by scrubbing every setDoc payload first. JSON
+// round-tripping is the standard trick — JSON.stringify omits undefined object keys and turns
+// undefined array elements into null, which is exactly the semantics Firestore needs.
+function _stripUndefinedDeep(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
 function _mergeById(serverList, localList) {
   const byId = new Map((serverList || []).map(x => [x.id, x]));
   (localList || []).forEach(x => byId.set(x.id, x));
@@ -2792,7 +2806,7 @@ function _mergeFlat(serverObj, localObj) {
 function persistFeedback() {
   if (window._chopeFb) {
     const { db, doc, setDoc } = window._chopeFb;
-    setDoc(doc(db, 'chope', 'feedback'), { items: feedback })
+    setDoc(doc(db, 'chope', 'feedback'), _stripUndefinedDeep({ items: feedback }))
       .catch(e => console.warn('Feedback write failed:', e));
   }
 }
@@ -6122,7 +6136,13 @@ async function _tdSyncThrows(task) {
       throw new Error(`Create HTTP ${res.status}${detail ? ': ' + detail.slice(0,80) : ''}`);
     }
     const created = await res.json();
-    task.todoistId = created.id || (created.task && created.task.id);
+    // Firestore rejects any field set to `undefined` — the old `a || (b && b.c)` fallback
+    // evaluates to literal `undefined` (not null) when both sides are missing, which happens
+    // if Todoist's create response doesn't have the expected shape. That `undefined` then sits
+    // on this task in memory and gets included in every persist() from this device afterward,
+    // so the shared board write keeps failing silently (device looks "stuck", nothing syncs)
+    // until the tab is reloaded. `?? null` guarantees a value setDoc() will actually accept.
+    task.todoistId = created.id ?? created.task?.id ?? null;
   }
 }
 
