@@ -16,12 +16,27 @@ const GROQ_MODEL_FALLBACK = 'openai/gpt-oss-120b';
 // (model not found/decommissioned) and shapes error responses consistently. Returns
 // { reply } on success, or throws an object shaped like { status, message } for the caller
 // to turn into an HTTP response.
+//
+// openai/gpt-oss-20b and -120b are REASONING models — before writing the actual answer they
+// spend some of the token budget on an internal reasoning pass (returned separately in a
+// `reasoning` field we never read). If max_completion_tokens is too tight, the model can burn
+// the whole budget reasoning and get cut off before emitting any answer text at all, which
+// showed up here as a silent "(empty response)" rather than an error — nothing was wrong with
+// the request, the model just never got to the answer. reasoning_effort: 'low' keeps that pass
+// short (we want fast, direct answers here, not deep chain-of-thought), include_reasoning:
+// false skips returning a field we don't use, and the token budgets below have real headroom
+// past what a non-reasoning model needed.
 async function callGroq(apiKey, { messages, maxTokens, temperature = 0.7 }) {
   const attempt = async model => {
     const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature }),
+      body: JSON.stringify({
+        model, messages, temperature,
+        max_completion_tokens: maxTokens,
+        reasoning_effort: 'low',
+        include_reasoning: false,
+      }),
     });
     const data = await r.json().catch(() => ({}));
     return { ok: r.ok, status: r.status, data };
@@ -42,7 +57,17 @@ async function callGroq(apiKey, { messages, maxTokens, temperature = 0.7 }) {
                    : `AI error (${result.status}) — please try again.`;
     throw { status: result.status, message };
   }
-  return { reply: result.data.choices?.[0]?.message?.content || '(empty response)' };
+
+  const choice = result.data.choices?.[0];
+  const content = choice?.message?.content;
+  if (!content) {
+    // Ran out of token budget before producing any answer text (finish_reason "length" is the
+    // usual signature) — a real failure, not a normal empty reply, so surface it as an error
+    // instead of silently returning a placeholder string the user can't act on.
+    console.error('Groq returned no content:', JSON.stringify({ finish_reason: choice?.finish_reason, maxTokens }).slice(0, 300));
+    throw { status: 502, message: 'AI ran out of room to answer — try a shorter question, or try again.' };
+  }
+  return { reply: content };
 }
 
 export default async function handler(req, res) {
@@ -107,7 +132,7 @@ Keep it under 260 words, plain prose in short paragraphs (no headers, no bullet 
     try {
       const { reply } = await callGroq(apiKey, {
         messages: [{ role: 'system', content: insightsPrompt }, { role: 'user', content: message }],
-        maxTokens: 500,
+        maxTokens: 900,
       });
       return res.status(200).json({ reply });
     } catch (e) {
@@ -168,7 +193,7 @@ Plain prose in short paragraphs under a bold-free heading per section (use the q
     try {
       const { reply } = await callGroq(apiKey, {
         messages: [{ role: 'system', content: quarterlyPrompt }, { role: 'user', content: message }],
-        maxTokens: 700,
+        maxTokens: 1200,
       });
       return res.status(200).json({ reply });
     } catch (e) {
@@ -210,7 +235,7 @@ Respond with ONLY a raw JSON array, no markdown code fences, no prose before or 
     try {
       const { reply: raw } = await callGroq(apiKey, {
         messages: [{ role: 'system', content: suggestPrompt }, { role: 'user', content: message }],
-        maxTokens: 700,
+        maxTokens: 1000,
         temperature: 0.6,
       });
       // Strip common LLM formatting quirks (markdown code fences) before handing back to the
@@ -291,7 +316,7 @@ Your rules:
 
   // ── Call Groq ───────────────────────────────────────────
   try {
-    const { reply } = await callGroq(apiKey, { messages, maxTokens: 512 });
+    const { reply } = await callGroq(apiKey, { messages, maxTokens: 900 });
     return res.status(200).json({ reply });
   } catch (e) {
     if (e && e.status) return res.status(e.status).json({ error: e.message });
