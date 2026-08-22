@@ -5744,6 +5744,7 @@ if (window.self === window.top) {
       <div>
         <div class="ai-title">AI Assistant <span class="ai-sub">— Groq</span></div>
       </div>
+      <button class="ai-hd-btn" onclick="aiResetKey()">🔑 Key</button>
       <button class="ai-hd-btn" onclick="aiBack()">← Back</button>
       <button class="ai-hd-btn" style="padding:3px 7px;font-size:14px" onclick="toggleAiPanel()">×</button>
     </div>
@@ -5766,6 +5767,15 @@ if (window.self === window.top) {
 // API key stored in localStorage (never committed to repo)
 function getGroqKey() { return localStorage.getItem('chope_groq_key') || ''; }
 function setGroqKey(k) { localStorage.setItem('chope_groq_key', k.trim()); }
+function aiResetKey() {
+  localStorage.removeItem('chope_groq_key');
+  _aiHistory = [];
+  document.getElementById('aiMessages').innerHTML = '';
+  window._aiAwaitingKey = false;
+  aiAddMsg('bot', 'API key cleared. Paste your new Groq key below and press Send.');
+  window._aiAwaitingKey = true;
+  document.getElementById('aiInput').focus();
+}
 const GROQ_MODEL = 'llama3-70b-8192';
 let _aiOpen = false;
 let _aiHistory = []; // {role, content}
