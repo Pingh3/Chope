@@ -2339,7 +2339,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
         <div class="sc-row"><kbd>2</kbd><span>My Day view</span></div>
         <div class="sc-row"><kbd>3</kbd><span>Our Week view</span></div>
         <div class="sc-row"><kbd>4</kbd><span>Workstreams view</span></div>
-        <div class="sc-row"><kbd>5</kbd><span>Team view (admin only)</span></div>
+        <div class="sc-row"><kbd>5</kbd><span>Team view</span></div>
       </div>
       <div class="sc-group">
         <div class="sc-group-label">Filters</div>
@@ -3145,9 +3145,10 @@ function renderHeader() {
 
   if (!state.currentUser && team.length) state.currentUser = team[0].name;
 
-  // Show Team Dashboard tab for Victor only
+  // Team Dashboard tab is visible to everyone — renderTeamView() itself still keeps the two
+  // deliberately-private sections (This Week's Focus, Team Weekly Summaries) Victor-only.
   const teamBtn = document.getElementById('teamNavBtn');
-  if (teamBtn) teamBtn.style.display = state.currentUser === 'Victor' ? '' : 'none';
+  if (teamBtn) teamBtn.style.display = '';
 
   updateNotifBadge();
 }
@@ -8676,10 +8677,11 @@ function toggleDarkMode() {
 function renderTeamView(force) {
   const el = document.getElementById('teamContent');
   if (!el) return;
-  if (state.currentUser !== 'Victor') {
-    el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--t3);font-size:13px">This view is only available to admins.</div>';
-    return;
-  }
+  // Team Dashboard is visible to everyone; isAdmin gates only the two sections that were
+  // deliberately built as Victor-private (This Week's Focus, Team Weekly Summaries) — every
+  // other section (profiles, velocity, workload, activity feed, quarterly review, forecast
+  // suggestions) is shared team-wide.
+  const isAdmin = state.currentUser === ADMIN_USER;
   // Never rebuild this view's HTML while the focus textarea or task search is actively being
   // used — the periodic setInterval(renderAll, 60000) refresh was silently wiping out unsaved
   // text (or an in-progress search) before the user got a chance to finish. force=true bypasses
@@ -8877,7 +8879,7 @@ function renderTeamView(force) {
         </div>`).join('')}</div>`
     : '<div class="team-empty">No activity recorded yet — appears as tasks are created and edited.</div>';
 
-  // ── Section: Quarterly Review & Forecast (Victor only) ────
+  // ── Section: Quarterly Review & Forecast (team-visible) ────
   const qThis = _quarterBounds(now);
   const qLast = _adjQuarter(qThis, -1);
   const qNext = _adjQuarter(qThis, 1);
@@ -8930,8 +8932,9 @@ function renderTeamView(force) {
         <h1>Team Dashboard</h1>
         <button class="btn-ws" onclick="exportTasksMarkdown()" title="Download all completed and open tasks as a Markdown file">⬇ Export Tasks (.md)</button>
       </div>
-      <div class="team-dash-sub">Only visible to you, Victor · Click any workload card to filter the Board to that person</div>
+      <div class="team-dash-sub">Team-wide activity and health · click any workload card to filter the Board to that person</div>
 
+      ${!isAdmin ? '' : `
       <div class="team-section team-section-side" style="border-color:#FDE68A">
         <div class="team-section-hd">🎯 This Week's Focus <span>Week of ${esc(weekLabel)} · private, only you can see this</span></div>
         <div id="weekFocusDisplay" class="wf-focus-display wf-focus-collapsed${wf.text ? '' : ' wf-focus-empty'}" onclick="editWeekFocus()">${wf.text ? _renderFocusMarkup(wf.text) : 'Click to add your focus for the week…'}</div>
@@ -8962,9 +8965,10 @@ function renderTeamView(force) {
         <div class="team-section-hd">📝 Team Weekly Summaries <span>Week of ${esc(weekLabel)} · what each person wrote for themselves — read-only, admin only</span></div>
         <div class="team-profile-grid">${teamSummaryCards}</div>
       </div>
+      `}
 
       <div class="team-section">
-        <div class="team-section-hd">🗓️ Quarterly Review & Forecast <span>${esc(qLast.label)} → ${esc(qThis.label)} → ${esc(qNext.label)} · admin only</span></div>
+        <div class="team-section-hd">🗓️ Quarterly Review & Forecast <span>${esc(qLast.label)} → ${esc(qThis.label)} → ${esc(qNext.label)}</span></div>
         <div class="team-velocity-grid">
           ${quarterStatCard(qLast.label + ' (done)', completedLastQ.length, 'tasks completed')}
           ${quarterStatCard(qThis.label + ' (so far)', completedThisQ.length, 'tasks completed')}
@@ -8977,7 +8981,7 @@ function renderTeamView(force) {
       </div>
 
       <div class="team-section team-section-side">
-        <div class="team-section-hd">🔮 Next Quarter — Suggested To-Dos <span>${esc(qNext.label)} · AI-suggested, admin only — review each before adding</span></div>
+        <div class="team-section-hd">🔮 Next Quarter — Suggested To-Dos <span>${esc(qNext.label)} · AI-suggested — review each before adding</span></div>
         <div id="forecastSuggCard">
           <button class="btn-add" id="forecastSuggBtn" onclick="generateForecastSuggestions()">Generate Suggestions</button>
         </div>
@@ -9351,7 +9355,7 @@ async function generateForecastSuggestions() {
   }
 }
 
-// Opens the New Task modal pre-filled from a suggestion so Victor can review/adjust
+// Opens the New Task modal pre-filled from a suggestion so the viewer can review/adjust
 // (assignee, fund, category, deadline, etc.) before actually saving — never auto-creates.
 function openTaskModalFromSuggestion(i) {
   const s = _forecastSuggestions[i];

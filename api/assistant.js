@@ -164,7 +164,7 @@ Keep it under 260 words, plain prose in short paragraphs (no headers, no bullet 
     const bPipeline = fmtBucket(pipelineNextQ);
     const bNoDeadline = fmtBucket(openNoDeadline);
 
-    const quarterlyPrompt = `You are writing a quarterly business review for ${currentUser || 'the admin'}, who leads a small investment team using Chope, a work task manager. Today is ${today}. This is a team-wide view across everyone's tasks — ${currentUser} is the only person who sees this.
+    const quarterlyPrompt = `You are writing a quarterly business review, to be read by ${currentUser || 'a team member'}, for a small investment team using Chope, a work task manager. Today is ${today}. This is a team-wide view across everyone's tasks, visible to the whole team.
 
 Quarters: last = ${quarterLabels.last || '?'}, current = ${quarterLabels.current || '?'}, next = ${quarterLabels.next || '?'}.
 
@@ -219,7 +219,7 @@ Plain prose in short paragraphs under a bold-free heading per section (use the q
     const bPipeline = fmtBucket(pipelineNextQ);
     const bPlanned = fmtBucket(plannedThisQ);
 
-    const suggestPrompt = `You help ${currentUser || 'the admin'}, who leads a small investment team using Chope, plan ahead. Today is ${today}. Quarters: current = ${quarterLabels.current || '?'}, next = ${quarterLabels.next || '?'}.
+    const suggestPrompt = `You help ${currentUser || 'a team member'} plan ahead for a small investment team using Chope. Today is ${today}. Quarters: current = ${quarterLabels.current || '?'}, next = ${quarterLabels.next || '?'}.
 
 Already scheduled with a deadline in ${quarterLabels.next || 'next quarter'} (${bPipeline.count} total${bPipeline.truncNote} — the existing pipeline):
 ${bPipeline.lines}
