@@ -900,17 +900,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .daily-schedule-note-date{font-size:10px;color:#92400E;margin-right:6px}
 .daily-schedule-note-dismiss{background:none;border:none;cursor:pointer;color:#92400E;font-size:17px;line-height:1;padding:0;font-family:inherit}
 .daily-schedule-note-body{font-size:12px;color:#44330A;white-space:pre-wrap;line-height:1.6}
-/* Daily pinned-focus note — same layout as the schedule note, distinct (indigo) color so the
-   two can coexist without being confused for one another */
-.daily-focus-note{background:#EEF2FF;border:1px solid #C7D2FE;border-radius:10px;padding:12px 16px;margin-bottom:14px}
-.daily-focus-note-hd{display:flex;align-items:center;gap:6px;margin-bottom:8px}
-.daily-focus-note-title{font-size:12px;font-weight:700;color:#3730A3;flex:1}
-.daily-focus-note-date{font-size:10px;color:#4338CA;margin-right:6px}
-.daily-focus-note-dismiss{background:none;border:none;cursor:pointer;color:#4338CA;font-size:17px;line-height:1;padding:0;font-family:inherit}
-.daily-focus-note-body{font-size:12px;color:#312E81;white-space:pre-wrap;line-height:1.6}
 .asst-pin-btn{align-self:flex-start;margin-top:2px;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--card);font-size:11px;color:var(--t2);cursor:pointer;transition:background .12s;font-family:inherit}
 .asst-pin-btn:hover:not(:disabled){background:var(--hover);color:var(--t1)}
-.asst-pin-btn:disabled{cursor:default;color:#4338CA;border-color:#C7D2FE;background:#EEF2FF}
+.asst-pin-btn:disabled{cursor:default;color:#92400E;border-color:#FDE047;background:#FEF9C3}
 .asst-body{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-height:120px;max-height:340px}
 .asst-empty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:20px 0;color:var(--t3);font-size:12px;text-align:center}
 .asst-chips{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;border-top:1px solid var(--border);background:var(--bg2)}
@@ -3889,25 +3881,6 @@ function renderDaily() {
             <button class="daily-schedule-note-dismiss" onclick="clearScheduleNote()" title="Dismiss">×</button>
           </div>
           <div class="daily-schedule-note-body">${esc(text)}</div>
-        </div>`;
-      } catch { return ''; }
-    })()}
-
-    ${(() => {
-      if (!isMe) return '';
-      try {
-        const noteRaw = localStorage.getItem(`chope_focus_note_${me}`);
-        if (!noteRaw) return '';
-        const { text, ts } = JSON.parse(noteRaw);
-        const dateStr = new Date(ts).toLocaleString('en-US', { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
-        return `<div class="daily-focus-note">
-          <div class="daily-focus-note-hd">
-            <span style="font-size:15px">🎯</span>
-            <span class="daily-focus-note-title">Pinned Focus</span>
-            <span class="daily-focus-note-date">${esc(dateStr)}</span>
-            <button class="daily-focus-note-dismiss" onclick="clearFocusNote()" title="Dismiss">×</button>
-          </div>
-          <div class="daily-focus-note-body">${esc(text)}</div>
         </div>`;
       } catch { return ''; }
     })()}
@@ -8204,8 +8177,7 @@ let _asstLoading = false;
 let _asstBreakdownTask = null;   // set when user triggers a breakdown so we can add an "Add to board" button
 let _asstBdSelectedId = null;    // currently-selected task id in the breakdown picker
 let _asstBdAllTasks   = [];      // flat list of all open tasks for the picker
-let _asstScheduleRequest = false; // set when "Schedule my day" chip is used — save response as post-it
-let _asstFocusTodayRequest = false; // set when "Focus today" chip is used — offers a Pin-to-My-Day button
+let _asstScheduleRequest = false; // set when "Schedule my day" chip is used — offers a Pin-to-My-Day button
 let _asstUserOnlyRequest = false; // set for personal chips — filters tasks to currentUser only
 
 function toggleAssistant() {
@@ -8259,8 +8231,6 @@ async function asstSend() {
   _asstBreakdownTask = null;
   const _pendingSchedule = _asstScheduleRequest;
   _asstScheduleRequest = false;
-  const _pendingFocusToday = _asstFocusTodayRequest;
-  _asstFocusTodayRequest = false;
   // Auto-detect personal intent from free text so manual typing also gets user-scoped tasks.
   // Chips always set _asstUserOnlyRequest = true; free-text queries that say "my" / "I" / user's
   // name are also personal — don't let other users' tasks bleed in.
@@ -8302,14 +8272,8 @@ async function asstSend() {
       if (_asstHistory.length > 20) _asstHistory = _asstHistory.slice(-16);
       // If this was a breakdown request, show the sticky bar above the footer
       if (_pendingBreakdown) _asstRenderBreakdownActions(data.reply, _pendingBreakdown);
-      // If this was a "schedule my day" request, save as post-it note in My Day
-      if (_pendingSchedule) {
-        localStorage.setItem(`chope_schedule_note_${state.currentUser}`, JSON.stringify({ text: data.reply, ts: new Date().toISOString() }));
-        if (state.view === 'daily') renderDaily();
-      }
-      // If this was a "Focus today" request, offer to pin it as a note in My Day — opt-in,
-      // unlike the schedule note above which saves automatically.
-      if (_pendingFocusToday) _asstAttachPinButton(msgEl, data.reply);
+      // If this was a "schedule my day" request, offer to pin it as a note in My Day
+      if (_pendingSchedule) _asstAttachPinButton(msgEl, data.reply);
     }
   } catch (e) {
     document.getElementById(thinkId)?.remove();
@@ -8411,7 +8375,6 @@ function asstBreakdown() {
 // ── Personalized chip prompts ────────────────────────────────
 function asstChipFocusToday() {
   _asstUserOnlyRequest = true;
-  _asstFocusTodayRequest = true;
   asstAsk(`What should I focus on today? Prioritise by urgency and deadline.`);
 }
 function asstChipScheduleDay() {
@@ -8478,7 +8441,6 @@ function asstReset() {
   _asstBreakdownTask = null;
   _asstPendingReview = null;
   _asstScheduleRequest = false;
-  _asstFocusTodayRequest = false;
   _asstUserOnlyRequest = false;
   _asstReviewParent = null;
 }
@@ -8488,10 +8450,10 @@ function clearScheduleNote() {
   renderDaily();
 }
 
-// Attaches an opt-in "Pin to My Day" button under a Focus-today response. Only that one
+// Attaches an opt-in "Pin to My Day" button under a Schedule-my-day response. Only that one
 // response is pinnable — this isn't offered on every AI message, just this specific chip's
-// output, same scoping as the "schedule my day" post-it (though that one saves automatically;
-// this one is opt-in per the user's request, so a button is needed instead of an auto-save).
+// output. Saves into the same chope_schedule_note_<user> slot that renderDaily()'s "AI
+// Schedule Plan" post-it already reads.
 function _asstAttachPinButton(msgEl, text) {
   if (!msgEl) return;
   const btn = document.createElement('button');
@@ -8499,18 +8461,13 @@ function _asstAttachPinButton(msgEl, text) {
   btn.className = 'asst-pin-btn';
   btn.textContent = '📌 Pin to My Day';
   btn.onclick = () => {
-    localStorage.setItem(`chope_focus_note_${state.currentUser}`, JSON.stringify({ text, ts: new Date().toISOString() }));
+    localStorage.setItem(`chope_schedule_note_${state.currentUser}`, JSON.stringify({ text, ts: new Date().toISOString() }));
     if (state.view === 'daily') renderDaily();
     btn.textContent = '📌 Pinned to My Day ✓';
     btn.disabled = true;
     toast('Pinned to My Day');
   };
   msgEl.appendChild(btn);
-}
-
-function clearFocusNote() {
-  localStorage.removeItem(`chope_focus_note_${state.currentUser}`);
-  renderDaily();
 }
 
 function _parseAsstSteps(reply) {
