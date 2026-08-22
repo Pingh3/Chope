@@ -401,6 +401,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   scrollbar-width:none;
   position:sticky;top:54px;z-index:190;
 }
+/* Hidden scrollbar (above) gave zero visual cue that this bar scrolls at all — on mobile,
+   categories past the first few (Compliance & Legal, Admin, etc.) were invisible unless you
+   happened to swipe. Fading the trailing edge signals "more content this way" — but only when
+   there's actually more to show (see _updateCatNavFade()), so a wide desktop window where
+   everything already fits doesn't get a fade with nothing behind it to hint at. */
+#catNav.has-overflow{
+  mask-image:linear-gradient(to right, black calc(100% - 28px), transparent 100%);
+  -webkit-mask-image:linear-gradient(to right, black calc(100% - 28px), transparent 100%);
+}
 #catNav::-webkit-scrollbar{display:none}
 .ctab{
   padding:10px 14px;
@@ -1520,6 +1529,11 @@ textarea.fi{resize:vertical;min-height:72px}
   /* Our Week scrolls horizontally */
   .week-day-grid{overflow-x:auto;padding-bottom:8px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .week-day-grid::-webkit-scrollbar{display:none}
+  /* Same hidden-scrollbar discoverability problem as #catNav — see _updateScrollFade() */
+  .week-day-grid.has-overflow{
+    mask-image:linear-gradient(to right, black calc(100% - 28px), transparent 100%);
+    -webkit-mask-image:linear-gradient(to right, black calc(100% - 28px), transparent 100%);
+  }
 
   /* Gmail panel full-screen */
   #gmailPanel{width:100vw;top:88px}
@@ -3208,6 +3222,20 @@ function renderHeader() {
    RENDER — CATEGORY NAV
 ══════════════════════════════════════════════════════════ */
 
+// Toggles the trailing-edge scroll fade (see .has-overflow CSS, e.g. #catNav.has-overflow) on
+// any horizontally-scrollable element based on whether its content actually overflows right
+// now — a hidden scrollbar alone (used throughout for a cleaner look) leaves zero visual cue
+// that there's more to scroll to. Re-run on every render and on resize, since rotating a phone
+// or resizing a window can flip the answer either way.
+function _updateScrollFade(el) {
+  if (!el) return;
+  el.classList.toggle('has-overflow', el.scrollWidth > el.clientWidth + 2);
+}
+window.addEventListener('resize', () => {
+  _updateScrollFade(document.getElementById('catNav'));
+  document.querySelectorAll('.week-day-grid').forEach(_updateScrollFade);
+});
+
 function renderCatNav() {
   const counts = {};
   tasks.forEach(t => { counts[t.cat] = (counts[t.cat] || 0) + 1; });
@@ -3223,7 +3251,9 @@ function renderCatNav() {
     </button>`;
   });
 
-  document.getElementById('catNav').innerHTML = html;
+  const catNavEl = document.getElementById('catNav');
+  catNavEl.innerHTML = html;
+  _updateScrollFade(catNavEl);
 
   // Populate mobile filter row (shown only on mobile via CSS)
   const mfr = document.getElementById('mobileFilterRow');
@@ -4384,6 +4414,7 @@ function renderMyWeek() {
     </div>`;
 
   document.getElementById('weekContent').innerHTML = html;
+  document.querySelectorAll('.week-day-grid').forEach(_updateScrollFade);
 }
 
 /* ══════════════════════════════════════════════════════════
