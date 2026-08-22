@@ -2,6 +2,49 @@
 // POST { message, tasks, currentUser, today, history }
 // Requires GROQ_API_KEY from https://console.groq.com/keys
 
+// Groq periodically deprecates/removes models outright (llama-3.1-8b-instant and
+// llama-3.3-70b-versatile were both pulled June 2026 — see console.groq.com/docs/deprecations),
+// which shows up here as a plain 404 from the chat completions endpoint. Hardcoding one model
+// name with no fallback means every deprecation is a hard outage until someone notices and ships
+// a fix. GROQ_MODEL_PRIMARY/FALLBACK are two currently-supported models (Aug 2026); if the
+// primary ever gets pulled again, callGroq() retries once against the fallback before giving up,
+// so this doesn't have to be a fire-drill next time.
+const GROQ_MODEL_PRIMARY = 'openai/gpt-oss-20b';
+const GROQ_MODEL_FALLBACK = 'openai/gpt-oss-120b';
+
+// Shared Groq call used by every mode below — handles the primary→fallback retry on a 404
+// (model not found/decommissioned) and shapes error responses consistently. Returns
+// { reply } on success, or throws an object shaped like { status, message } for the caller
+// to turn into an HTTP response.
+async function callGroq(apiKey, { messages, maxTokens, temperature = 0.7 }) {
+  const attempt = async model => {
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature }),
+    });
+    const data = await r.json().catch(() => ({}));
+    return { ok: r.ok, status: r.status, data };
+  };
+
+  let result = await attempt(GROQ_MODEL_PRIMARY);
+  if (!result.ok && result.status === 404) {
+    console.warn(`Groq model "${GROQ_MODEL_PRIMARY}" returned 404 (likely decommissioned) — retrying with "${GROQ_MODEL_FALLBACK}"`);
+    result = await attempt(GROQ_MODEL_FALLBACK);
+  }
+
+  if (!result.ok) {
+    console.error('Groq error:', result.status, JSON.stringify(result.data).slice(0, 300));
+    const message = result.status === 429 ? 'Rate limit hit — wait a moment and try again.'
+                   : result.status === 401 ? 'API key invalid — check GROQ_API_KEY in Vercel settings.'
+                   : result.status === 413 ? 'Too much data for one request — try again.'
+                   : result.status === 404 ? 'AI model unavailable — please tell your admin (both configured Groq models returned 404).'
+                   : `AI error (${result.status}) — please try again.`;
+    throw { status: result.status, message };
+  }
+  return { reply: result.data.choices?.[0]?.message?.content || '(empty response)' };
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -62,27 +105,13 @@ Write in the style of a sharp, friendly analyst — direct, specific, references
 Keep it under 260 words, plain prose in short paragraphs (no headers, no bullet lists, no markdown formatting). Be honest and specific, not generic or falsely encouraging.`;
 
     try {
-      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
-          messages: [{ role: 'system', content: insightsPrompt }, { role: 'user', content: message }],
-          max_tokens: 500,
-          temperature: 0.7,
-        }),
+      const { reply } = await callGroq(apiKey, {
+        messages: [{ role: 'system', content: insightsPrompt }, { role: 'user', content: message }],
+        maxTokens: 500,
       });
-      const data = await r.json();
-      if (!r.ok) {
-        console.error('Groq error (insights):', r.status, JSON.stringify(data).slice(0, 300));
-        const msg = r.status === 429 ? 'Rate limit hit — wait a moment and try again.'
-                  : r.status === 401 ? 'API key invalid — check GROQ_API_KEY in Vercel settings.'
-                  : `AI error (${r.status}) — please try again.`;
-        return res.status(r.status).json({ error: msg });
-      }
-      const reply = data.choices?.[0]?.message?.content || '(empty response)';
       return res.status(200).json({ reply });
     } catch (e) {
+      if (e && e.status) return res.status(e.status).json({ error: e.message });
       console.error('Groq fetch error (insights):', e.message);
       return res.status(502).json({ error: `Connection error: ${e.message}` });
     }
@@ -137,28 +166,13 @@ Write a quarterly business review in three short sections, using real task names
 Plain prose in short paragraphs under a bold-free heading per section (use the quarter label as the heading text, no markdown # or ** formatting — just the label on its own line followed by the paragraph). Keep the whole thing under 380 words. Be honest and specific — call out gaps (e.g. no deadline set, a quiet quarter) rather than writing generic filler.`;
 
     try {
-      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
-          messages: [{ role: 'system', content: quarterlyPrompt }, { role: 'user', content: message }],
-          max_tokens: 700,
-          temperature: 0.7,
-        }),
+      const { reply } = await callGroq(apiKey, {
+        messages: [{ role: 'system', content: quarterlyPrompt }, { role: 'user', content: message }],
+        maxTokens: 700,
       });
-      const data = await r.json();
-      if (!r.ok) {
-        console.error('Groq error (quarterly):', r.status, JSON.stringify(data).slice(0, 300));
-        const msg = r.status === 429 ? 'Rate limit hit — wait a moment and try again.'
-                  : r.status === 401 ? 'API key invalid — check GROQ_API_KEY in Vercel settings.'
-                  : r.status === 413 ? 'Too much data for one review — try again, or ask an admin to check the assistant.js task cap if this keeps happening.'
-                  : `AI error (${r.status}) — please try again.`;
-        return res.status(r.status).json({ error: msg });
-      }
-      const reply = data.choices?.[0]?.message?.content || '(empty response)';
       return res.status(200).json({ reply });
     } catch (e) {
+      if (e && e.status) return res.status(e.status).json({ error: e.message });
       console.error('Groq fetch error (quarterly):', e.message);
       return res.status(502).json({ error: `Connection error: ${e.message}` });
     }
@@ -194,31 +208,17 @@ Respond with ONLY a raw JSON array, no markdown code fences, no prose before or 
 [{"name": "Verb-first task name, under 80 chars", "reason": "One short sentence, under 20 words, on why this is suggested"}]`;
 
     try {
-      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
-          messages: [{ role: 'system', content: suggestPrompt }, { role: 'user', content: message }],
-          max_tokens: 700,
-          temperature: 0.6,
-        }),
+      const { reply: raw } = await callGroq(apiKey, {
+        messages: [{ role: 'system', content: suggestPrompt }, { role: 'user', content: message }],
+        maxTokens: 700,
+        temperature: 0.6,
       });
-      const data = await r.json();
-      if (!r.ok) {
-        console.error('Groq error (forecast-suggestions):', r.status, JSON.stringify(data).slice(0, 300));
-        const msg = r.status === 429 ? 'Rate limit hit — wait a moment and try again.'
-                  : r.status === 401 ? 'API key invalid — check GROQ_API_KEY in Vercel settings.'
-                  : r.status === 413 ? 'Too much data for one request — try again.'
-                  : `AI error (${r.status}) — please try again.`;
-        return res.status(r.status).json({ error: msg });
-      }
       // Strip common LLM formatting quirks (markdown code fences) before handing back to the
       // client, which expects to JSON.parse this directly.
-      let reply = (data.choices?.[0]?.message?.content || '').trim();
-      reply = reply.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+      const reply = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
       return res.status(200).json({ reply });
     } catch (e) {
+      if (e && e.status) return res.status(e.status).json({ error: e.message });
       console.error('Groq fetch error (forecast-suggestions):', e.message);
       return res.status(502).json({ error: `Connection error: ${e.message}` });
     }
@@ -291,34 +291,10 @@ Your rules:
 
   // ── Call Groq ───────────────────────────────────────────
   try {
-    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',  // fast, free tier: 14,400 req/day, 30 req/min
-        messages,
-        max_tokens: 512,
-        temperature: 0.7,
-      }),
-    });
-
-    const data = await r.json();
-
-    if (!r.ok) {
-      console.error('Groq error:', r.status, JSON.stringify(data).slice(0, 300));
-      const msg = r.status === 429 ? 'Rate limit hit — wait a moment and try again.'
-                : r.status === 401 ? 'API key invalid — check GROQ_API_KEY in Vercel settings.'
-                : `AI error (${r.status}) — please try again.`;
-      return res.status(r.status).json({ error: msg });
-    }
-
-    const reply = data.choices?.[0]?.message?.content || '(empty response)';
+    const { reply } = await callGroq(apiKey, { messages, maxTokens: 512 });
     return res.status(200).json({ reply });
-
   } catch (e) {
+    if (e && e.status) return res.status(e.status).json({ error: e.message });
     console.error('Groq fetch error:', e.message);
     return res.status(502).json({ error: `Connection error: ${e.message}` });
   }
