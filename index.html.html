@@ -5776,26 +5776,28 @@ function aiResetKey() {
   window._aiAwaitingKey = true;
   document.getElementById('aiInput').focus();
 }
-let GROQ_MODEL = 'llama-3.1-8b-instant'; // fallback; auto-updated at runtime
+const GROQ_PREFER = ['llama-3.3-70b-versatile','llama-3.1-70b-versatile','llama-3.1-8b-instant',
+  'gemma2-9b-it','mixtral-8x7b-32768'];
+let GROQ_MODEL = 'llama-3.1-8b-instant'; // fallback
+let _groqModelResolved = false;
 async function resolveGroqModel() {
+  if (_groqModelResolved) return;
   try {
     const r = await fetch('https://api.groq.com/openai/v1/models', {
       headers: { Authorization: 'Bearer ' + getGroqKey() }
     });
-    if (!r.ok) return;
+    if (!r.ok) { console.warn('[Groq] models list status:', r.status); return; }
     const { data } = await r.json();
-    // prefer a 70b-class chat model, fall back to any available
-    const prefer = ['llama-3.3-70b-versatile','llama-3.1-70b-versatile','llama3-70b-8192',
-                    'llama-3.1-8b-instant','llama3-8b-8192','gemma2-9b-it','mixtral-8x7b-32768'];
-    // Only keep conversational/chat models — exclude whisper, guard, embed, classification, vision-only
-    const ids = (data || []).filter(m =>
-      !m.id.includes('whisper') && !m.id.includes('guard') &&
-      !m.id.includes('embed') && !m.id.includes('vision') &&
-      (m.object === 'model') && (m.context_window||0) > 4000
-    ).map(m => m.id);
-    const pick = prefer.find(p => ids.includes(p)) || ids.find(id => id.includes('llama')) || ids[0];
-    if (pick) GROQ_MODEL = pick;
-  } catch {}
+    const SKIP = ['whisper','guard','embed','vision','tts','distil','tool-use'];
+    const ids = (data || [])
+      .filter(m => (m.context_window||0) > 4000 && !SKIP.some(x => m.id.includes(x)))
+      .map(m => m.id);
+    console.log('[Groq] chat models available:', ids);
+    const pick = GROQ_PREFER.find(p => ids.includes(p))
+              || ids.find(id => /llama|gemma|mixtral/.test(id));
+    if (pick) { GROQ_MODEL = pick; _groqModelResolved = true; }
+    console.log('[Groq] using model:', GROQ_MODEL);
+  } catch(e) { console.warn('[Groq] resolve failed, fallback:', GROQ_MODEL, e); }
 }
 let _aiOpen = false;
 let _aiHistory = []; // {role, content}
