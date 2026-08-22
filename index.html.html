@@ -5776,7 +5776,22 @@ function aiResetKey() {
   window._aiAwaitingKey = true;
   document.getElementById('aiInput').focus();
 }
-const GROQ_MODEL = 'llama3-8b-8192';
+let GROQ_MODEL = 'llama-3.1-8b-instant'; // fallback; auto-updated at runtime
+async function resolveGroqModel() {
+  try {
+    const r = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: { Authorization: 'Bearer ' + getGroqKey() }
+    });
+    if (!r.ok) return;
+    const { data } = await r.json();
+    // prefer a 70b-class chat model, fall back to any available
+    const prefer = ['llama-3.3-70b-versatile','llama-3.1-70b-versatile','llama3-70b-8192',
+                    'llama-3.1-8b-instant','llama3-8b-8192','gemma2-9b-it','mixtral-8x7b-32768'];
+    const ids = (data || []).map(m => m.id);
+    const pick = prefer.find(p => ids.includes(p)) || ids.find(id => id.includes('llama')) || ids[0];
+    if (pick) GROQ_MODEL = pick;
+  } catch {}
+}
 let _aiOpen = false;
 let _aiHistory = []; // {role, content}
 let _aiBreakdownMode = false;
@@ -5872,6 +5887,7 @@ async function aiChat(userText) {
     ? `You are a productivity assistant. The user will name a task. Break it down into 5-8 clear, actionable subtasks as a numbered list. Be specific and concise.`
     : aiTaskContext() };
 
+  await resolveGroqModel();
   try {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
