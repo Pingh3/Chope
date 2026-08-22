@@ -5898,7 +5898,7 @@ async function aiChat(userText) {
       body: JSON.stringify({
         model: GROQ_MODEL,
         messages: [systemMsg, ..._aiHistory.slice(-10)],
-        max_tokens: 600,
+        max_tokens: 512,
         temperature: 0.4
       })
     });
