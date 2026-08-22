@@ -5710,5 +5710,198 @@ if (window.self === window.top) {
   };
   window.dispatchEvent(new CustomEvent('chopeFbReady'));
 </script>
+
+<!-- ===== AI ASSISTANT WIDGET ===== -->
+<style>
+#aiWidget{position:fixed;bottom:24px;right:24px;z-index:1500;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+#aiPanel{width:340px;background:var(--col);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.18);display:flex;flex-direction:column;overflow:hidden;max-height:520px;transition:opacity .2s,transform .2s}
+#aiPanel.hidden{opacity:0;pointer-events:none;transform:translateY(12px)}
+#aiPanelHd{background:#c0392b;padding:12px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+#aiPanelHd .ai-title{flex:1;font-size:13px;font-weight:700;color:#fff}
+#aiPanelHd .ai-sub{font-size:10px;color:rgba(255,255,255,.7)}
+.ai-hd-btn{background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;white-space:nowrap}
+.ai-hd-btn:hover{background:rgba(255,255,255,.25)}
+#aiMessages{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-height:120px}
+.ai-msg{max-width:85%;padding:9px 12px;border-radius:12px;font-size:13px;line-height:1.5;word-break:break-word}
+.ai-msg.user{align-self:flex-end;background:#c0392b;color:#fff;border-bottom-right-radius:4px}
+.ai-msg.bot{align-self:flex-start;background:var(--bg);border:1px solid var(--border);color:var(--t1);border-bottom-left-radius:4px}
+.ai-msg.typing{color:var(--t3);font-style:italic;font-size:12px}
+#aiQuickBtns{padding:8px 14px 0;display:flex;flex-wrap:wrap;gap:6px;flex-shrink:0}
+.ai-quick{background:var(--bg);border:1px solid var(--border);border-radius:99px;padding:5px 11px;font-size:11px;cursor:pointer;color:var(--t1);white-space:nowrap;transition:background .12s}
+.ai-quick:hover{background:var(--border)}
+#aiInputRow{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0}
+#aiInput{flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--bg);color:var(--t1);outline:none;font-family:inherit}
+#aiInput:focus{border-color:#c0392b}
+#aiSendBtn{background:#c0392b;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+#aiSendBtn:hover{background:#a93226}
+#aiToggleBtn{width:52px;height:52px;border-radius:50%;background:#c0392b;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(192,57,43,.45);display:flex;align-items:center;justify-content:center;font-size:22px;transition:transform .15s}
+#aiToggleBtn:hover{transform:scale(1.08)}
+</style>
+
+<div id="aiWidget">
+  <div id="aiPanel" class="hidden">
+    <div id="aiPanelHd">
+      <div>
+        <div class="ai-title">AI Assistant <span class="ai-sub">— Groq</span></div>
+      </div>
+      <button class="ai-hd-btn" onclick="aiBack()">← Back</button>
+      <button class="ai-hd-btn" style="padding:3px 7px;font-size:14px" onclick="toggleAiPanel()">×</button>
+    </div>
+    <div id="aiMessages"></div>
+    <div id="aiQuickBtns">
+      <button class="ai-quick" onclick="aiQuick('What should I focus on today? Prioritise by urgency and deadline.')">🎯 Focus today</button>
+      <button class="ai-quick" onclick="aiQuick('Which tasks are overdue or due soon?')">⚠️ Overdue</button>
+      <button class="ai-quick" onclick="aiQuick('Summarise my workload and suggest what to tackle first.')">📋 Summarise</button>
+      <button class="ai-quick" onclick="aiBreakdown()">🔨 Break down a task</button>
+    </div>
+    <div id="aiInputRow">
+      <input id="aiInput" placeholder="Ask anything about your tasks…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiSend()}"/>
+      <button id="aiSendBtn" onclick="aiSend()">Send</button>
+    </div>
+  </div>
+  <button id="aiToggleBtn" onclick="toggleAiPanel()" title="AI Assistant">🤖</button>
+</div>
+
+<script>
+// API key stored in localStorage (never committed to repo)
+function getGroqKey() { return localStorage.getItem('chope_groq_key') || ''; }
+function setGroqKey(k) { localStorage.setItem('chope_groq_key', k.trim()); }
+const GROQ_MODEL = 'llama3-70b-8192';
+let _aiOpen = false;
+let _aiHistory = []; // {role, content}
+let _aiBreakdownMode = false;
+
+function toggleAiPanel() {
+  _aiOpen = !_aiOpen;
+  document.getElementById('aiPanel').classList.toggle('hidden', !_aiOpen);
+  if (_aiOpen && _aiHistory.length === 0) {
+    if (!getGroqKey()) {
+      aiAddMsg('bot', "To get started, enter your Groq API key (free at console.groq.com):");
+      aiAddMsg('bot', '🔑 Type your key below and press Send — it will be saved in your browser.');
+      window._aiAwaitingKey = true;
+    } else {
+      aiAddMsg('bot', "Hi! I\'m your AI assistant. Ask me anything about your tasks, or use the quick buttons below.");
+    }
+  }
+  if (_aiOpen) setTimeout(() => document.getElementById('aiInput').focus(), 100);
+}
+
+function aiBack() {
+  _aiBreakdownMode = false;
+  document.getElementById('aiQuickBtns').style.display = '';
+}
+
+function aiAddMsg(role, text) {
+  const el = document.getElementById('aiMessages');
+  const div = document.createElement('div');
+  div.className = 'ai-msg ' + role;
+  div.textContent = text;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+  return div;
+}
+
+function aiTaskContext() {
+  const me = state?.currentUser || '';
+  const myOpen = tasks.filter(t => t.status !== 'done' && t.assignee === me);
+  const today = new Date().toISOString().slice(0, 10);
+  const overdue = myOpen.filter(t => t.deadline && t.deadline < today);
+  const dueToday = myOpen.filter(t => t.deadline === today);
+  const high = myOpen.filter(t => t.priority === 'high');
+
+  const fmt = t => `- [${t.priority||'med'}] ${t.name}${t.deadline?' (due '+t.deadline+')':''}${t.status?', status: '+t.status:''}`;
+
+  return `You are a concise productivity assistant for ${me||'the user'} inside a task management app called Chope.
+Current date: ${today}
+Overdue tasks (${overdue.length}): ${overdue.slice(0,10).map(fmt).join('\n') || 'none'}
+Due today (${dueToday.length}): ${dueToday.slice(0,10).map(fmt).join('\n') || 'none'}
+High priority open (${high.length}): ${high.slice(0,10).map(fmt).join('\n') || 'none'}
+All open tasks (${myOpen.length} total, showing first 20): ${myOpen.slice(0,20).map(fmt).join('\n')}
+Keep answers short and actionable. Use bullet points when listing tasks.`;
+}
+
+async function aiSend() {
+  const inp = document.getElementById('aiInput');
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  await aiChat(text);
+}
+
+async function aiQuick(prompt) {
+  if (!_aiOpen) toggleAiPanel();
+  await aiChat(prompt);
+}
+
+async function aiBreakdown() {
+  if (!_aiOpen) toggleAiPanel();
+  _aiBreakdownMode = true;
+  document.getElementById('aiQuickBtns').style.display = 'none';
+  aiAddMsg('bot', 'Which task would you like me to break down into subtasks? Type the task name or describe it.');
+}
+
+async function aiChat(userText) {
+  if (window._aiAwaitingKey) {
+    setGroqKey(userText);
+    window._aiAwaitingKey = false;
+    aiAddMsg('bot', '✅ Key saved! Ask me anything about your tasks.');
+    return;
+  }
+  if (!getGroqKey()) {
+    aiAddMsg('bot', '⚠️ Please enter your Groq API key first. Type it and press Send.');
+    window._aiAwaitingKey = true;
+    return;
+  }
+  aiAddMsg('user', userText);
+  _aiHistory.push({ role: 'user', content: userText });
+
+  const typingEl = aiAddMsg('bot', 'Thinking…');
+  typingEl.classList.add('typing');
+
+  const systemMsg = { role: 'system', content: _aiBreakdownMode
+    ? `You are a productivity assistant. The user will name a task. Break it down into 5-8 clear, actionable subtasks as a numbered list. Be specific and concise.`
+    : aiTaskContext() };
+
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + getGroqKey(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages: [systemMsg, ..._aiHistory.slice(-10)],
+        max_tokens: 600,
+        temperature: 0.4
+      })
+    });
+
+    typingEl.remove();
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const msg = err?.error?.message || `AI error (${res.status}) — please try again.`;
+      aiAddMsg('bot', msg);
+      _aiHistory.pop();
+      return;
+    }
+
+    const data = await res.json();
+    const reply = data.choices?.[0]?.message?.content?.trim() || '(no response)';
+    _aiHistory.push({ role: 'assistant', content: reply });
+    aiAddMsg('bot', reply);
+
+    if (_aiBreakdownMode) {
+      _aiBreakdownMode = false;
+      document.getElementById('aiQuickBtns').style.display = '';
+    }
+  } catch (e) {
+    typingEl.remove();
+    aiAddMsg('bot', 'Network error — please check your connection and try again.');
+    _aiHistory.pop();
+  }
+}
+</script>
 </body>
 </html>
