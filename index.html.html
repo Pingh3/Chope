@@ -5768,10 +5768,58 @@ if (window.self === window.top) {
 
 <script>
 // ── Groq config ──────────────────────────────────────────────────────────────
-// Using gemma2-9b-it — stable Groq model as of 2025
-const _GROQ_MODEL = 'gemma2-9b-it';
+// Tries each model in order until one works — survives Groq deprecations
+const _GROQ_CANDIDATES = [
+  'llama-3.3-70b-versatile',
+  'llama-3.1-70b-versatile',
+  'llama-3.1-8b-instant',
+  'llama3-70b-8192',
+  'gemma2-9b-it',
+  'mixtral-8x7b-32768',
+  'llama3-8b-8192',
+];
+let _groqWorkingModel = localStorage.getItem('chope_groq_model') || '';
 function getGroqKey() { return localStorage.getItem('chope_groq_key') || ''; }
 function setGroqKey(k) { localStorage.setItem('chope_groq_key', k.trim()); }
+
+async function groqChat(messages, maxTokens) {
+  const key = getGroqKey();
+  // Start from cached working model, fall back through candidates
+  const candidates = _groqWorkingModel
+    ? [_groqWorkingModel, ..._GROQ_CANDIDATES.filter(m => m !== _groqWorkingModel)]
+    : _GROQ_CANDIDATES;
+
+  for (const model of candidates) {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, messages, max_tokens: maxTokens || 400, temperature: 0.5 })
+    });
+
+    if (res.status === 401) throw new Error('INVALID_KEY');
+
+    const data = await res.json();
+    const errMsg = data?.error?.message || '';
+
+    // Model not found / decommissioned — try next
+    if (!res.ok && (errMsg.includes('does not exist') || errMsg.includes('decommissioned') || errMsg.includes('not supported') || errMsg.includes('no access'))) {
+      console.warn('[Groq] model', model, 'unavailable, trying next...');
+      if (model === _groqWorkingModel) { _groqWorkingModel = ''; localStorage.removeItem('chope_groq_model'); }
+      continue;
+    }
+
+    if (!res.ok) throw new Error(errMsg || 'Error ' + res.status);
+
+    // Success — cache this model
+    if (model !== _groqWorkingModel) {
+      _groqWorkingModel = model;
+      localStorage.setItem('chope_groq_model', model);
+      console.log('[Groq] using model:', model);
+    }
+    return data.choices?.[0]?.message?.content?.trim() || '';
+  }
+  throw new Error('No working Groq model found. All candidates exhausted.');
+}
 
 // ── State ────────────────────────────────────────────────────────────────────
 let _aiOpen = false;
@@ -5918,40 +5966,25 @@ async function aiChat(userText, pinResult, extraHtml) {
   document.getElementById('aiSendBtn').disabled = true;
 
   try {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + getGroqKey(),
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: _GROQ_MODEL,
-        messages: [
-          { role: 'user', content: aiCtx() },
-          { role: 'assistant', content: 'Understood. Ready to help.' },
-          ..._aiHistory.slice(-8)
-        ],
-        max_tokens: 400,
-        temperature: 0.5
-      })
-    });
-
+    const msgs = [
+      { role: 'user', content: aiCtx() },
+      { role: 'assistant', content: 'Understood. Ready to help.' },
+      ..._aiHistory.slice(-8)
+    ];
+    let reply;
+    try {
+      reply = await groqChat(msgs, 400);
+    } catch(groqErr) {
+      thinking.remove();
+      if (groqErr.message === 'INVALID_KEY') {
+        aiBot('Invalid API key — click 🔑 to enter a new one.', 'ai-err');
+      } else {
+        aiBot(groqErr.message + ' — please try again.', 'ai-err');
+      }
+      _aiHistory.pop();
+      return;
+    }
     thinking.remove();
-
-    if (res.status === 401) {
-      aiBot('Invalid API key — click 🔑 to enter a new one.', 'ai-err');
-      _aiHistory.pop();
-      return;
-    }
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      aiBot((e?.error?.message || `Error ${res.status}`) + ' — please try again.', 'ai-err');
-      _aiHistory.pop();
-      return;
-    }
-
-    const data = await res.json();
-    const reply = data.choices?.[0]?.message?.content?.trim() || '(no response)';
     _aiHistory.push({ role: 'assistant', content: reply });
 
     if (pinResult) {
