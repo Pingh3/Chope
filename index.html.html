@@ -5770,17 +5770,17 @@ if (window.self === window.top) {
 // ── Groq config ──────────────────────────────────────────────────────────────
 // Tries each model in order until one works — survives Groq deprecations
 const _GROQ_CANDIDATES = [
+  'openai/gpt-oss-120b',
+  'openai/gpt-oss-20b',
+  'qwen/qwen3.6-27b',
+  'groq/compound',
+  'groq/compound-mini',
   'llama-3.3-70b-versatile',
-  'llama-3.1-70b-versatile',
   'llama-3.1-8b-instant',
-  'llama3-70b-8192',
-  'gemma2-9b-it',
-  'mixtral-8x7b-32768',
-  'llama3-8b-8192',
 ];
 let _groqWorkingModel = localStorage.getItem('chope_groq_model') || '';
 function getGroqKey() { return localStorage.getItem('chope_groq_key') || ''; }
-function setGroqKey(k) { localStorage.setItem('chope_groq_key', k.trim()); }
+function setGroqKey(k) { localStorage.setItem('chope_groq_key', k.trim()); localStorage.removeItem('chope_groq_model'); _groqWorkingModel = ''; }
 
 async function groqChat(messages, maxTokens) {
   const key = getGroqKey();
