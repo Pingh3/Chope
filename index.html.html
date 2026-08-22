@@ -5787,7 +5787,12 @@ async function resolveGroqModel() {
     // prefer a 70b-class chat model, fall back to any available
     const prefer = ['llama-3.3-70b-versatile','llama-3.1-70b-versatile','llama3-70b-8192',
                     'llama-3.1-8b-instant','llama3-8b-8192','gemma2-9b-it','mixtral-8x7b-32768'];
-    const ids = (data || []).map(m => m.id);
+    // Only keep conversational/chat models — exclude whisper, guard, embed, classification, vision-only
+    const ids = (data || []).filter(m =>
+      !m.id.includes('whisper') && !m.id.includes('guard') &&
+      !m.id.includes('embed') && !m.id.includes('vision') &&
+      (m.object === 'model') && (m.context_window||0) > 4000
+    ).map(m => m.id);
     const pick = prefer.find(p => ids.includes(p)) || ids.find(id => id.includes('llama')) || ids[0];
     if (pick) GROQ_MODEL = pick;
   } catch {}
