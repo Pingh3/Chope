@@ -5834,15 +5834,14 @@ function aiTaskContext() {
   const dueToday = myOpen.filter(t => t.deadline === today);
   const high = myOpen.filter(t => t.priority === 'high');
 
-  const fmt = t => `- [${t.priority||'med'}] ${t.name}${t.deadline?' (due '+t.deadline+')':''}${t.status?', status: '+t.status:''}`;
+  const fmt = t => `${t.name}${t.deadline?' ('+t.deadline+')':''}[${t.priority||'med'}]`;
 
-  return `You are a concise productivity assistant for ${me||'the user'} inside a task management app called Chope.
-Current date: ${today}
-Overdue tasks (${overdue.length}): ${overdue.slice(0,10).map(fmt).join('\n') || 'none'}
-Due today (${dueToday.length}): ${dueToday.slice(0,10).map(fmt).join('\n') || 'none'}
-High priority open (${high.length}): ${high.slice(0,10).map(fmt).join('\n') || 'none'}
-All open tasks (${myOpen.length} total, showing first 20): ${myOpen.slice(0,20).map(fmt).join('\n')}
-Keep answers short and actionable. Use bullet points when listing tasks.`;
+  return `Productivity assistant for ${me}, today ${today}.
+Overdue(${overdue.length}): ${overdue.slice(0,5).map(fmt).join('; ')||'none'}
+Today(${dueToday.length}): ${dueToday.slice(0,5).map(fmt).join('; ')||'none'}
+High-pri(${high.length}): ${high.slice(0,5).map(fmt).join('; ')||'none'}
+Open(${myOpen.length}): ${myOpen.slice(0,10).map(fmt).join('; ')}
+Reply concisely with bullets.`;
 }
 
 async function aiSend() {
