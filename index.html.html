@@ -167,6 +167,47 @@
   --sh-lg:0 16px 40px -12px rgba(0,0,0,.55);
 }
 
+/* ── New UI Phase 2: sidebar nav ──────────────────────────────
+   Rendered off-screen (display:none) by default and only shown on desktop widths under
+   [data-ui="new"] — mobile keeps the existing #mobileNav bottom bar unchanged either way, so
+   this never has to reconcile with the phone layout at all. Positioned fixed + a matching
+   padding-left on body (rather than restructuring the DOM into a grid/flex shell), since every
+   view/header/nav element today is an independent direct child of <body> with no common
+   wrapper — this achieves the sidebar-pushes-content effect without moving a single existing
+   element, so classic mode's markup and behavior are completely untouched by this section.
+   The rail's own dark-teal background is intentionally fixed regardless of [data-theme] — a
+   permanent identity element, same idea as a colored app-icon staying constant across themes —
+   while --t1/--card/etc. (used by the header and every view to its right) still fully respect
+   dark mode as normal. */
+.new-ui-rail{
+  display:none;
+  position:fixed;left:0;top:0;bottom:0;width:212px;z-index:250;
+  background:#0E211E;color:#EAF3F1;
+  flex-direction:column;gap:24px;padding:20px 14px;
+  box-sizing:border-box;
+}
+.new-ui-rail-word{font-size:19px;font-weight:800;letter-spacing:-.02em}
+.new-ui-rail-word em{font-style:normal;color:#5EEAD4}
+.new-ui-rail-nav{display:flex;flex-direction:column;gap:2px}
+.new-ui-rail .vbtn.new-ui-rail-link{
+  display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;
+  padding:9px 10px;border-radius:8px;
+  font-size:13.5px;font-weight:600;color:#8FB3AC;
+  text-align:left;
+}
+.new-ui-rail .vbtn.new-ui-rail-link:hover:not(.active){color:#EAF3F1;background:rgba(255,255,255,.06)}
+.new-ui-rail .vbtn.new-ui-rail-link.active{color:#fff;background:#15342F;box-shadow:none}
+.new-ui-rail-link .ic{width:16px;text-align:center;font-size:14px;opacity:.9;flex-shrink:0}
+.new-ui-rail-foot{margin-top:auto;display:flex;align-items:center;gap:9px;padding-top:14px;border-top:1px solid rgba(255,255,255,.1);font-size:12px;color:#EAF3F1}
+.new-ui-rail-foot .card-avatar{flex-shrink:0}
+
+@media(min-width:769px){
+  [data-ui="new"] .new-ui-rail{display:flex}
+  [data-ui="new"] body{padding-left:212px}
+  [data-ui="new"] .hdr-views{display:none}
+  [data-ui="new"] #hdr .logo{display:none}
+}
+
 /* ── Slide-in panel task rows ─────────────────────────────── */
 .panel-task-row{
   display:flex;align-items:center;gap:10px;
@@ -1943,6 +1984,25 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
   </div>
 </div>
 
+<!-- New UI sidebar — desktop-only, opt-in via [data-ui="new"] (see toggleUiVersion()). Its nav
+     buttons carry the same .vbtn class + data-view attribute as the classic header buttons
+     below, so switchView()'s existing active-state logic (which targets .vbtn generically,
+     not specific IDs) keeps both in sync automatically — no extra wiring needed here or there.
+     Hidden entirely under classic mode and on narrow viewports (mobile keeps the existing
+     #mobileNav bottom bar regardless of UI version). -->
+<nav id="newUiRail" class="new-ui-rail">
+  <div class="new-ui-rail-word">Cho<em>pe</em></div>
+  <div class="new-ui-rail-nav">
+    <button class="vbtn new-ui-rail-link active" data-view="daily" onclick="switchView('daily',this)"><span class="ic">☀</span>My Day</button>
+    <button class="vbtn new-ui-rail-link" data-view="board" onclick="switchView('board',this)"><span class="ic">▤</span>Board</button>
+    <button class="vbtn new-ui-rail-link" data-view="week" onclick="switchView('week',this)"><span class="ic">📅</span>Our Week</button>
+    <button class="vbtn new-ui-rail-link" data-view="ws" onclick="switchView('ws',this)"><span class="ic">◫</span>Workstreams</button>
+    <button class="vbtn new-ui-rail-link" data-view="team" onclick="switchView('team',this)" title="Team Dashboard"><span class="ic">◈</span>Team</button>
+    <button class="vbtn new-ui-rail-link" data-view="insights" onclick="switchView('insights',this)" title="Your productivity & workload — only visible to you"><span class="ic">◔</span>Insights</button>
+  </div>
+  <div class="new-ui-rail-foot" id="newUiRailFoot"></div>
+</nav>
+
 <!-- Header -->
 <header id="hdr">
   <div class="logo">Cho<em>pe</em></div>
@@ -3214,6 +3274,16 @@ function renderHeader() {
   // deliberately-private sections (This Week's Focus, Team Weekly Summaries) Victor-only.
   const teamBtn = document.getElementById('teamNavBtn');
   if (teamBtn) teamBtn.style.display = '';
+
+  const railFoot = document.getElementById('newUiRailFoot');
+  if (railFoot && state.currentUser) {
+    const m = getMember(state.currentUser);
+    railFoot.innerHTML = `${avatarEl(state.currentUser, 26)}
+      <div style="min-width:0">
+        <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(state.currentUser)}</div>
+        <div style="font-size:10.5px;color:#8FB3AC">${esc(m?.role || '')}</div>
+      </div>`;
+  }
 
   updateNotifBadge();
 }
