@@ -127,163 +127,6 @@
 /* Handoff note bubble */
 [data-theme="dark"] .note-item.is-handoff .note-bubble{background:#2A1800;border-color:#92400E}
 
-/* ── New UI (opt-in, toggled via toggleUiVersion()) ──────────
-   Phase 1: a token-level reskin, not a rebuild. Every component below already reads colors
-   from --bg/--card/--border/--t1/--t2/--t3/--r/--sh instead of hardcoding them (that's how
-   dark mode above works too), so overriding just the root values here reskins the whole app —
-   warmer neutrals, softer shadows, more rounding — without touching per-component CSS or any
-   markup/JS. Kept independent of [data-theme="dark"] so all four combinations (new+light,
-   new+dark, classic+light, classic+dark) compose correctly; --p/--p-hover (the accent) are
-   deliberately left alone so New UI still gets the existing weekly accent-color rotation
-   rather than a hardcoded brand color. A handful of components still use hardcoded colors
-   instead of tokens (dark-mode overrides above show which) — those simply keep their current
-   look under New UI for now rather than being silently broken; widening token coverage is a
-   later pass, not this one. */
-[data-ui="new"]{
-  --bg:#FAFAF8;
-  --col:#F3F1EC;
-  --card:#FFFFFF;
-  --hdr:#FFFFFF;
-  --border:#E8E5DE;
-  --t1:#1B1F23;
-  --t2:#5B6169;
-  --t3:#8B8D98;
-  --r:12px;
-  --accent:#0F766E;
-  --sh:0 1px 2px rgba(20,20,15,.05),0 1px 3px rgba(20,20,15,.04);
-  --sh-md:0 4px 14px rgba(20,20,15,.09);
-  --sh-lg:0 16px 40px -12px rgba(20,20,15,.20);
-}
-[data-ui="new"][data-theme="dark"]{
-  --bg:#14181A;
-  --col:#1B2124;
-  --card:#1F262A;
-  --hdr:#1B2124;
-  --border:#2B3235;
-  --t1:#ECEAE4;
-  --t2:#A8AEA9;
-  --t3:#767C78;
-  --accent:#34D6C4;
-  --sh:0 1px 2px rgba(0,0,0,.3);
-  --sh-md:0 4px 16px rgba(0,0,0,.4);
-  --sh-lg:0 16px 40px -12px rgba(0,0,0,.55);
-}
-
-/* ── New UI Phase 2: sidebar nav ──────────────────────────────
-   Rendered off-screen (display:none) by default and only shown on desktop widths under
-   [data-ui="new"] — mobile keeps the existing #mobileNav bottom bar unchanged either way, so
-   this never has to reconcile with the phone layout at all. Positioned fixed + a matching
-   padding-left on body (rather than restructuring the DOM into a grid/flex shell), since every
-   view/header/nav element today is an independent direct child of <body> with no common
-   wrapper — this achieves the sidebar-pushes-content effect without moving a single existing
-   element, so classic mode's markup and behavior are completely untouched by this section.
-   The rail's own dark-teal background is intentionally fixed regardless of [data-theme] — a
-   permanent identity element, same idea as a colored app-icon staying constant across themes —
-   while --t1/--card/etc. (used by the header and every view to its right) still fully respect
-   dark mode as normal. */
-.new-ui-rail{
-  display:none;
-  position:fixed;left:0;top:0;bottom:0;width:212px;z-index:250;
-  background:#0E211E;color:#EAF3F1;
-  flex-direction:column;gap:24px;padding:20px 14px;
-  box-sizing:border-box;
-}
-.new-ui-rail-word{font-size:19px;font-weight:800;letter-spacing:-.02em}
-.new-ui-rail-word em{font-style:normal;color:#5EEAD4}
-.new-ui-rail-nav{display:flex;flex-direction:column;gap:2px}
-.new-ui-rail .vbtn.new-ui-rail-link{
-  display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;
-  padding:9px 10px;border-radius:8px;
-  font-size:13.5px;font-weight:600;color:#8FB3AC;
-  text-align:left;
-}
-.new-ui-rail .vbtn.new-ui-rail-link:hover:not(.active){color:#EAF3F1;background:rgba(255,255,255,.06)}
-.new-ui-rail .vbtn.new-ui-rail-link.active{color:#fff;background:#15342F;box-shadow:none}
-.new-ui-rail-link .ic{width:16px;text-align:center;font-size:14px;opacity:.9;flex-shrink:0}
-.new-ui-rail-foot{margin-top:auto;display:flex;align-items:center;gap:9px;padding-top:14px;border-top:1px solid rgba(255,255,255,.1);font-size:12px;color:#EAF3F1}
-.new-ui-rail-foot .card-avatar{flex-shrink:0}
-
-@media(min-width:769px){
-  [data-ui="new"] .new-ui-rail{display:flex}
-  [data-ui="new"] body{padding-left:212px}
-  [data-ui="new"] .hdr-views{display:none}
-  [data-ui="new"] #hdr .logo{display:none}
-}
-
-/* ── New UI Phase 3: component spacing/type pass ──────────────
-   Phase 1 only swapped root color tokens; every component below kept its classic padding,
-   radius, and font-size regardless, so the color shift alone read as barely-there against the
-   same dense layout. This targets the specific repeating components — filter pills, stat
-   chips, content padding, task/stat cards — with the same "more room to breathe" treatment
-   the design preview used, without changing any grid/flex structure that could shift layout
-   in unexpected ways (column counts, wrap points, etc. are all left alone). */
-[data-ui="new"] .view{padding:26px 28px}
-[data-ui="new"] #hdr{padding:0 28px;height:58px}
-[data-ui="new"] #catNav{padding:0 28px}
-[data-ui="new"] .ctab{padding:12px 15px;font-size:12.5px}
-[data-ui="new"] .fpill{padding:5px 13px;font-size:11.5px;border-radius:20px}
-[data-ui="new"] .stat-chip{padding:5px 12px;font-size:11.5px;border-radius:20px}
-[data-ui="new"] .card{padding:15px 17px;border-radius:14px}
-[data-ui="new"] .card-name{font-size:13.5px;margin-bottom:10px}
-[data-ui="new"] .card-notes{margin-bottom:10px}
-[data-ui="new"] .daily-card{padding:20px 22px;border-radius:14px}
-[data-ui="new"] .daily-card-value{font-size:30px}
-[data-ui="new"] .daily-section{margin-bottom:28px}
-[data-ui="new"] .team-section,
-[data-ui="new"] .team-profile-card,
-[data-ui="new"] .ins-trend-card,
-[data-ui="new"] .ws-card,
-[data-ui="new"] .blist-group{border-radius:14px}
-
-/* ── New UI Phase 4: real simplification, not just spacing ─────
-   Confirmed with the user: they're fine trading some at-a-glance density for the cleaner look,
-   specifically fund/workstream tags on cards and the always-open Priority/Fund/Assignee filter
-   rows. Both pieces below reuse existing, already-built, already-shipped functionality rather
-   than adding anything new:
-   - The collapsed-filters UI (.fb-toggle-row, the #filterBar:not(.fb-expanded) .fb-row rule,
-     the active-filter-count pills) already exists and already works — it's just scoped to a
-     mobile-only media query today. Extending it to New UI desktop is copying two selectors,
-     not building a new mechanism.
-   - Task cards keep everything on click (opening a task still shows fund/workstream/full
-     priority) — only the always-visible card face gets lighter. */
-@media(min-width:769px){
-  [data-ui="new"] .fb-toggle-row{display:flex}
-  [data-ui="new"] #filterBar:not(.fb-expanded) .fb-row{display:none}
-}
-[data-ui="new"] .card-notes,
-[data-ui="new"] .fund-chip,
-[data-ui="new"] .ws-chip{display:none}
-/* Priority pill collapses to just its color dot — the dot's own width/height are fixed
-   (not font-relative), so zeroing the pill's font-size hides the "High"/"Medium"/"Low" text
-   without hiding the dot inside it. */
-[data-ui="new"] .prio-pill{font-size:0;padding:0;background:transparent!important;border:none!important}
-[data-ui="new"] .prio-dot{width:8px;height:8px}
-
-/* ── New UI Phase 5: header declutter ──────────────────────────
-   The sidebar (Phase 2) and filter/card work (Phase 3-4) left the top header row untouched —
-   it's still the classic stat-chip row plus a dense cluster of ~9 bordered icon buttons, which
-   reads as the loudest, most "classic" thing on the page since it sits above everything else.
-   - Stat chips (Tasks/In progress/Upcoming/Overdue) are dropped: My Day already surfaces the
-     user's own open/in-progress/completion/overdue numbers as its first content block, so the
-     header row was showing a team-wide echo of information already given prominent space below.
-   - The icon buttons keep every action (nothing removed, nothing behind a new menu to avoid
-     adding new interaction logic) but drop borders/backgrounds/text labels down to plain icons
-     with tooltips, the same "quieter until you need it" treatment as the collapsed filter bar.
-   - +Add Task switches from flat black to the new UI's teal accent, matching the preview's one
-     bold call-to-action per view instead of a same-weight button lost in a row of others. */
-[data-ui="new"] .hdr-stats{display:none}
-[data-ui="new"] #hdr{gap:6px}
-[data-ui="new"] #hdr .btn-ghost{
-  border-color:transparent;background:transparent;padding:6px 8px;color:var(--t3);
-}
-[data-ui="new"] #hdr .btn-ghost:hover{background:var(--col);color:var(--t1)}
-[data-ui="new"] #hdr .btn-ghost .btn-lbl{display:none}
-[data-ui="new"] #hdr .notif-btn{border-color:transparent;background:transparent;color:var(--t3)}
-[data-ui="new"] #hdr .notif-btn:hover{background:var(--col);color:var(--t1)}
-[data-ui="new"] #hdr .live-dot-wrap{display:none}
-[data-ui="new"] .btn-add{background:var(--accent);border-radius:9px}
-[data-ui="new"] .btn-add:hover{background:var(--accent);opacity:.88}
-
 /* ── Slide-in panel task rows ─────────────────────────────── */
 .panel-task-row{
   display:flex;align-items:center;gap:10px;
@@ -2070,25 +1913,6 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
   </div>
 </div>
 
-<!-- New UI sidebar — desktop-only, opt-in via [data-ui="new"] (see toggleUiVersion()). Its nav
-     buttons carry the same .vbtn class + data-view attribute as the classic header buttons
-     below, so switchView()'s existing active-state logic (which targets .vbtn generically,
-     not specific IDs) keeps both in sync automatically — no extra wiring needed here or there.
-     Hidden entirely under classic mode and on narrow viewports (mobile keeps the existing
-     #mobileNav bottom bar regardless of UI version). -->
-<nav id="newUiRail" class="new-ui-rail">
-  <div class="new-ui-rail-word">Cho<em>pe</em></div>
-  <div class="new-ui-rail-nav">
-    <button class="vbtn new-ui-rail-link active" data-view="daily" onclick="switchView('daily',this)"><span class="ic">☀</span>My Day</button>
-    <button class="vbtn new-ui-rail-link" data-view="board" onclick="switchView('board',this)"><span class="ic">▤</span>Board</button>
-    <button class="vbtn new-ui-rail-link" data-view="week" onclick="switchView('week',this)"><span class="ic">📅</span>Our Week</button>
-    <button class="vbtn new-ui-rail-link" data-view="ws" onclick="switchView('ws',this)"><span class="ic">◫</span>Workstreams</button>
-    <button class="vbtn new-ui-rail-link" data-view="team" onclick="switchView('team',this)" title="Team Dashboard"><span class="ic">◈</span>Team</button>
-    <button class="vbtn new-ui-rail-link" data-view="insights" onclick="switchView('insights',this)" title="Your productivity & workload — only visible to you"><span class="ic">◔</span>Insights</button>
-  </div>
-  <div class="new-ui-rail-foot" id="newUiRailFoot"></div>
-</nav>
-
 <!-- Header -->
 <header id="hdr">
   <div class="logo">Cho<em>pe</em></div>
@@ -2102,7 +1926,6 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
     <button class="vbtn" data-view="insights" onclick="switchView('insights',this)" title="Your productivity & workload — only visible to you">Insights</button>
   </div>
   <div class="live-dot-wrap" id="liveStatusWrap" title="Real-time sync status"><div class="ldot" id="liveStatusDot"></div><span id="liveStatusLabel">Live</span></div>
-  <button class="theme-toggle" id="uiVersionBtn" onclick="toggleUiVersion()" title="Try the new Chope look">✨</button>
   <button class="theme-toggle" id="themeToggleBtn" onclick="toggleDarkMode()" title="Toggle dark / light mode">🌙</button>
   <button class="btn-ghost" id="googleAuthBtn" style="font-size:11px;padding:4px 10px;gap:5px;display:flex;align-items:center" onclick="googleSignIn()" title="Sign in with Google to auto-identify yourself">
     <svg width="13" height="13" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/></svg>
@@ -3378,16 +3201,6 @@ function renderHeader() {
   // deliberately-private sections (This Week's Focus, Team Weekly Summaries) Victor-only.
   const teamBtn = document.getElementById('teamNavBtn');
   if (teamBtn) teamBtn.style.display = '';
-
-  const railFoot = document.getElementById('newUiRailFoot');
-  if (railFoot && state.currentUser) {
-    const m = getMember(state.currentUser);
-    railFoot.innerHTML = `${avatarEl(state.currentUser, 26)}
-      <div style="min-width:0">
-        <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(state.currentUser)}</div>
-        <div style="font-size:10.5px;color:#8FB3AC">${esc(m?.role || '')}</div>
-      </div>`;
-  }
 
   updateNotifBadge();
 }
@@ -8976,36 +8789,13 @@ function toggleDarkMode() {
   if (btn) btn.textContent = next === 'dark' ? '☀️' : '🌙';
 }
 
-// New UI toggle — per-person, per-browser (localStorage, same as dark mode), reversible any
-// time, both versions fully functional. Never forced or synced across accounts; switching is
-// purely a display choice and never touches task/team data (that's why this can be as low-risk
-// as it is — see [data-ui="new"] tokens above for what actually changes).
-function toggleUiVersion() {
-  const isNew = document.documentElement.getAttribute('data-ui') === 'new';
-  const next = isNew ? 'classic' : 'new';
-  document.documentElement.setAttribute('data-ui', next);
-  localStorage.setItem('chope_ui', next === 'new' ? '1' : '');
-  const btn = document.getElementById('uiVersionBtn');
-  if (btn) {
-    btn.textContent = next === 'new' ? '↩️' : '✨';
-    btn.title = next === 'new' ? 'Switch back to classic Chope' : 'Try the new Chope look';
-  }
-  toast(next === 'new' ? '✨ New look enabled — switch back anytime' : 'Back to classic Chope');
-}
-
-// Apply saved theme + UI version on load
+// Apply saved theme on load
 (function() {
   const dark = localStorage.getItem('chope_dark') === '1';
   if (dark) {
     document.documentElement.setAttribute('data-theme', 'dark');
     const btn = document.getElementById('themeToggleBtn');
     if (btn) btn.textContent = '☀️';
-  }
-  const newUi = localStorage.getItem('chope_ui') === '1';
-  if (newUi) {
-    document.documentElement.setAttribute('data-ui', 'new');
-    const uiBtn = document.getElementById('uiVersionBtn');
-    if (uiBtn) { uiBtn.textContent = '↩️'; uiBtn.title = 'Switch back to classic Chope'; }
   }
   _applyAccentPalette();
 })();
