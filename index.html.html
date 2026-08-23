@@ -149,6 +149,7 @@
   --t2:#5B6169;
   --t3:#8B8D98;
   --r:12px;
+  --accent:#0F766E;
   --sh:0 1px 2px rgba(20,20,15,.05),0 1px 3px rgba(20,20,15,.04);
   --sh-md:0 4px 14px rgba(20,20,15,.09);
   --sh-lg:0 16px 40px -12px rgba(20,20,15,.20);
@@ -162,6 +163,7 @@
   --t1:#ECEAE4;
   --t2:#A8AEA9;
   --t3:#767C78;
+  --accent:#34D6C4;
   --sh:0 1px 2px rgba(0,0,0,.3);
   --sh-md:0 4px 16px rgba(0,0,0,.4);
   --sh-lg:0 16px 40px -12px rgba(0,0,0,.55);
@@ -256,6 +258,31 @@
    without hiding the dot inside it. */
 [data-ui="new"] .prio-pill{font-size:0;padding:0;background:transparent!important;border:none!important}
 [data-ui="new"] .prio-dot{width:8px;height:8px}
+
+/* ── New UI Phase 5: header declutter ──────────────────────────
+   The sidebar (Phase 2) and filter/card work (Phase 3-4) left the top header row untouched —
+   it's still the classic stat-chip row plus a dense cluster of ~9 bordered icon buttons, which
+   reads as the loudest, most "classic" thing on the page since it sits above everything else.
+   - Stat chips (Tasks/In progress/Upcoming/Overdue) are dropped: My Day already surfaces the
+     user's own open/in-progress/completion/overdue numbers as its first content block, so the
+     header row was showing a team-wide echo of information already given prominent space below.
+   - The icon buttons keep every action (nothing removed, nothing behind a new menu to avoid
+     adding new interaction logic) but drop borders/backgrounds/text labels down to plain icons
+     with tooltips, the same "quieter until you need it" treatment as the collapsed filter bar.
+   - +Add Task switches from flat black to the new UI's teal accent, matching the preview's one
+     bold call-to-action per view instead of a same-weight button lost in a row of others. */
+[data-ui="new"] .hdr-stats{display:none}
+[data-ui="new"] #hdr{gap:6px}
+[data-ui="new"] #hdr .btn-ghost{
+  border-color:transparent;background:transparent;padding:6px 8px;color:var(--t3);
+}
+[data-ui="new"] #hdr .btn-ghost:hover{background:var(--col);color:var(--t1)}
+[data-ui="new"] #hdr .btn-ghost .btn-lbl{display:none}
+[data-ui="new"] #hdr .notif-btn{border-color:transparent;background:transparent;color:var(--t3)}
+[data-ui="new"] #hdr .notif-btn:hover{background:var(--col);color:var(--t1)}
+[data-ui="new"] #hdr .live-dot-wrap{display:none}
+[data-ui="new"] .btn-add{background:var(--accent);border-radius:9px}
+[data-ui="new"] .btn-add:hover{background:var(--accent);opacity:.88}
 
 /* ── Slide-in panel task rows ─────────────────────────────── */
 .panel-task-row{
