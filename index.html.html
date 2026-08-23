@@ -3323,6 +3323,11 @@ function avatarEl(name, size, onclick) {
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+// Escapes first, then whitelists just **bold** and leading "- " bullets — the AI's schedule
+// notes come back in loose markdown and were rendering with literal asterisks.
+function mdLite(s) {
+  return esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/^-\s+/gm, '• ');
+}
 function getMember(name) { return team.find(m=>m.name===name); }
 function getWs(id) { return workstreams.find(w=>w.id===id); }
 
@@ -4043,6 +4048,31 @@ function renderDaily() {
       <p>${now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}<span style="font-size:12px;color:var(--p);cursor:pointer;margin-left:8px" onclick="openProfileModal('${esc(me)}')">✎ My Profile</span></p>
     </div>
 
+    <div class="daily-grid">
+      <div class="daily-card" style="cursor:pointer" onclick="openOpenTasksPanel('${esc(subject)}')" title="Click to see open tasks">
+        <div class="daily-card-label">${isMe ? 'My Open Tasks' : esc(subject.split(' ')[0]) + "'s Open Tasks"}</div>
+        <div class="daily-card-value">${myTasks.length}</div>
+        <div class="daily-card-sub">${myDone.length} completed · click to view</div>
+      </div>
+      ${(() => {
+        const myIP = myTasks.filter(t => t.status === 'inprogress');
+        return `<div class="daily-card" style="cursor:pointer" onclick="openInProgressPanel('${esc(subject)}')" title="Click to see in-progress tasks">
+          <div class="daily-card-label">${isMe ? 'In Progress' : esc(subject.split(' ')[0]) + ' In Progress'}</div>
+          <div class="daily-card-value" style="color:#2563EB">${myIP.length}</div>
+          <div class="daily-card-sub">active tasks · click to view</div>
+        </div>`;
+      })()}
+      <div class="daily-card" style="cursor:pointer" onclick="openCompletedPanel('${esc(subject)}')" title="Click to see completed tasks">
+        <div class="daily-card-label">${isMe ? 'My Completion Rate' : 'Completion Rate'}</div>
+        <div class="daily-card-value" style="color:${myRate>=70?'#059669':'#D97706'}">${myRate}%</div>
+        <div class="daily-card-sub">${myTotal} total assigned · click to view</div>
+      </div>
+      <div class="daily-card" ${(() => { const myOver = myTasks.filter(t => t.deadline && t.deadline < todayStr).length; return myOver ? `onclick="openOverduePanel('${esc(subject)}')" style="cursor:pointer" title="Click to see overdue tasks"` : ''; })()}>
+        <div class="daily-card-label">${isMe ? 'My Overdue' : 'Overdue'}</div>
+        ${(() => { const myOver = myTasks.filter(t => t.deadline && t.deadline < todayStr).length; return `<div class="daily-card-value" style="color:${myOver?'#DC2626':'#059669'}">${myOver}</div><div class="daily-card-sub">${myOver ? myOver + ' past deadline · click to view' : 'All on track ✓'}</div>`; })()}
+      </div>
+    </div>
+
     ${isMonday && myOverdue.length ? renderMondayBanner(myOverdue) : ''}
     ${(() => {
       const mmdd = todayStr.slice(5);
@@ -4131,35 +4161,10 @@ function renderDaily() {
             <span class="daily-schedule-note-date">${esc(dateStr)}</span>
             <button class="daily-schedule-note-dismiss" onclick="clearScheduleNote()" title="Dismiss">×</button>
           </div>
-          <div class="daily-schedule-note-body">${esc(text)}</div>
+          <div class="daily-schedule-note-body">${mdLite(text)}</div>
         </div>`;
       } catch { return ''; }
     })()}
-
-    <div class="daily-grid">
-      <div class="daily-card" style="cursor:pointer" onclick="openOpenTasksPanel('${esc(subject)}')" title="Click to see open tasks">
-        <div class="daily-card-label">${isMe ? 'My Open Tasks' : esc(subject.split(' ')[0]) + "'s Open Tasks"}</div>
-        <div class="daily-card-value">${myTasks.length}</div>
-        <div class="daily-card-sub">${myDone.length} completed · click to view</div>
-      </div>
-      ${(() => {
-        const myIP = myTasks.filter(t => t.status === 'inprogress');
-        return `<div class="daily-card" style="cursor:pointer" onclick="openInProgressPanel('${esc(subject)}')" title="Click to see in-progress tasks">
-          <div class="daily-card-label">${isMe ? 'In Progress' : esc(subject.split(' ')[0]) + ' In Progress'}</div>
-          <div class="daily-card-value" style="color:#2563EB">${myIP.length}</div>
-          <div class="daily-card-sub">active tasks · click to view</div>
-        </div>`;
-      })()}
-      <div class="daily-card" style="cursor:pointer" onclick="openCompletedPanel('${esc(subject)}')" title="Click to see completed tasks">
-        <div class="daily-card-label">${isMe ? 'My Completion Rate' : 'Completion Rate'}</div>
-        <div class="daily-card-value" style="color:${myRate>=70?'#059669':'#D97706'}">${myRate}%</div>
-        <div class="daily-card-sub">${myTotal} total assigned · click to view</div>
-      </div>
-      <div class="daily-card" ${(() => { const myOver = myTasks.filter(t => t.deadline && t.deadline < todayStr).length; return myOver ? `onclick="openOverduePanel('${esc(subject)}')" style="cursor:pointer" title="Click to see overdue tasks"` : ''; })()}>
-        <div class="daily-card-label">${isMe ? 'My Overdue' : 'Overdue'}</div>
-        ${(() => { const myOver = myTasks.filter(t => t.deadline && t.deadline < todayStr).length; return `<div class="daily-card-value" style="color:${myOver?'#DC2626':'#059669'}">${myOver}</div><div class="daily-card-sub">${myOver ? myOver + ' past deadline · click to view' : 'All on track ✓'}</div>`; })()}
-      </div>
-    </div>
 
     <div class="daily-main-row">
       <div class="daily-schedule-col">
