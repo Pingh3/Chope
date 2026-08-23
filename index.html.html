@@ -1712,13 +1712,23 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
   position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
   background:#1E293B;color:#fff;
   border-radius:12px;padding:10px 18px;
-  display:flex;align-items:center;gap:12px;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  justify-content:center;
+  max-width:calc(100vw - 32px);
   box-shadow:0 8px 24px rgba(0,0,0,.35);
   z-index:9999;
   font-size:13px;font-weight:600;
   animation:selBarIn .15s ease;
-  white-space:nowrap;
 }
+#selBar .sel-field{
+  background:rgba(255,255,255,.08);color:#fff;
+  border:1px solid rgba(255,255,255,.15);border-radius:6px;
+  padding:4px 8px;font-size:12px;font-weight:500;font-family:inherit;
+  cursor:pointer;
+}
+#selBar .sel-field:hover{background:rgba(255,255,255,.14)}
+#selBar .sel-field option{background:#1E293B;color:#fff}
+#selBar input.sel-field::-webkit-calendar-picker-indicator{filter:invert(1);cursor:pointer}
 @keyframes selBarIn{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 #selBar kbd{
   background:rgba(255,255,255,.15);border-radius:4px;
@@ -2578,7 +2588,20 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
 <!-- Batch selection bar -->
 <div id="selBar" style="display:none">
   <span id="selCount"></span>
-  <span class="sel-hint">Ctrl+click or use ☑ to select more</span>
+  <span style="color:rgba(255,255,255,.4)">·</span>
+  <input type="date" class="sel-field" id="bulkDeadline" title="Set deadline for selected tasks"
+    onchange="bulkSetField('deadline', this.value); this.value=''">
+  <select class="sel-field" id="bulkPriority" title="Set priority for selected tasks"
+    onchange="bulkSetField('priority', this.value); this.value=''">
+    <option value="" disabled selected>Priority</option>
+    <option value="high">High</option>
+    <option value="med">Medium</option>
+    <option value="low">Low</option>
+  </select>
+  <select class="sel-field" id="bulkWs" title="Set workstream/project for selected tasks"
+    onchange="bulkSetField('ws', this.value); this.value=''"></select>
+  <select class="sel-field" id="bulkAssignee" title="Reassign selected tasks"
+    onchange="bulkSetField('assignee', this.value); this.value=''"></select>
   <span style="color:rgba(255,255,255,.4)">·</span>
   <button class="sel-del-btn" onclick="deleteSelected()">Delete selected</button>
   <span style="color:rgba(255,255,255,.4)">·</span>
@@ -5264,6 +5287,67 @@ function updateSelectionBar() {
   if (selectedTaskIds.size === 0) { bar.style.display = 'none'; return; }
   cnt.textContent = selectedTaskIds.size + ' task' + (selectedTaskIds.size !== 1 ? 's' : '') + ' selected';
   bar.style.display = 'flex';
+  _populateBulkBarOptions();
+}
+
+// Workstream/assignee lists can change between selections (new workstream added, team member
+// added) — rebuild these two <select>s every time the bar becomes visible rather than once at
+// page load, same reasoning as renderCatNav() rebuilding on every render.
+function _populateBulkBarOptions() {
+  const wsSel = document.getElementById('bulkWs');
+  if (wsSel) {
+    wsSel.innerHTML = '<option value="" disabled selected>Project</option>' +
+      '<option value="__none__">No workstream</option>' +
+      workstreams.map(w => `<option value="${w.id}">${esc(w.name)}</option>`).join('');
+  }
+  const asSel = document.getElementById('bulkAssignee');
+  if (asSel) {
+    asSel.innerHTML = '<option value="" disabled selected>Assignee</option>' +
+      team.map(m => `<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('');
+  }
+}
+
+// Applies one field to every selected task in one shot — deadline changes get the same
+// deadlineHistory entry single-task edits get (powers the "moved deadline" badge), and every
+// field change gets an activityLog entry so bulk edits show up in the Team Activity Feed same
+// as any other change. Deliberately skips the handoff-note flow saveTask() does for assignee
+// changes — that's meant for a single, deliberate task handoff, not a quick multi-select bulk
+// reassignment.
+function bulkSetField(field, value) {
+  if (selectedTaskIds.size === 0 || !value) return;
+  _pushUndo();
+  const ids = [...selectedTaskIds];
+  const now = new Date().toISOString();
+  const fieldLabel = { deadline: 'deadline', priority: 'priority', ws: 'workstream', assignee: 'assignee' }[field] || field;
+
+  ids.forEach(id => {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    if (field === 'deadline') {
+      if (t.deadline && t.deadline !== value) {
+        if (!t.deadlineHistory) t.deadlineHistory = [];
+        t.deadlineHistory.push({ changedBy: state.currentUser || 'Unknown', from: t.deadline, to: value, at: now });
+      }
+      if (t.deadline !== value) { _logActivity('deadline', t.id, t.name, { from: t.deadline, to: value }); t.deadline = value; }
+    } else if (field === 'ws') {
+      const next = value === '__none__' ? null : value;
+      if (t.ws !== next) { t.ws = next; }
+    } else if (field === 'priority') {
+      if (t.priority !== value) { _logActivity('priority', t.id, t.name, { from: t.priority, to: value }); t.priority = value; }
+    } else if (field === 'assignee') {
+      if (t.assignee !== value) { _logActivity('assign', t.id, t.name, { from: t.assignee, to: value }); t.assignee = value; }
+    }
+  });
+
+  persist();
+  renderAll();
+  // renderAll() rebuilds every .card from scratch, which drops the .card-selected class and
+  // the selection bar along with it — restore both so the bar doesn't just vanish mid-edit,
+  // letting someone chain multiple bulk edits (e.g. set deadline, then priority) in one go.
+  selectedTaskIds = new Set(ids);
+  ids.forEach(id => document.querySelector('.card[data-id="' + id + '"]')?.classList.add('card-selected'));
+  updateSelectionBar();
+  toast(`Updated ${fieldLabel} for ${ids.length} task${ids.length !== 1 ? 's' : ''}`);
 }
 
 function selectCard(id) {
