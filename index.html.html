@@ -233,6 +233,30 @@
 [data-ui="new"] .ws-card,
 [data-ui="new"] .blist-group{border-radius:14px}
 
+/* ── New UI Phase 4: real simplification, not just spacing ─────
+   Confirmed with the user: they're fine trading some at-a-glance density for the cleaner look,
+   specifically fund/workstream tags on cards and the always-open Priority/Fund/Assignee filter
+   rows. Both pieces below reuse existing, already-built, already-shipped functionality rather
+   than adding anything new:
+   - The collapsed-filters UI (.fb-toggle-row, the #filterBar:not(.fb-expanded) .fb-row rule,
+     the active-filter-count pills) already exists and already works — it's just scoped to a
+     mobile-only media query today. Extending it to New UI desktop is copying two selectors,
+     not building a new mechanism.
+   - Task cards keep everything on click (opening a task still shows fund/workstream/full
+     priority) — only the always-visible card face gets lighter. */
+@media(min-width:769px){
+  [data-ui="new"] .fb-toggle-row{display:flex}
+  [data-ui="new"] #filterBar:not(.fb-expanded) .fb-row{display:none}
+}
+[data-ui="new"] .card-notes,
+[data-ui="new"] .fund-chip,
+[data-ui="new"] .ws-chip{display:none}
+/* Priority pill collapses to just its color dot — the dot's own width/height are fixed
+   (not font-relative), so zeroing the pill's font-size hides the "High"/"Medium"/"Low" text
+   without hiding the dot inside it. */
+[data-ui="new"] .prio-pill{font-size:0;padding:0;background:transparent!important;border:none!important}
+[data-ui="new"] .prio-dot{width:8px;height:8px}
+
 /* ── Slide-in panel task rows ─────────────────────────────── */
 .panel-task-row{
   display:flex;align-items:center;gap:10px;
