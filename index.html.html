@@ -1321,6 +1321,12 @@ textarea.fi{resize:vertical;min-height:72px}
 }
 .asort-row:last-child{border-bottom:none}
 .asort-check{width:15px;height:15px;flex-shrink:0;cursor:pointer;accent-color:var(--accent, var(--t1))}
+.asort-select-all{
+  display:flex;align-items:center;gap:8px;
+  padding:9px 20px;border-bottom:1px solid var(--border);
+  font-size:12px;font-weight:600;color:var(--t2);cursor:pointer;
+}
+.asort-select-all input{width:15px;height:15px;cursor:pointer;accent-color:var(--accent, var(--t1))}
 .asort-info{flex:1;min-width:0}
 .asort-name{font-size:13px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .asort-hint{font-size:11px;color:var(--t3);margin-top:2px}
@@ -2455,6 +2461,10 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
       <div style="padding:12px 20px;font-size:12px;color:var(--t3);border-bottom:1px solid var(--border)">
         A revised start date and/or priority for your <span id="autoSortCount">0</span> currently-visible open tasks — start dates are leveled per assignee so work doesn't all pile onto the same days (deadlines are never moved automatically), and priority reflects how much slack is left. Uncheck any you don't want, then apply — nothing changes until you do.
       </div>
+      <label class="asort-select-all">
+        <input type="checkbox" id="autoSortSelectAll" checked onchange="_asortToggleAll(this.checked)">
+        <span>Select all</span>
+      </label>
       <div id="autoSortBody" class="asort-body"></div>
     </div>
     <div class="modal-ft">
@@ -3682,14 +3692,25 @@ function _asortToggle(id) {
   if (p) p.included = !p.included;
   _updateAutoSortApplyBtn();
 }
+function _asortToggleAll(checked) {
+  _autoSortPending.forEach(p => p.included = checked);
+  document.querySelectorAll('#autoSortBody .asort-check').forEach(cb => cb.checked = checked);
+  _updateAutoSortApplyBtn();
+}
 function _updateAutoSortApplyBtn() {
   const n = _autoSortPending.filter(p => p.included).length;
   const btn = document.getElementById('autoSortApplyBtn');
-  if (!btn) return;
-  btn.textContent = `Apply ${n} change${n !== 1 ? 's' : ''}`;
-  btn.disabled = n === 0;
-  btn.style.opacity = n === 0 ? '.5' : '1';
-  btn.style.cursor = n === 0 ? 'default' : 'pointer';
+  if (btn) {
+    btn.textContent = `Apply ${n} change${n !== 1 ? 's' : ''}`;
+    btn.disabled = n === 0;
+    btn.style.opacity = n === 0 ? '.5' : '1';
+    btn.style.cursor = n === 0 ? 'default' : 'pointer';
+  }
+  const selectAll = document.getElementById('autoSortSelectAll');
+  if (selectAll) {
+    selectAll.checked = n === _autoSortPending.length;
+    selectAll.indeterminate = n > 0 && n < _autoSortPending.length;
+  }
 }
 function closeAutoSortReview() {
   document.getElementById('autoSortOverlay').classList.remove('open');
