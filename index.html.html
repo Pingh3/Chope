@@ -1986,8 +1986,8 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
   <div id="boardBanner"></div>
   <!-- View mode toggle: Kanban | List -->
   <div id="boardViewToggle">
-    <button class="bvt-btn" onclick="openAutoSortReview()" title="Re-suggest priority for every open task based on deadline &amp; how long it'll take">
-      ✨<span class="btn-lbl"> Auto-sort</span>
+    <button class="bvt-btn" onclick="openAutoSortReview()" title="Review a revised plan — start dates and priority — for every open task">
+      ✨<span class="btn-lbl"> Revise Plan</span>
     </button>
     <div style="width:1px;height:18px;background:var(--border);margin:0 2px"></div>
     <span style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-right:2px">Sort</span>
@@ -2441,19 +2441,19 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
   </div>
 </div>
 
-<!-- Auto-sort review — shows the priority changes Auto-sort would make before touching anything.
-     Nothing is applied until "Apply" is clicked, and applying pushes one undo step (same
-     _pushUndo() every other bulk edit uses), so Ctrl+Z or the toast's own Undo button both
-     revert it in one step. -->
+<!-- Revise Plan review — shows the start-date and priority changes it would make before
+     touching anything. Nothing is applied until "Apply" is clicked, and applying pushes one
+     undo step (same _pushUndo() every other bulk edit uses), so Ctrl+Z or the toast's own Undo
+     button both revert it in one step. -->
 <div class="overlay" id="autoSortOverlay" onmousedown="overlayMouseDown(event)" onclick="overlayClick(event,'autoSortOverlay')">
   <div class="modal" style="width:580px">
     <div class="modal-hd">
-      <div class="modal-title">✨ Auto-sort Preview</div>
+      <div class="modal-title">✨ Revise Plan</div>
       <button class="mclose" onclick="closeAutoSortReview()">×</button>
     </div>
     <div class="modal-body" style="gap:0;padding:0">
       <div style="padding:12px 20px;font-size:12px;color:var(--t3);border-bottom:1px solid var(--border)">
-        Suggested priority changes for your <span id="autoSortCount">0</span> currently-visible open tasks, based on how overdue each is, days left before the deadline, and how long the task is estimated to take. Uncheck any you don't want, then apply — nothing changes until you do.
+        A revised start date and/or priority for your <span id="autoSortCount">0</span> currently-visible open tasks — start dates are leveled per assignee so work doesn't all pile onto the same days (deadlines are never moved automatically), and priority reflects how much slack is left. Uncheck any you don't want, then apply — nothing changes until you do.
       </div>
       <div id="autoSortBody" class="asort-body"></div>
     </div>
@@ -3567,11 +3567,19 @@ function setBoardSortMode(mode) {
   renderBoard();
 }
 
-/* ── Auto-sort: suggest a priority level from deadline + estimated duration ──
-   Score is a slack heuristic — days left before the deadline minus days the task is estimated
-   to take. Less slack (or a negative one, i.e. overdue) means less room to react, so it scores
-   higher regardless of whatever priority was manually set earlier. Tasks with no deadline have
-   nothing to compute a schedule risk from, so they're left untouched rather than guessed at. */
+/* ── Revise Plan: a reviewable, revertible re-plan of priority + start dates ──
+   Priority side: a slack heuristic — days left before the deadline minus days the task is
+   estimated to take. Less slack (or a negative one, i.e. overdue) means less room to react, so
+   it scores higher regardless of whatever priority was manually set earlier. Tasks with no
+   deadline have nothing to compute a schedule risk from, so priority is left untouched for them.
+
+   Start-date side: per assignee, walk each person's OWN open+dated tasks in earliest-deadline-
+   first order and greedily fill weekdays at an assumed 8h/day capacity, spilling overflow into
+   the next day. Deadlines are treated as fixed — this never moves a deadline, only suggests
+   when to START so the workload stops piling onto the same few near-term days. A task whose
+   filled-in days run past its own deadline is flagged "at risk" rather than silently accepted,
+   since the fix for that is a human call (move the deadline, reassign, drop scope) not a
+   silent date change. */
 function _autoSortScore(t) {
   if (!t.deadline) return null;
   const daysLeft = Math.round((new Date(t.deadline + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000);
@@ -3590,21 +3598,66 @@ function _autoSortSuggestedPriority(t) {
   return score >= 70 ? 'high' : score >= 30 ? 'med' : 'low';
 }
 
+const PLAN_DAILY_CAPACITY_HOURS = 8;
+function _planIsWorkday(d) { const day = d.getDay(); return day !== 0 && day !== 6; }
+function _computeRevisedSchedule(taskList) {
+  const byAssignee = {};
+  taskList.forEach(t => { (byAssignee[t.assignee] ||= []).push(t); });
+  const results = {}; // taskId -> { startDate, finishDate, atRisk }
+  Object.values(byAssignee).forEach(list => {
+    const ordered = [...list].sort((a, b) => a.deadline.localeCompare(b.deadline)); // earliest deadline first
+    const dayHours = {}; // 'YYYY-MM-DD' -> hours already claimed by an earlier task in this pass
+    ordered.forEach(t => {
+      let remaining = t.durationHours || 4; // unestimated tasks default to a half day, same as the priority scorer
+      let firstDay = null, lastDay = null;
+      const day = new Date(new Date().toDateString());
+      let guard = 0;
+      while (remaining > 0.01 && guard++ < 730) { // 2-year safety cap so a bad input can't hang the tab
+        if (_planIsWorkday(day)) {
+          const key = _localDateStr(day);
+          const used = dayHours[key] || 0;
+          const free = PLAN_DAILY_CAPACITY_HOURS - used;
+          if (free > 0.01) {
+            dayHours[key] = used + Math.min(free, remaining);
+            remaining -= Math.min(free, remaining);
+            firstDay ||= key;
+            lastDay = key;
+          }
+        }
+        if (remaining > 0.01) day.setDate(day.getDate() + 1);
+      }
+      results[t.id] = { startDate: firstDay, finishDate: lastDay, atRisk: !!(lastDay && lastDay > t.deadline) };
+    });
+  });
+  return results;
+}
+
 let _autoSortPending = [];
 function openAutoSortReview() {
   const open = filteredTasks().filter(t => t.status !== 'done');
+  const schedule = _computeRevisedSchedule(open.filter(t => t.deadline));
   _autoSortPending = [];
   open.forEach(t => {
-    const suggested = _autoSortSuggestedPriority(t);
-    if (!suggested || suggested === t.priority) return;
+    const suggestedPriority = _autoSortSuggestedPriority(t);
+    const priorityChanged = !!suggestedPriority && suggestedPriority !== t.priority;
+    const sched = schedule[t.id];
+    const startChanged = !!(sched && sched.startDate && sched.startDate !== (t.startDate || null));
+    if (!priorityChanged && !startChanged) return;
+
     const over = isOverdue(t);
     const daysOver = over ? Math.round((new Date(new Date().toDateString()) - new Date(t.deadline + 'T00:00:00')) / 86400000) : 0;
-    const hint = over
-      ? `⚠ Overdue by ${daysOver} day${daysOver !== 1 ? 's' : ''}${t.durationHours ? ' · ' + _fmtDurHours(t.durationHours) : ''}`
-      : `Due ${fmtDate(t.deadline)}${t.durationHours ? ' · ' + _fmtDurHours(t.durationHours) : ''}`;
-    _autoSortPending.push({ id: t.id, name: t.name, from: t.priority, to: suggested, hint, included: true });
+    const bits = [];
+    bits.push(over ? `⚠ Overdue by ${daysOver} day${daysOver !== 1 ? 's' : ''}` : `Due ${fmtDate(t.deadline)}`);
+    if (t.durationHours) bits.push(_fmtDurHours(t.durationHours));
+    if (sched?.atRisk) bits.push(`⚠ at this pace won't start in time to hit ${fmtDate(t.deadline)}`);
+    _autoSortPending.push({
+      id: t.id, name: t.name,
+      fromPriority: t.priority, toPriority: priorityChanged ? suggestedPriority : null,
+      fromStart: t.startDate || null, toStart: startChanged ? sched.startDate : null,
+      hint: bits.join(' · '), included: true,
+    });
   });
-  if (!_autoSortPending.length) { toast('Priorities already look well-sorted ✓'); return; }
+  if (!_autoSortPending.length) { toast('Your plan already looks well-sorted ✓'); return; }
   renderAutoSortModal();
   document.getElementById('autoSortOverlay').classList.add('open');
 }
@@ -3617,10 +3670,9 @@ function renderAutoSortModal() {
       <div class="asort-info">
         <div class="asort-name">${esc(p.name)}</div>
         <div class="asort-hint">${p.hint}</div>
+        ${p.toStart ? `<div class="asort-hint">Start: ${p.fromStart ? fmtDate(p.fromStart) : 'Not set'} → <strong>${fmtDate(p.toStart)}</strong></div>` : ''}
       </div>
-      ${pill(p.from)}
-      <span class="asort-arrow">→</span>
-      ${pill(p.to)}
+      ${p.toPriority ? `${pill(p.fromPriority)}<span class="asort-arrow">→</span>${pill(p.toPriority)}` : ''}
     </div>`).join('');
   document.getElementById('autoSortCount').textContent = _autoSortPending.length;
   _updateAutoSortApplyBtn();
@@ -3650,13 +3702,13 @@ function applyAutoSort() {
   toApply.forEach(p => {
     const t = tasks.find(x => x.id === p.id);
     if (!t) return;
-    _logActivity('priority', t.id, t.name, { from: t.priority, to: p.to, via: 'auto-sort' });
-    t.priority = p.to;
+    if (p.toPriority) { _logActivity('priority', t.id, t.name, { from: t.priority, to: p.toPriority, via: 'revise-plan' }); t.priority = p.toPriority; }
+    if (p.toStart)    { _logActivity('startdate', t.id, t.name, { from: t.startDate, to: p.toStart, via: 'revise-plan' }); t.startDate = p.toStart; }
   });
   const count = toApply.length;
   closeAutoSortReview();
   persist(); renderAll();
-  toast(`✨ Updated priority for ${count} task${count !== 1 ? 's' : ''}`, { label: 'Undo', onClick: undo });
+  toast(`✨ Revised the plan for ${count} task${count !== 1 ? 's' : ''}`, { label: 'Undo', onClick: undo });
 }
 
 function setBoardMode(mode) {
@@ -4326,12 +4378,13 @@ function renderTeamPulse() {
     : '<div style="font-size:12px;color:var(--t3);padding:8px 0">No stale tasks — team is moving fast.</div>';
 
   // C. Activity feed
-  const actIcons = { create: '➕', status: '🔄', priority: '⚡', deadline: '📅', assign: '👤' };
+  const actIcons = { create: '➕', status: '🔄', priority: '⚡', deadline: '📅', startdate: '🗓', assign: '👤' };
   const actDesc = e => {
     if (e.type === 'create') return `<strong>${esc(e.by)}</strong> created task`;
     if (e.type === 'status') return `<strong>${esc(e.by)}</strong> moved to <strong>${esc(e.to)}</strong>`;
     if (e.type === 'priority') return `<strong>${esc(e.by)}</strong> changed priority to <strong>${esc(e.to)}</strong>`;
     if (e.type === 'deadline') return `<strong>${esc(e.by)}</strong> moved deadline ${esc(e.from)} → <strong>${esc(e.to)}</strong>`;
+    if (e.type === 'startdate') return `<strong>${esc(e.by)}</strong> moved start date ${e.from?esc(e.from):'—'} → <strong>${esc(e.to)}</strong>`;
     if (e.type === 'assign') return `<strong>${esc(e.by)}</strong> reassigned to <strong>${esc(e.to)}</strong>`;
     return `<strong>${esc(e.by)}</strong> updated task`;
   };
@@ -9088,12 +9141,13 @@ function renderTeamView(force) {
   const startLastWeek = new Date(startThisWeek.getTime() - 7 * 86400000);
 
   // Activity icons/descriptions (reuse existing helpers)
-  const actIcons = { create: '➕', status: '🔄', priority: '⚡', deadline: '📅', assign: '👤', add: '➕' };
+  const actIcons = { create: '➕', status: '🔄', priority: '⚡', deadline: '📅', startdate: '🗓', assign: '👤', add: '➕' };
   const actDesc = e => {
     if (e.type === 'create' || e.type === 'add') return `<strong>${esc(e.by)}</strong> created "<em>${esc((e.taskName||'').slice(0,35))}</em>"`;
     if (e.type === 'status')   return `<strong>${esc(e.by)}</strong> moved "<em>${esc((e.taskName||'').slice(0,30))}</em>" → <strong>${esc(e.to)}</strong>`;
     if (e.type === 'priority') return `<strong>${esc(e.by)}</strong> set priority to <strong>${esc(e.to)}</strong> on "<em>${esc((e.taskName||'').slice(0,30))}</em>"`;
     if (e.type === 'deadline') return `<strong>${esc(e.by)}</strong> moved deadline on "<em>${esc((e.taskName||'').slice(0,25))}</em>": ${esc(e.from)} → <strong>${esc(e.to)}</strong>`;
+    if (e.type === 'startdate') return `<strong>${esc(e.by)}</strong> moved start date on "<em>${esc((e.taskName||'').slice(0,25))}</em>": ${e.from?esc(e.from):'—'} → <strong>${esc(e.to)}</strong>`;
     if (e.type === 'assign')   return `<strong>${esc(e.by)}</strong> reassigned "<em>${esc((e.taskName||'').slice(0,30))}</em>" → <strong>${esc(e.to)}</strong>`;
     return `<strong>${esc(e.by)}</strong> updated "<em>${esc((e.taskName||'').slice(0,35))}</em>"`;
   };
