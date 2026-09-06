@@ -1316,11 +1316,11 @@ textarea.fi{resize:vertical;min-height:72px}
 /* ── Auto-sort review modal ──────────────────────────────── */
 .asort-body{max-height:420px;overflow-y:auto}
 .asort-row{
-  display:flex;align-items:center;gap:12px;
+  display:flex;align-items:flex-start;gap:12px;
   padding:11px 20px;border-bottom:1px solid var(--border);
 }
 .asort-row:last-child{border-bottom:none}
-.asort-check{width:15px;height:15px;flex-shrink:0;cursor:pointer;accent-color:var(--accent, var(--t1))}
+.asort-check{width:15px;height:15px;flex-shrink:0;cursor:pointer;accent-color:var(--accent, var(--t1));margin-top:2px}
 .asort-select-all{
   display:flex;align-items:center;gap:8px;
   padding:9px 20px;border-bottom:1px solid var(--border);
@@ -1328,8 +1328,20 @@ textarea.fi{resize:vertical;min-height:72px}
 }
 .asort-select-all input{width:15px;height:15px;cursor:pointer;accent-color:var(--accent, var(--t1))}
 .asort-info{flex:1;min-width:0}
-.asort-name{font-size:13px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.asort-name{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--t1);min-width:0}
+.asort-name-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.asort-open-link{
+  flex-shrink:0;background:none;border:none;cursor:pointer;
+  font-size:10px;font-weight:700;color:var(--t3);padding:0;font-family:inherit;
+  white-space:nowrap;
+}
+.asort-open-link:hover{color:var(--accent, var(--t1));text-decoration:underline}
 .asort-hint{font-size:11px;color:var(--t3);margin-top:2px}
+.asort-field-row{display:flex;align-items:center;gap:6px;margin-top:5px;font-size:11px;color:var(--t3)}
+.asort-date-input,.asort-prio-select{
+  font-size:11px;font-family:inherit;color:var(--t1);background:var(--card);
+  border:1px solid var(--border);border-radius:6px;padding:3px 6px;cursor:pointer;
+}
 .asort-arrow{color:var(--t3);font-size:12px;flex-shrink:0}
 
 /* ── Misc ────────────────────────────────────────────────── */
@@ -3678,14 +3690,45 @@ function renderAutoSortModal() {
     <div class="asort-row">
       <input type="checkbox" class="asort-check" ${p.included ? 'checked' : ''} onchange="_asortToggle('${p.id}')">
       <div class="asort-info">
-        <div class="asort-name">${esc(p.name)}</div>
+        <div class="asort-name">
+          <span class="asort-name-text">${esc(p.name)}</span>
+          <button type="button" class="asort-open-link" onclick="_asortOpenTask('${p.id}')" title="Open this task — e.g. to set its estimated duration, then re-run Revise Plan">Open task ↗</button>
+        </div>
         <div class="asort-hint">${p.hint}</div>
-        ${p.toStart ? `<div class="asort-hint">Start: ${p.fromStart ? fmtDate(p.fromStart) : 'Not set'} → <strong>${fmtDate(p.toStart)}</strong></div>` : ''}
+        ${p.toStart ? `
+          <div class="asort-field-row">
+            <span>Start: ${p.fromStart ? fmtDate(p.fromStart) : 'Not set'} →</span>
+            <input type="date" class="asort-date-input" value="${p.toStart}" onchange="_asortEditStart('${p.id}', this.value)">
+          </div>` : ''}
       </div>
-      ${p.toPriority ? `${pill(p.fromPriority)}<span class="asort-arrow">→</span>${pill(p.toPriority)}` : ''}
+      ${p.toPriority ? `
+        <div class="asort-field-row">
+          ${pill(p.fromPriority)}<span class="asort-arrow">→</span>
+          <select class="asort-prio-select" onchange="_asortEditPriority('${p.id}', this.value)">
+            <option value="high" ${p.toPriority === 'high' ? 'selected' : ''}>High</option>
+            <option value="med"  ${p.toPriority === 'med'  ? 'selected' : ''}>Medium</option>
+            <option value="low"  ${p.toPriority === 'low'  ? 'selected' : ''}>Low</option>
+          </select>
+        </div>` : ''}
     </div>`).join('');
   document.getElementById('autoSortCount').textContent = _autoSortPending.length;
   _updateAutoSortApplyBtn();
+}
+function _asortEditStart(id, value) {
+  const p = _autoSortPending.find(x => x.id === id);
+  if (p && value) p.toStart = value;
+}
+function _asortEditPriority(id, value) {
+  const p = _autoSortPending.find(x => x.id === id);
+  if (p) p.toPriority = value;
+}
+// Editing duration/other fields is a full task-modal job, and stacking that modal on top of
+// this review gets messy fast — simplest, most robust move is to close the review (nothing in
+// it is applied yet, so nothing is lost) and let the user re-open Revise Plan afterward to see
+// the suggestion recalculated against whatever they changed.
+function _asortOpenTask(id) {
+  closeAutoSortReview();
+  openTaskModal(id);
 }
 function _asortToggle(id) {
   const p = _autoSortPending.find(x => x.id === id);
