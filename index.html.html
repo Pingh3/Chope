@@ -690,12 +690,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .blist-group-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .blist-group-label{font-size:12px;font-weight:700;color:var(--t1)}
 .blist-group-count{margin-left:auto;font-size:11px;color:var(--t3);font-weight:500}
-/* shared grid: check | Task | Description | Category | Assignee | Due Date | Status */
-.blist-cols{display:grid;grid-template-columns:var(--blist-cols,28px 200px minmax(0,1fr) 100px 96px 76px 96px);align-items:center;gap:0;padding:0 14px}
+/* shared grid: check | Task | Description | Category | Assignee | Due Date | Duration | Status */
+.blist-cols{display:grid;grid-template-columns:var(--blist-cols,28px 200px minmax(0,1fr) 100px 96px 76px 70px 96px);align-items:center;gap:0;padding:0 14px}
 .blist-header{
   background:var(--col);border-bottom:2px solid var(--border);
   padding:7px 14px;position:sticky;top:54px;z-index:10;
-  display:grid;grid-template-columns:var(--blist-cols,28px 300px minmax(0,1fr) 120px 110px 90px 110px);
+  display:grid;grid-template-columns:var(--blist-cols,28px 300px minmax(0,1fr) 120px 110px 90px 80px 110px);
   gap:0;align-items:center;border-radius:var(--r) var(--r) 0 0;
 }
 .blist-header-cell{position:relative;display:flex;align-items:center;overflow:hidden;min-width:0}
@@ -706,7 +706,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .blist-resize::after{content:'';display:block;width:2px;height:14px;background:var(--border);border-radius:1px;transition:background .15s}
 .blist-resize:hover::after{background:var(--t3)}
 .blist-row{
-  display:grid;grid-template-columns:var(--blist-cols,28px 300px minmax(0,1fr) 120px 110px 90px 110px);
+  display:grid;grid-template-columns:var(--blist-cols,28px 300px minmax(0,1fr) 120px 110px 90px 80px 110px);
   align-items:center;gap:0;
   padding:14px 14px;border-bottom:1px solid var(--border);
   cursor:pointer;transition:background .1s;
@@ -1303,8 +1303,28 @@ textarea.fi{resize:vertical;min-height:72px}
   padding:10px 15px;border-radius:var(--r);
   font-size:12px;box-shadow:var(--sh-lg);
   animation:tin .18s ease;max-width:280px;
+  display:flex;align-items:center;gap:10px;
 }
 @keyframes tin{from{transform:translateX(14px);opacity:0}to{transform:translateX(0);opacity:1}}
+.toast-action{
+  background:rgba(255,255,255,.16);color:#fff;border:none;border-radius:6px;
+  padding:3px 9px;font-size:11px;font-weight:700;cursor:pointer;
+  margin-left:auto;flex-shrink:0;font-family:inherit;
+}
+.toast-action:hover{background:rgba(255,255,255,.28)}
+
+/* ── Auto-sort review modal ──────────────────────────────── */
+.asort-body{max-height:420px;overflow-y:auto}
+.asort-row{
+  display:flex;align-items:center;gap:12px;
+  padding:11px 20px;border-bottom:1px solid var(--border);
+}
+.asort-row:last-child{border-bottom:none}
+.asort-check{width:15px;height:15px;flex-shrink:0;cursor:pointer;accent-color:var(--accent, var(--t1))}
+.asort-info{flex:1;min-width:0}
+.asort-name{font-size:13px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.asort-hint{font-size:11px;color:var(--t3);margin-top:2px}
+.asort-arrow{color:var(--t3);font-size:12px;flex-shrink:0}
 
 /* ── Misc ────────────────────────────────────────────────── */
 .btn-sm{
@@ -1436,6 +1456,10 @@ textarea.fi{resize:vertical;min-height:72px}
   /* Icon-only header utility buttons */
   .btn-lbl{display:none}
   .btn-ghost{padding:6px 8px!important;font-size:14px!important}
+
+  /* Board toolbar (Auto-sort + sort mode + Kanban/List) wraps instead of overflowing */
+  #boardViewToggle{flex-wrap:wrap;justify-content:flex-start;row-gap:6px}
+  .bvt-sort-btn{padding:5px 8px}
 
   /* Shrink catNav sticky offset now that tab row is gone */
   #catNav{top:52px!important}
@@ -1659,6 +1683,12 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
   transition:background .12s;
 }
 #selBar .sel-del-btn:hover{background:#DC2626}
+#selBar .sel-dup-btn{
+  background:rgba(255,255,255,.14);color:#fff;border:none;border-radius:8px;
+  padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;
+  transition:background .12s;
+}
+#selBar .sel-dup-btn:hover{background:rgba(255,255,255,.24)}
 #selBar .sel-clear-btn{
   background:transparent;color:rgba(255,255,255,.6);border:none;
   font-size:12px;cursor:pointer;padding:0;
@@ -1956,6 +1986,15 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
   <div id="boardBanner"></div>
   <!-- View mode toggle: Kanban | List -->
   <div id="boardViewToggle">
+    <button class="bvt-btn" onclick="openAutoSortReview()" title="Re-suggest priority for every open task based on deadline &amp; how long it'll take">
+      ✨<span class="btn-lbl"> Auto-sort</span>
+    </button>
+    <div style="width:1px;height:18px;background:var(--border);margin:0 2px"></div>
+    <span style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-right:2px">Sort</span>
+    <button class="bvt-btn bvt-sort-btn active" data-sort="priority" onclick="setBoardSortMode('priority')" title="Sort by priority">Priority</button>
+    <button class="bvt-btn bvt-sort-btn" data-sort="deadline" onclick="setBoardSortMode('deadline')" title="Sort by deadline">Deadline</button>
+    <button class="bvt-btn bvt-sort-btn" data-sort="duration" onclick="setBoardSortMode('duration')" title="Sort by how long the task will take">Duration</button>
+    <div style="width:1px;height:18px;background:var(--border);margin:0 2px;margin-right:auto"></div>
     <button class="bvt-btn" id="bvt-hide-done" onclick="toggleListAllDone()" title="Hide / show done tasks" style="display:none">
       <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
         <circle cx="7" cy="7" r="5.5"/>
@@ -2202,6 +2241,15 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
           <option value="">None</option>
         </select>
       </div>
+      <div class="mf">
+        <label>Repeat</label>
+        <select class="fi" id="fRecurrence">
+          <option value="">Don't repeat</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+      </div>
       <hr class="notes-sep">
       <div class="notes-hd">Notes & Handoffs</div>
       <div class="handoff-box" id="handoffBox">
@@ -2392,6 +2440,29 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
   </div>
 </div>
 
+<!-- Auto-sort review — shows the priority changes Auto-sort would make before touching anything.
+     Nothing is applied until "Apply" is clicked, and applying pushes one undo step (same
+     _pushUndo() every other bulk edit uses), so Ctrl+Z or the toast's own Undo button both
+     revert it in one step. -->
+<div class="overlay" id="autoSortOverlay" onmousedown="overlayMouseDown(event)" onclick="overlayClick(event,'autoSortOverlay')">
+  <div class="modal" style="width:580px">
+    <div class="modal-hd">
+      <div class="modal-title">✨ Auto-sort Preview</div>
+      <button class="mclose" onclick="closeAutoSortReview()">×</button>
+    </div>
+    <div class="modal-body" style="gap:0;padding:0">
+      <div style="padding:12px 20px;font-size:12px;color:var(--t3);border-bottom:1px solid var(--border)">
+        Suggested priority changes for your <span id="autoSortCount">0</span> currently-visible open tasks, based on how overdue each is, days left before the deadline, and how long the task is estimated to take. Uncheck any you don't want, then apply — nothing changes until you do.
+      </div>
+      <div id="autoSortBody" class="asort-body"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-ghost" onclick="closeAutoSortReview()">Cancel</button>
+      <button class="btn-primary" id="autoSortApplyBtn" onclick="applyAutoSort()">Apply</button>
+    </div>
+  </div>
+</div>
+
 <!-- Notifications panel -->
 <div id="notifPanel">
   <div class="np-hd">
@@ -2502,6 +2573,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
   <select class="sel-field" id="bulkAssignee" title="Reassign selected tasks"
     onchange="bulkSetField('assignee', this.value); this.value=''"></select>
   <span style="color:rgba(255,255,255,.4)">·</span>
+  <button class="sel-dup-btn" onclick="duplicateSelected()" title="Duplicate selected tasks">⧉ Duplicate</button>
   <button class="sel-del-btn" onclick="deleteSelected()">Delete selected</button>
   <span style="color:rgba(255,255,255,.4)">·</span>
   <button class="sel-clear-btn" onclick="clearSelection()">Clear &nbsp;<kbd>Esc</kbd></button>
@@ -2584,6 +2656,7 @@ let state = {
   currentUser: '',
 };
 let editTaskId = null, editWsId = null, dragId = null, winsExpanded = false, hideDone = false, boardMode = 'kanban';
+let boardSortMode = 'priority'; // 'priority' | 'deadline' | 'duration' — Kanban column order
 let _isSaving = false;
 let listSortCol = null, listSortDir = 'asc';
 let wsViewMode = 'cards', wsListSortCol = 'name', wsListSortDir = 'asc', wsCardOrder = [];
@@ -2591,7 +2664,7 @@ let wsTaskSortMode = 'priority'; // 'priority' | 'deadline' — sort of the open
 let wsUnassignedFilter = 'me';   // 'me' | 'all' | a specific team member's name — resets to 'me' each page load
 let _wsCardDragId = null;
 let _wsCardDragInsertAfter = false;
-let listColWidths = [28, 300, null, 120, 110, 90, 110]; // null = 1fr (description)
+let listColWidths = [28, 300, null, 120, 110, 90, 80, 110]; // null = 1fr (description)
 let wsExpanded = new Set();    // workstream IDs that are expanded
 let wsDoneExpanded = new Set(); // workstream IDs with done tasks visible
 let suggestedPrio = 'med';
@@ -3478,6 +3551,113 @@ function toggleListAllDone() {
   renderBoardAsList();
 }
 
+// Shared Kanban column comparator — 'priority' is the long-standing default (high→low);
+// 'deadline' surfaces the soonest due date first (undated tasks sink to the bottom); 'duration'
+// surfaces the quickest wins first (undated/unestimated tasks sink to the bottom too).
+function _boardSortFn(a, b) {
+  if (boardSortMode === 'deadline') return (a.deadline||'9999-99-99').localeCompare(b.deadline||'9999-99-99');
+  if (boardSortMode === 'duration') return (a.durationHours ?? Infinity) - (b.durationHours ?? Infinity);
+  const po = {high:0,med:1,low:2};
+  return (po[a.priority]??1) - (po[b.priority]??1);
+}
+function setBoardSortMode(mode) {
+  boardSortMode = mode; saveUserPrefs();
+  document.querySelectorAll('.bvt-sort-btn').forEach(b => b.classList.toggle('active', b.dataset.sort === mode));
+  renderBoard();
+}
+
+/* ── Auto-sort: suggest a priority level from deadline + estimated duration ──
+   Score is a slack heuristic — days left before the deadline minus days the task is estimated
+   to take. Less slack (or a negative one, i.e. overdue) means less room to react, so it scores
+   higher regardless of whatever priority was manually set earlier. Tasks with no deadline have
+   nothing to compute a schedule risk from, so they're left untouched rather than guessed at. */
+function _autoSortScore(t) {
+  if (!t.deadline) return null;
+  const daysLeft = Math.round((new Date(t.deadline + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000);
+  const durationDays = t.durationHours ? t.durationHours / 8 : 0.5; // assume an 8hr workday; unestimated tasks default to a half day
+  if (daysLeft < 0) return 100;
+  const slack = daysLeft - durationDays;
+  if (slack <= 0)  return 90;
+  if (slack <= 2)  return 70;
+  if (slack <= 5)  return 50;
+  if (slack <= 10) return 30;
+  return 10;
+}
+function _autoSortSuggestedPriority(t) {
+  const score = _autoSortScore(t);
+  if (score === null) return null;
+  return score >= 70 ? 'high' : score >= 30 ? 'med' : 'low';
+}
+
+let _autoSortPending = [];
+function openAutoSortReview() {
+  const open = filteredTasks().filter(t => t.status !== 'done');
+  _autoSortPending = [];
+  open.forEach(t => {
+    const suggested = _autoSortSuggestedPriority(t);
+    if (!suggested || suggested === t.priority) return;
+    const over = isOverdue(t);
+    const daysOver = over ? Math.round((new Date(new Date().toDateString()) - new Date(t.deadline + 'T00:00:00')) / 86400000) : 0;
+    const hint = over
+      ? `⚠ Overdue by ${daysOver} day${daysOver !== 1 ? 's' : ''}${t.durationHours ? ' · ' + _fmtDurHours(t.durationHours) : ''}`
+      : `Due ${fmtDate(t.deadline)}${t.durationHours ? ' · ' + _fmtDurHours(t.durationHours) : ''}`;
+    _autoSortPending.push({ id: t.id, name: t.name, from: t.priority, to: suggested, hint, included: true });
+  });
+  if (!_autoSortPending.length) { toast('Priorities already look well-sorted ✓'); return; }
+  renderAutoSortModal();
+  document.getElementById('autoSortOverlay').classList.add('open');
+}
+function renderAutoSortModal() {
+  const PRIO_LABEL = { high: 'High', med: 'Medium', low: 'Low' };
+  const pill = p => `<span class="prio-pill ${p}" style="display:inline-flex"><span class="prio-dot" style="background:${PRIO_COLORS[p]}"></span>${PRIO_LABEL[p]}</span>`;
+  document.getElementById('autoSortBody').innerHTML = _autoSortPending.map(p => `
+    <div class="asort-row">
+      <input type="checkbox" class="asort-check" ${p.included ? 'checked' : ''} onchange="_asortToggle('${p.id}')">
+      <div class="asort-info">
+        <div class="asort-name">${esc(p.name)}</div>
+        <div class="asort-hint">${p.hint}</div>
+      </div>
+      ${pill(p.from)}
+      <span class="asort-arrow">→</span>
+      ${pill(p.to)}
+    </div>`).join('');
+  document.getElementById('autoSortCount').textContent = _autoSortPending.length;
+  _updateAutoSortApplyBtn();
+}
+function _asortToggle(id) {
+  const p = _autoSortPending.find(x => x.id === id);
+  if (p) p.included = !p.included;
+  _updateAutoSortApplyBtn();
+}
+function _updateAutoSortApplyBtn() {
+  const n = _autoSortPending.filter(p => p.included).length;
+  const btn = document.getElementById('autoSortApplyBtn');
+  if (!btn) return;
+  btn.textContent = `Apply ${n} change${n !== 1 ? 's' : ''}`;
+  btn.disabled = n === 0;
+  btn.style.opacity = n === 0 ? '.5' : '1';
+  btn.style.cursor = n === 0 ? 'default' : 'pointer';
+}
+function closeAutoSortReview() {
+  document.getElementById('autoSortOverlay').classList.remove('open');
+  _autoSortPending = [];
+}
+function applyAutoSort() {
+  const toApply = _autoSortPending.filter(p => p.included);
+  if (!toApply.length) return;
+  _pushUndo();
+  toApply.forEach(p => {
+    const t = tasks.find(x => x.id === p.id);
+    if (!t) return;
+    _logActivity('priority', t.id, t.name, { from: t.priority, to: p.to, via: 'auto-sort' });
+    t.priority = p.to;
+  });
+  const count = toApply.length;
+  closeAutoSortReview();
+  persist(); renderAll();
+  toast(`✨ Updated priority for ${count} task${count !== 1 ? 's' : ''}`, { label: 'Undo', onClick: undo });
+}
+
 function setBoardMode(mode) {
   boardMode = mode; saveUserPrefs();
   document.getElementById('bvt-kanban')?.classList.toggle('active', mode === 'kanban');
@@ -3555,6 +3735,7 @@ function renderBoardAsList() {
       case 'cat':      return sortDir * (a.cat||'').localeCompare(b.cat||'');
       case 'assignee': return sortDir * (a.assignee||'').localeCompare(b.assignee||'');
       case 'deadline': return sortDir * (a.deadline||'z').localeCompare(b.deadline||'z');
+      case 'duration': return sortDir * ((a.durationHours||0) - (b.durationHours||0));
       case 'status':   return sortDir * ((SORDER[a.status]??9) - (SORDER[b.status]??9));
       default:         return 0;
     }
@@ -3573,7 +3754,7 @@ function renderBoardAsList() {
       <button class="row-check ${isDone ? 'checked' : ''}" onclick="toggleTaskDone('${t.id}');event.stopPropagation()" title="Mark ${isDone ? 'incomplete' : 'complete'}">
         <svg viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
       </button>
-      <div class="blist-name">${esc(t.name)}</div>
+      <div class="blist-name">${t.recurrence?`<span title="Repeats ${t.recurrence}">🔁</span> `:''}${esc(t.name)}</div>
       <div class="blist-desc">${desc ? esc(desc) : (ws ? esc(ws.name) : '')}</div>
       <div class="blist-cat">${cat.label ? `<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:${cat.bg||'#F3F4F6'};color:${cat.color||'#666'}">${esc(cat.label)}</span>` : ''}</div>
       <div class="blist-assignee-cell">
@@ -3581,6 +3762,7 @@ function renderBoardAsList() {
         <span class="blist-assignee">${esc(t.assignee.split(' ')[0])}</span>
       </div>
       <div class="blist-date" style="color:${over?'#DC2626':'var(--t3)'};font-weight:${over?600:400}">${t.deadline ? `${over?'⚠ ':''}${fmtDate(t.deadline)}` : ''}</div>
+      <div class="blist-date">${t.durationHours ? _fmtDurHours(t.durationHours) : ''}</div>
       <div><span class="blist-status" style="background:${sBg};color:${sCol}">${STATUS_LABEL[t.status]||t.status}</span></div>
     </div>`;
   };
@@ -3600,6 +3782,7 @@ function renderBoardAsList() {
     ${hdrCell('cat','Category',3)}
     ${hdrCell('assignee','Assignee',4)}
     ${hdrCell('deadline','Due Date',5)}
+    ${hdrCell('duration','Duration',6)}
     ${hdrCell('status','Status',null,true)}
   </div>`;
 
@@ -3637,6 +3820,7 @@ function renderBoard() {
   // Sync toggle button states
   document.getElementById('bvt-kanban')?.classList.toggle('active', boardMode === 'kanban');
   document.getElementById('bvt-list')?.classList.toggle('active', boardMode === 'list');
+  document.querySelectorAll('.bvt-sort-btn').forEach(b => b.classList.toggle('active', b.dataset.sort === boardSortMode));
 
   const boardEl   = document.getElementById('board');
   const listWrap  = document.getElementById('boardListWrap');
@@ -3672,7 +3856,7 @@ function renderBoard() {
   let html = '';
   ['todo','inprogress','review'].forEach(key => {
     const col = COLS[key];
-    const colTasks = ft.filter(t => t.status === key).sort((a,b) => {const po={high:0,med:1,low:2}; return (po[a.priority]??1)-(po[b.priority]??1);});
+    const colTasks = ft.filter(t => t.status === key).sort(_boardSortFn);
     html += `
       <div class="kol" id="kol-${key}"
         ondragover="dragOver(event,'${key}')"
@@ -3697,7 +3881,7 @@ function renderBoard() {
     </div>`;
   } else {
     const col = COLS.done;
-    const colTasks = ft.filter(t => t.status === 'done').sort((a,b) => {const po={high:0,med:1,low:2}; return (po[a.priority]??1)-(po[b.priority]??1);});
+    const colTasks = ft.filter(t => t.status === 'done').sort(_boardSortFn);
     html += `
       <div class="kol" id="kol-done"
         ondragover="dragOver(event,'done')"
@@ -3781,7 +3965,7 @@ function cardHTML(t) {
       <button class="card-dup" onclick="duplicateTask('${t.id}');event.stopPropagation()" title="Duplicate task (D)">⧉</button>
       <button class="card-del" onclick="deleteTaskDirect('${t.id}');event.stopPropagation()" title="Delete task (Del)">🗑</button>
       <div class="cat-badge" style="background:${cat.bg};color:${cat.color};padding-right:28px">${esc(cat.label)}</div>
-      <div class="card-name">${esc(t.name)}${isDup?'<span class="card-dup-flag">~ duplicate?</span>':''}</div>
+      <div class="card-name">${t.recurrence?`<span title="Repeats ${t.recurrence}">🔁</span> `:''}${esc(t.name)}${isDup?'<span class="card-dup-flag">~ duplicate?</span>':''}</div>
       ${t.desc ? `<div class="card-notes">${esc(t.desc)}</div>` : ''}
       <div class="card-rows">
         <div class="card-row">
@@ -4763,6 +4947,7 @@ function loadUserPrefs(user) {
   try {
     const p = JSON.parse(localStorage.getItem(_prefsKey(user)) || '{}');
     if (p.boardMode)          boardMode         = p.boardMode;
+    if (p.boardSortMode)      boardSortMode     = p.boardSortMode;
     if (p.hideDone !== undefined) hideDone       = !!p.hideDone;
     if (p.listAllDoneHidden !== undefined) {
       listAllDoneHidden = !!p.listAllDoneHidden;
@@ -4786,7 +4971,7 @@ function loadUserPrefs(user) {
 function saveUserPrefs() {
   const user = state.currentUser;
   if (!user) return;
-  localStorage.setItem(_prefsKey(user), JSON.stringify({ boardMode, hideDone, listAllDoneHidden, defaultView: state.view, listColWidths, wsViewMode, wsListSortCol, wsListSortDir, wsCardOrder, wsTaskSortMode }));
+  localStorage.setItem(_prefsKey(user), JSON.stringify({ boardMode, boardSortMode, hideDone, listAllDoneHidden, defaultView: state.view, listColWidths, wsViewMode, wsListSortCol, wsListSortDir, wsCardOrder, wsTaskSortMode }));
 }
 
 function onUserChange() {
@@ -4956,6 +5141,7 @@ function openTaskModal(id) {
     document.getElementById('fStartDate').value = t.startDate || '';
     document.getElementById('fDeadline').value  = t.deadline || '';
     document.getElementById('fWs').value        = t.ws || '';
+    document.getElementById('fRecurrence').value = t.recurrence || '';
     del.style.display = 'block';
     const calBtn = document.getElementById('btnAddCal');
     if (calBtn) {
@@ -4994,6 +5180,7 @@ function openTaskModal(id) {
     const d = new Date(); d.setDate(d.getDate()+7);
     document.getElementById('fDeadline').value  = _localDateStr(d);
     document.getElementById('fWs').value       = state.ws !== 'all' ? (state.ws||'') : '';
+    document.getElementById('fRecurrence').value = '';
     del.style.display = 'none';
   }
   // Reset auto-estimate flags so new task gets fresh suggestions
@@ -5036,6 +5223,7 @@ let focusedCardId = null;
 function toggleTaskDone(id) {
   const t = tasks.find(x => x.id === id);
   if (!t) return;
+  _pushUndo();
   if (t.status === 'done') {
     t.status = 'todo';
     t.completedAt = null;
@@ -5044,6 +5232,7 @@ function toggleTaskDone(id) {
   } else {
     t.status = 'done';
     t.completedAt = new Date().toISOString();
+    _maybeSpawnRecurrence(t);
     toast(`✓ Done: ${t.name.slice(0,30)}`);
     _tdClose(t);
   }
@@ -5091,6 +5280,7 @@ function saveTask() {
   const startDate = document.getElementById('fStartDate').value;
   const deadline  = document.getElementById('fDeadline').value;
   const ws        = document.getElementById('fWs').value;
+  const recurrence = document.getElementById('fRecurrence').value || null;
   const handoffNote = (document.getElementById('handoffNote')?.value || '').trim();
 
   // Validate — re-enable and bail on failure
@@ -5122,8 +5312,8 @@ function saveTask() {
       _pushUndo();
       const oldStatus = t.status, oldPriority = t.priority, oldDeadline = t.deadline, oldAssignee = t.assignee;
       const wasDone = t.status === 'done';
-      Object.assign(t, { name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, durationHours: _planDurationHours !== null ? _planDurationHours : t.durationHours });
-      if (status === 'done' && !wasDone) t.completedAt = new Date().toISOString();
+      Object.assign(t, { name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, recurrence, durationHours: _planDurationHours !== null ? _planDurationHours : t.durationHours });
+      if (status === 'done' && !wasDone) { t.completedAt = new Date().toISOString(); _maybeSpawnRecurrence(t); }
       if (status !== 'done') t.completedAt = null;
       if (status !== oldStatus)   _logActivity('status',   _editId, name, { from: oldStatus,   to: status });
       if (priority !== oldPriority) _logActivity('priority', _editId, name, { from: oldPriority, to: priority });
@@ -5134,7 +5324,7 @@ function saveTask() {
     toast('✓ Task saved');
   } else {
     _pushUndo();
-    tasks.unshift({ id: uid(), name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, ...(_planDurationHours != null && { durationHours: _planDurationHours }), createdAt: new Date().toISOString() });
+    tasks.unshift({ id: uid(), name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, recurrence, ...(_planDurationHours != null && { durationHours: _planDurationHours }), createdAt: new Date().toISOString() });
     _logActivity('create', tasks[0].id, name, {});
     toast('✓ Task created');
   }
@@ -5164,11 +5354,64 @@ function deleteTask() {
 function duplicateTask(id) {
   const t = tasks.find(x => x.id === id);
   if (!t) return;
+  _pushUndo();
   const copy = { ...t, id: uid(), name: t.name + ' (copy)', createdAt: new Date().toISOString(), status: 'todo', completedAt: null };
   delete copy.deadlineHistory;
   tasks.splice(tasks.indexOf(t) + 1, 0, copy);
   persist(); renderAll();
   toast(`Duplicated: "${t.name.slice(0,28)}"`);
+}
+
+// Same per-task copy as duplicateTask(), just applied to every selected card in one undo step
+// rather than one _pushUndo() per task.
+function duplicateSelected() {
+  if (selectedTaskIds.size === 0) return;
+  _pushUndo();
+  const ids = [...selectedTaskIds];
+  const copies = [];
+  ids.forEach(id => {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    const copy = { ...t, id: uid(), name: t.name + ' (copy)', createdAt: new Date().toISOString(), status: 'todo', completedAt: null };
+    delete copy.deadlineHistory;
+    tasks.splice(tasks.indexOf(t) + 1, 0, copy);
+    copies.push(copy);
+  });
+  clearSelection();
+  persist(); renderAll();
+  toast(`Duplicated ${copies.length} task${copies.length !== 1 ? 's' : ''}`);
+}
+
+// Recurring tasks: when a task with a `recurrence` field is marked done, spawn the next
+// occurrence instead of making the user re-enter it. Deadline/start date both shift by the
+// same interval so the gap between them (the planned working window) is preserved; a task
+// with no deadline just uses today as the anchor since there's nothing else to advance from.
+function _advanceDateStr(dateStr, freq) {
+  const d = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
+  if (freq === 'daily') d.setDate(d.getDate() + 1);
+  else if (freq === 'weekly') d.setDate(d.getDate() + 7);
+  else if (freq === 'monthly') d.setMonth(d.getMonth() + 1);
+  return _localDateStr(d);
+}
+function _maybeSpawnRecurrence(t) {
+  if (!t.recurrence) return;
+  const gapDays = (t.startDate && t.deadline)
+    ? Math.round((new Date(t.deadline) - new Date(t.startDate)) / 86400000)
+    : 0;
+  const nextDeadline = t.deadline ? _advanceDateStr(t.deadline, t.recurrence) : null;
+  const nextStart = nextDeadline
+    ? _localDateStr(new Date(new Date(nextDeadline + 'T00:00:00').getTime() - gapDays * 86400000))
+    : _advanceDateStr(t.startDate, t.recurrence);
+  const next = {
+    ...t, id: uid(), status: 'todo', completedAt: null,
+    startDate: nextStart, deadline: nextDeadline,
+    createdAt: new Date().toISOString(),
+  };
+  delete next.deadlineHistory;
+  delete next.notes;
+  tasks.unshift(next);
+  _logActivity('create', next.id, next.name, { recurrence: t.recurrence });
+  toast(`🔁 Next "${t.name.slice(0,28)}" scheduled for ${fmtDate(nextDeadline) || 'today'}`);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -6916,16 +7159,27 @@ function flash(fieldId) {
   setTimeout(() => el.style.borderColor = '', 2000);
 }
 
-function toast(msg) {
+// `action` is optional: {label, onClick} adds a small button to the toast (e.g. "Undo") and
+// gives it longer on screen than a plain informational toast.
+function toast(msg, action) {
   const box = document.getElementById('toasts');
   const el  = document.createElement('div');
   el.className = 'toast';
-  el.textContent = msg;
+  const msgEl = document.createElement('span');
+  msgEl.textContent = msg;
+  el.appendChild(msgEl);
+  if (action) {
+    const btn = document.createElement('button');
+    btn.className = 'toast-action';
+    btn.textContent = action.label;
+    btn.onclick = () => { action.onClick(); el.remove(); };
+    el.appendChild(btn);
+  }
   box.appendChild(el);
   setTimeout(() => {
     el.style.cssText = 'opacity:0;transition:opacity .25s';
     setTimeout(() => el.remove(), 250);
-  }, 2500);
+  }, action ? 5000 : 2500);
 }
 
 function openShortcutsModal()  { document.getElementById('shortcutsOverlay').classList.add('open'); }
