@@ -2174,6 +2174,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
         <div class="plan-row">
           <div class="plan-q">How long will this take?</div>
           <div class="plan-pills" id="planDuration">
+            <button class="plan-pill" onclick="setPlanDuration(0.03,0.25)">&lt;15 min</button>
             <button class="plan-pill" onclick="setPlanDuration(0.0625,0.5)">30 min</button>
             <button class="plan-pill" onclick="setPlanDuration(0.125,1)">1 hr</button>
             <button class="plan-pill" onclick="setPlanDuration(0.25,2)">2 hrs</button>
@@ -3973,6 +3974,7 @@ function cardHTML(t) {
             <span class="prio-dot" style="background:${PRIO_COLORS[t.priority]}"></span>
             ${prioLabel}
           </span>
+          ${t.durationHours ? `<div class="card-dl" style="margin-left:auto">⏱ ${_fmtDurHours(t.durationHours)}</div>` : ''}
         </div>
         <div class="card-row">
           ${t.fund && t.fund !== 'none' ? `<div class="fund-chip">${esc(t.fund)}</div>` : '<span style="font-size:10px;color:var(--t3)">No fund</span>'}
