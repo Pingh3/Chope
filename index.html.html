@@ -3726,7 +3726,9 @@ function _asortEditPriority(id, value) {
 // this review gets messy fast — simplest, most robust move is to close the review (nothing in
 // it is applied yet, so nothing is lost) and let the user re-open Revise Plan afterward to see
 // the suggestion recalculated against whatever they changed.
+let _autoSortReturnToReview = false;
 function _asortOpenTask(id) {
+  _autoSortReturnToReview = true;
   closeAutoSortReview();
   openTaskModal(id);
 }
@@ -5378,6 +5380,14 @@ function closeTaskModal() {
   _isSaving = false;
   editTaskId = null;
   document.activeElement?.blur();
+  // Came here via "Open task" from Revise Plan — jump back to it once this task's edits (if
+  // any) have actually landed. saveTask() calls closeTaskModal() BEFORE its own save logic
+  // runs, so reopening synchronously here would recompute the review against the old,
+  // pre-save data; deferring one tick lets that save logic finish first.
+  if (_autoSortReturnToReview) {
+    _autoSortReturnToReview = false;
+    setTimeout(openAutoSortReview, 0);
+  }
 }
 
 function saveTask() {
@@ -7328,6 +7338,7 @@ document.addEventListener('keydown', e => {
     closeOverduePanel();
     closeTaskModal(); closeWsModal(); closeTeamModal(); closeShortcutsModal();
     closeBulkModal(); closeNotifPanel(); closeProfileModal(); closeRefocus();
+    closeAutoSortReview();
   }
 
   if ((e.ctrlKey||e.metaKey) && e.key === 'z' && !typing) { e.preventDefault(); undo(); return; }
