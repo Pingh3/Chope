@@ -1,1 +1,8 @@
 .vercel
+node_modules/
+
+# Secrets — never commit these (Todoist token, Firebase service account, cron secret)
+.env
+.env.*
+!.env.example
+*.pem

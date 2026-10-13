@@ -4,5 +4,8 @@
       "master": true,
       "main": false
     }
+  },
+  "functions": {
+    "api/todoist-sync.js": { "maxDuration": 120 }
   }
 }

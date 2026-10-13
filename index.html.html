@@ -207,6 +207,9 @@
 .team-wl-stat{font-size:11px;color:var(--t3);display:flex;flex-direction:column;align-items:center;gap:1px;flex:1;min-width:40px}
 .team-wl-stat-num{font-size:17px;font-weight:800;color:var(--t1);line-height:1}
 .team-wl-stat-num.red{color:#DC2626}
+/* "Pushed N×": this task's date has been moved later 3+ times (see api/todoist-sync.js) */
+.push-badge{display:inline-flex;align-items:center;background:#FEE2E2;color:#B91C1C;border:1px solid #FECACA;border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap}
+[data-theme="dark"] .push-badge{background:#3B1212;color:#FCA5A5;border-color:#7F1D1D}
 /* Team drill-downs: any number that opens a task list in the slide-in panel */
 .team-drill{cursor:pointer;border-radius:6px;transition:background .12s}
 .team-drill:hover{background:var(--col)}
@@ -2016,6 +2019,9 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
     <button class="bvt-btn" onclick="openAutoSortReview()" title="Review a revised plan — start dates and priority — for every open task">
       ✨<span class="btn-lbl"> Revise Plan</span>
     </button>
+    <button class="bvt-btn" id="pushedReviewBtn" style="display:none" onclick="openPushedReview()" title="Tasks whose date you've pushed 3 or more times — for your weekly review">
+      🔁<span class="btn-lbl"> Pushed 3×</span>
+    </button>
     <div style="width:1px;height:18px;background:var(--border);margin:0 2px"></div>
     <span style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-right:2px">Sort</span>
     <button class="bvt-btn bvt-sort-btn active" data-sort="priority" onclick="setBoardSortMode('priority')" title="Sort by priority">Priority</button>
@@ -2295,6 +2301,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
     <div class="modal-ft">
       <button class="btn-danger" id="btnDelete" onclick="deleteTask()" style="display:none">Delete</button>
       <button class="btn-cal" id="btnAddCal" style="display:none" onclick="createCalendarEvent(editTaskId)">+ Add to Calendar</button>
+      <button class="btn-ghost" id="btnDecided" style="display:none" onclick="markDecided()" title="You've re-scoped, split, delegated or otherwise dealt with this task — reset its push count and clear the strike labels in Todoist">✓ Decided</button>
       <button class="btn-ghost" onclick="closeTaskModal()">Cancel</button>
       <button class="btn-primary" onclick="saveTask()">Save Task</button>
     </div>
@@ -2398,6 +2405,14 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
       </div>
       <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
         <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Todoist Integration <span id="todoistStatus" style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;margin-left:6px"></span></div>
+        <div id="todoistServerBox" style="display:none">
+          <div style="font-size:11px;color:var(--t3);margin-bottom:8px;line-height:1.5">Syncing is handled on the server, so there is no token to paste here. Tasks assigned to the owner sync automatically after every change (and on a schedule) into the <strong>Chope</strong> Todoist project. <strong>Start date</strong> → Todoist's Date, <strong>Due date</strong> → Todoist's deadline. Tasks pushed 3 times get a <em>strike-3</em> label.</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn-ghost" style="font-size:12px;white-space:nowrap" onclick="syncAllToTodoist(this)">↻ Sync now</button>
+            <span id="todoistServerMsg" style="font-size:11px;color:var(--t3);flex:1"></span>
+          </div>
+        </div>
+        <div id="todoistLegacyBox">
         <div style="font-size:11px;color:var(--t3);margin-bottom:8px;line-height:1.5">Your tasks (assigned to the current user) will sync automatically to a <strong>Chope</strong> project in Todoist. Get your API token from <em>Todoist → Settings → Integrations → API token</em>.</div>
         <div style="display:flex;gap:8px">
           <input class="fi" id="todoistTokenInput" type="password" placeholder="Paste your Todoist API token" style="flex:1;font-size:12px">
@@ -2407,6 +2422,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
           <button class="btn-ghost" style="font-size:12px;white-space:nowrap" onclick="testTodoistConnection(this)">⚡ Test</button>
           <button class="btn-ghost" style="font-size:12px;white-space:nowrap" onclick="syncAllToTodoist(this)">↑ Sync all my tasks</button>
           <span id="todoistSyncMsg" style="font-size:11px;color:var(--t3);flex:1"></span>
+        </div>
         </div>
       </div>
       <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
@@ -2702,6 +2718,12 @@ let wsExpanded = new Set();    // workstream IDs that are expanded
 let wsDoneExpanded = new Set(); // workstream IDs with done tasks visible
 let suggestedPrio = 'med';
 let _undoStack = [];
+// Todoist sync runs on the server once TODOIST_API_TOKEN is set there (api/todoist-sync.js). The
+// browser only nudges it after saves and reads back the reschedule ("pushed N×") counts.
+let _tdServerMode = false;        // set by _tdInitServerMode() when the server reports it is enabled
+let _tdStrikes = {};              // taskId -> reschedule count, from the server
+let _tdPingTimer = null, _tdPingBusy = false, _tdLastSync = null;
+const _tdPingHints = new Set();   // ids deleted in Chope, so the server can mirror the delete at once
 let activityLog = [];
 
 function _logActivity(type, taskId, taskName, extra) {
@@ -2739,6 +2761,7 @@ let _localTaskOverrides = {}; // taskId → { ...taskData, _ts: timestamp } — 
 // server copy. Entries expire after 60s — long enough to cover the merge race window.
 let _recentlyDeletedIds = new Set();
 function _markDeleted(id) {
+  _tdPingHints.add(id);
   _recentlyDeletedIds.add(id);
   setTimeout(() => _recentlyDeletedIds.delete(id), 60000);
 }
@@ -2925,6 +2948,7 @@ async function _persistToFirestoreMerged(snapshot) {
       activityLog: snapshot.activityLog, scheduleData: snapshot.scheduleData,
       _savedAt: snapshot.savedAt,
     }));
+    _tdSchedulePing(); // the server reads Firestore, so only nudge it once this write has landed
   } catch (e) {
     // This is the change actually failing to reach the shared board — previously only a
     // console.warn, so a device with a broken write path (stale auth, revoked permission,
@@ -3883,7 +3907,7 @@ function renderBoardAsList() {
       <button class="row-check ${isDone ? 'checked' : ''}" onclick="toggleTaskDone('${t.id}');event.stopPropagation()" title="Mark ${isDone ? 'incomplete' : 'complete'}">
         <svg viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
       </button>
-      <div class="blist-name">${t.recurrence?`<span title="Repeats ${t.recurrence}">🔁</span> `:''}${esc(t.name)}</div>
+      <div class="blist-name">${t.recurrence?`<span title="Repeats ${t.recurrence}">🔁</span> `:''}${esc(t.name)} ${_tdBadge(t.id)}</div>
       <div class="blist-desc">${desc ? esc(desc) : (ws ? esc(ws.name) : '')}</div>
       <div class="blist-cat">${cat.label ? `<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:${cat.bg||'#F3F4F6'};color:${cat.color||'#666'}">${esc(cat.label)}</span>` : ''}</div>
       <div class="blist-assignee-cell">
@@ -4102,6 +4126,7 @@ function cardHTML(t) {
             <span class="prio-dot" style="background:${PRIO_COLORS[t.priority]}"></span>
             ${prioLabel}
           </span>
+          ${_tdBadge(t.id)}
           ${t.durationHours ? `<div class="card-dl" style="margin-left:auto">⏱ ${_fmtDurHours(t.durationHours)}</div>` : ''}
         </div>
         <div class="card-row">
@@ -5327,6 +5352,7 @@ function openTaskModal(id) {
   if (calBtn) calBtn.style.display = 'none';
   updateSelDots();
   resetPlanBox();
+  _updateDecidedBtn(id);
   if (id) { const t = tasks.find(x => x.id === id); if (t?.durationHours) _planDurationHours = t.durationHours; }
   // Reset notes UI
   document.getElementById('handoffBox').classList.remove('show');
@@ -6581,6 +6607,116 @@ if (_todoistToken && _todoistToken !== (localStorage.getItem('chope_todoist_toke
 let _todoistProjectId = localStorage.getItem('chope_todoist_project_id') || '';
 const _TODOIST = '/api/todoist'; // proxied via Vercel Function to avoid CORS
 
+/* ── Server-side sync client ───────────────────────────────────────────────────────────
+   When the server has a Todoist token (api/todoist-sync.js), IT does all syncing: the legacy
+   browser functions below stand down (guarded on _tdServerMode) so two writers never fight over
+   the same Todoist tasks — multiple writers is what produced the duplicates. Nothing here writes
+   to Todoist directly; it only (a) nudges the server after a save, (b) reads back the reschedule
+   counts that drive the "Pushed N×" badge and the review list. */
+async function _tdApi(payload) {
+  const user = window._chopeFb?.currentUser;
+  if (!user) throw new Error('not signed in');
+  const idToken = await user.getIdToken();
+  const r = await fetch('/api/todoist-sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify(payload),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+}
+async function _tdInitServerMode() {
+  try { _tdServerMode = !!(await _tdApi({ action: 'status' })).enabled; } catch { _tdServerMode = false; }
+  renderTodoistStatus();
+  const btn = document.getElementById('pushedReviewBtn');
+  if (btn) btn.style.display = _tdServerMode ? '' : 'none';
+  if (_tdServerMode) {
+    try { _tdApplyCounts((await _tdApi({ action: 'strikes', min: 3 })).counts); } catch (e) { console.warn('strike counts:', e.message); }
+  }
+}
+function _tdApplyCounts(counts) {
+  const next = counts || {};
+  if (JSON.stringify(next) === JSON.stringify(_tdStrikes)) return;
+  _tdStrikes = next;
+  renderAll();
+}
+function _tdSchedulePing() {
+  if (!_tdServerMode) return;
+  clearTimeout(_tdPingTimer);
+  _tdPingTimer = setTimeout(_tdPingNow, 4000); // coalesce a burst of edits into one sync
+}
+async function _tdPingNow(manual) {
+  if (!_tdServerMode) return null;
+  if (_tdPingBusy) { _tdSchedulePing(); return null; }
+  _tdPingBusy = true;
+  const deleted = [..._tdPingHints]; _tdPingHints.clear();
+  try {
+    const r = await _tdApi({ action: 'sync', deleted });
+    _tdLastSync = { at: Date.now(), ok: !!r.ok, errors: r.errors?.length || 0, skipped: r.skipped };
+    _tdApplyCounts(r.counts);
+    return r;
+  } catch (e) {
+    console.warn('Todoist sync failed:', e.message);
+    deleted.forEach(id => _tdPingHints.add(id)); // retry the delete hints next time
+    _tdLastSync = { at: Date.now(), ok: false, errors: 1, message: e.message };
+    return null;
+  } finally { _tdPingBusy = false; }
+}
+function _tdBadge(taskId) {
+  const n = _tdStrikes[taskId];
+  return n >= 3
+    ? `<span class="push-badge" title="This task's date has been pushed ${n} times — decide: break it down, delegate, move to someday, or delete">Pushed ${n}×</span>`
+    : '';
+}
+async function markDecided(taskId) {
+  const id = taskId || editTaskId;
+  if (!id) return;
+  try {
+    const r = await _tdApi({ action: 'decided', taskId: id });
+    _tdApplyCounts(r.counts);
+    toast('✓ Decided — push count reset');
+    const b = document.getElementById('btnDecided'); if (b) b.style.display = 'none';
+    if (document.getElementById('overduePanelTitle')?.textContent.includes('🔁')) openPushedReview();
+  } catch (e) { toast('Could not reset: ' + e.message); }
+}
+function _updateDecidedBtn(taskId) {
+  const b = document.getElementById('btnDecided');
+  if (!b) return;
+  const n = taskId ? _tdStrikes[taskId] : 0;
+  const show = _tdServerMode && n >= 1 && state.currentUser === ADMIN_USER;
+  b.style.display = show ? '' : 'none';
+  if (show) b.textContent = `✓ Decided (pushed ${n}×)`;
+}
+// Friday review: everything pushed 3+ times, worst first. Reuses the slide-in task panel.
+async function openPushedReview() {
+  const titleEl = document.getElementById('overduePanelTitle');
+  const body = document.getElementById('overduePanelBody');
+  titleEl.textContent = '🔁 Pushed 3× or more'; titleEl.style.color = '#B91C1C';
+  body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--t3);font-size:13px">Loading…</div>';
+  document.getElementById('overduePanel').style.display = 'flex';
+  try {
+    const v = await _tdApi({ action: 'strikes', min: 3 });
+    _tdApplyCounts(v.counts);
+    titleEl.textContent = `🔁 Pushed 3× or more (${v.items.length})`;
+    body.innerHTML = v.items.length ? v.items.map(i => `
+      <div class="panel-task-row" style="cursor:default">
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="openTaskModal('${i.taskId}');closeOverduePanel()">
+          <div style="font-size:13px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(i.title)}</div>
+          <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap;font-size:11px;color:var(--t3)">
+            <span class="push-badge">Pushed ${i.count}×</span>
+            <span>Originally ${i.originalDate ? fmtDate(i.originalDate) : '—'} → now <strong style="color:var(--t1)">${i.currentDate ? fmtDate(i.currentDate) : 'no date'}</strong></span>
+            <span>${i.daysSinceFirstScheduled == null ? '' : i.daysSinceFirstScheduled + ' days since first scheduled'}</span>
+          </div>
+        </div>
+        ${state.currentUser === ADMIN_USER ? `<button class="btn-ghost" style="font-size:11px;white-space:nowrap" onclick="markDecided('${i.taskId}')">✓ Decided</button>` : ''}
+      </div>`).join('')
+      : '<div style="text-align:center;padding:32px;color:var(--t3);font-size:13px">Nothing has been pushed 3 times. 🎉</div>';
+  } catch (e) {
+    body.innerHTML = `<div style="text-align:center;padding:32px;color:#B91C1C;font-size:13px">Could not load: ${esc(e.message)}</div>`;
+  }
+}
+
 function _tdPriority(p) { return p === 'high' ? 4 : p === 'med' ? 3 : p === 'low' ? 2 : 1; }
 
 function _tdUUID() {
@@ -6655,6 +6791,7 @@ async function _tdSync(task) {
 
 // Throwing version used by bulk sync for proper error reporting
 async function _tdSyncThrows(task) {
+  if (_tdServerMode) return; // the server owns syncing now
   if (!_todoistToken || task.assignee !== state.currentUser) return;
   const projectId = await _tdEnsureProject();
   // Todoist API v1 create/update task fields are flat (not nested), confirmed against
@@ -6711,19 +6848,19 @@ async function _tdSyncThrows(task) {
 }
 
 async function _tdClose(task) {
-  if (!_todoistToken || !task.todoistId) return;
+  if (_tdServerMode || !_todoistToken || !task.todoistId) return;
   try { await fetch(`${_TODOIST}/tasks/${task.todoistId}/close`, { method: 'POST', headers: { Authorization: `Bearer ${_todoistToken}` } }); }
   catch(e) {}
 }
 
 async function _tdReopen(task) {
-  if (!_todoistToken || !task.todoistId) return;
+  if (_tdServerMode || !_todoistToken || !task.todoistId) return;
   try { await fetch(`${_TODOIST}/tasks/${task.todoistId}/reopen`, { method: 'POST', headers: { Authorization: `Bearer ${_todoistToken}` } }); }
   catch(e) {}
 }
 
 async function _tdDelete(todoistId) {
-  if (!_todoistToken || !todoistId) return;
+  if (_tdServerMode || !_todoistToken || !todoistId) return;
   try { await fetch(`${_TODOIST}/tasks/${todoistId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${_todoistToken}` } }); }
   catch(e) {}
 }
@@ -6757,6 +6894,22 @@ async function testTodoistConnection(btn) {
 }
 
 async function syncAllToTodoist(btn) {
+  if (_tdServerMode) { // "Sync now": ask the server to reconcile immediately
+    const msg = document.getElementById('todoistServerMsg');
+    btn.disabled = true; if (msg) { msg.style.color = 'var(--t3)'; msg.textContent = 'Syncing…'; }
+    const r = await _tdPingNow(true);
+    btn.disabled = false;
+    if (!msg) return;
+    if (!r) { msg.style.color = '#EF4444'; msg.textContent = `✗ ${_tdLastSync?.message || 'Sync failed'}`; }
+    else if (r.skipped?.includes?.('locked')) { msg.style.color = 'var(--t3)'; msg.textContent = 'Another sync is already running — try again in a moment'; }
+    else {
+      const parts = ['created', 'updated', 'closed', 'reopened', 'deleted', 'adopted', 'recreated'].filter(k => r[k]).map(k => `${r[k]} ${k}`);
+      msg.style.color = r.ok ? '#059669' : '#EF4444';
+      msg.textContent = (r.ok ? '✓ ' : `✗ ${r.errors.length} failed — `) + (parts.join(', ') || 'already up to date')
+        + (r.skipped?.length ? ` · ${r.skipped.length} skipped (duplicate titles in Todoist)` : '');
+    }
+    return;
+  }
   if (!_todoistToken) { toast('Paste and save your Todoist API token first'); return; }
   const me = state.currentUser;
   if (!me) { toast('Select a user first'); return; }
@@ -6809,7 +6962,11 @@ function saveTodoistToken() {
 
 function renderTodoistStatus() {
   const el = document.getElementById('todoistStatus');
+  const legacy = document.getElementById('todoistLegacyBox'), server = document.getElementById('todoistServerBox');
+  if (legacy) legacy.style.display = _tdServerMode ? 'none' : '';
+  if (server) server.style.display = _tdServerMode ? '' : 'none';
   if (!el) return;
+  if (_tdServerMode) { el.textContent = '● Synced by the server'; el.style.color = '#059669'; return; }
   el.textContent = _todoistToken ? '● Connected' : '○ Not connected';
   el.style.color = _todoistToken ? '#059669' : '#9CA3AF';
 }
@@ -8266,6 +8423,7 @@ function setupGmailAuth() {
         renderAll();
         setInterval(renderAll, 60000);
         setTimeout(checkRefocusPrompt, 1200);
+        _tdInitServerMode();
       } else {
         renderHeader();
       }
