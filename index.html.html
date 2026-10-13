@@ -207,6 +207,15 @@
 .team-wl-stat{font-size:11px;color:var(--t3);display:flex;flex-direction:column;align-items:center;gap:1px;flex:1;min-width:40px}
 .team-wl-stat-num{font-size:17px;font-weight:800;color:var(--t1);line-height:1}
 .team-wl-stat-num.red{color:#DC2626}
+/* Team drill-downs: any number that opens a task list in the slide-in panel */
+.team-drill{cursor:pointer;border-radius:6px;transition:background .12s}
+.team-drill:hover{background:var(--col)}
+.team-vel-row.team-drill{padding:2px 4px;margin:0 -4px}
+.team-kpi-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:10px;margin-bottom:32px}
+.team-kpi-tile{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:left;cursor:pointer;font-family:inherit;transition:background .12s,box-shadow .12s}
+.team-kpi-tile:hover{background:var(--col);box-shadow:var(--sh)}
+.team-kpi-val{font-size:22px;font-weight:800;color:var(--t1);line-height:1.1}
+.team-kpi-lbl{font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
 .team-feed-wrap{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;max-height:380px;overflow-y:auto}
 .team-stale-wrap{display:flex;flex-direction:column;gap:6px}
 .team-stale-item{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;font-size:12px}
@@ -2449,6 +2458,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
         <div class="sc-row"><kbd>H</kbd><span>Filter High priority</span></div>
         <div class="sc-row"><kbd>M</kbd><span>Filter Medium priority</span></div>
         <div class="sc-row"><kbd>L</kbd><span>Filter Low priority</span></div>
+        <div class="sc-row"><kbd>X</kbd><span>Clear all filters</span></div>
       </div>
       <div class="sc-group" style="border-bottom:none">
         <div class="sc-group-label">General</div>
@@ -6171,11 +6181,59 @@ function openUpcomingPanel(filterUser) {
   document.getElementById('overduePanel').style.display = 'flex';
 }
 
+// Team Dashboard drill-down: one generic panel for every clickable team number, scoped to one
+// person when `member` is given. Reuses the same slide-in panel as the My Day cards (rows open
+// the task and close the panel, so nothing stacks). The stale rule matches the dashboard's own
+// Stale In-Progress section (in progress for more than 5 days since creation).
+let _teamPanelState = null;
+function _weekBounds() {
+  const now = new Date();
+  const msSinceMon = ((now.getDay() === 0 ? 6 : now.getDay() - 1)) * 86400000;
+  const startThis = new Date(now.getTime() - msSinceMon); startThis.setHours(0, 0, 0, 0);
+  return { startThis, startLast: new Date(startThis.getTime() - 7 * 86400000) };
+}
+function openTeamTaskPanel(kind, member) {
+  _teamPanelState = { kind, member: member || null };
+  const todayStr = todayLocal();
+  const now = Date.now(), D = 86400000;
+  const { startThis, startLast } = _weekBounds();
+  const doneAt = t => (t.status === 'done' && t.completedAt) ? new Date(t.completedAt) : null;
+  const kinds = {
+    all:      { icon: '📋', label: 'All Tasks',          color: 'var(--t1)', test: () => true,                                                    empty: 'No tasks.' },
+    open:     { icon: '📋', label: 'Open Tasks',         color: 'var(--t1)', test: t => t.status !== 'done',                                      empty: 'No open tasks 🎉' },
+    done:     { icon: '✅', label: 'Completed',          color: '#059669',   test: t => t.status === 'done',                                      empty: 'No completed tasks yet.' },
+    overdue:  { icon: '⚠',  label: 'Overdue',            color: '#DC2626',   test: t => t.status !== 'done' && t.deadline && t.deadline < todayStr, empty: 'Nothing overdue 🎉' },
+    high:     { icon: '⚡', label: 'High Priority Open', color: '#DC2626',   test: t => t.status !== 'done' && t.priority === 'high',             empty: 'No open high-priority tasks.' },
+    stale:    { icon: '⏳', label: 'Stale In-Progress',  color: '#D97706',   test: t => t.status === 'inprogress' && t.createdAt && (now - new Date(t.createdAt)) > 5 * D, empty: 'No stale in-progress tasks.' },
+    done7:    { icon: '✅', label: 'Done in Last 7 Days',  color: '#059669', test: t => { const d = doneAt(t); return d && (now - d) < 7 * D; },  empty: 'Nothing completed in the last 7 days.' },
+    done30:   { icon: '✅', label: 'Done in Last 30 Days', color: '#059669', test: t => { const d = doneAt(t); return d && (now - d) < 30 * D; }, empty: 'Nothing completed in the last 30 days.' },
+    thisweek: { icon: '✅', label: 'Done This Week',     color: '#059669',   test: t => { const d = doneAt(t); return d && d >= startThis; },     empty: 'Nothing completed this week yet.' },
+    lastweek: { icon: '✅', label: 'Done Last Week',     color: '#059669',   test: t => { const d = doneAt(t); return d && d >= startLast && d < startThis; }, empty: 'Nothing completed last week.' },
+  };
+  const k = kinds[kind];
+  if (!k) return;
+  const isDoneKind = ['done', 'done7', 'done30', 'thisweek', 'lastweek'].includes(kind);
+  const list = tasks.filter(t => (!member || t.assignee === member) && k.test(t));
+  const prio = { high: 0, med: 1, low: 2 };
+  list.sort(isDoneKind
+    ? (a, b) => (b.completedAt || '').localeCompare(a.completedAt || '')
+    : (a, b) => (a.deadline || '9999').localeCompare(b.deadline || '9999') || (prio[a.priority] ?? 1) - (prio[b.priority] ?? 1));
+  const titleEl = document.getElementById('overduePanelTitle');
+  titleEl.textContent = `👥 ${k.icon} ${member ? member + "'s " : ''}${k.label} (${list.length})`;
+  titleEl.style.color = k.color;
+  document.getElementById('overduePanelBody').innerHTML = list.length
+    ? list.map(t => _panelTaskRow(t, todayStr, 'open')).join('')
+    : `<div style="text-align:center;padding:32px;color:var(--t3);font-size:13px">${k.empty}</div>`;
+  document.getElementById('overduePanel').style.display = 'flex';
+}
+
 // Toggle done and refresh whichever slide-in panel is currently open
 function toggleDoneInPanel(id) {
   toggleTaskDone(id);
   const title = (document.getElementById('overduePanelTitle')?.textContent || '');
-  if (title.includes('⚠')) {
+  if (title.includes('👥') && _teamPanelState) {
+    openTeamTaskPanel(_teamPanelState.kind, _teamPanelState.member);
+  } else if (title.includes('⚠')) {
     const m = title.match(/⚠\s(.+?)'s\sOverdue/); openOverduePanel(m ? m[1] : null);
   } else if (title.includes('📆')) {
     const m = title.match(/📆\s(.+?)'s\sUpcoming/); openUpcomingPanel(m ? m[1] : null);
@@ -7380,6 +7438,10 @@ document.addEventListener('keydown', e => {
     case 'h': case 'H': setFilter('priority', state.priority === 'high' ? 'all' : 'high'); renderAll(); break;
     case 'm': case 'M': setFilter('priority', state.priority === 'med'  ? 'all' : 'med');  renderAll(); break;
     case 'l': case 'L': setFilter('priority', state.priority === 'low'  ? 'all' : 'low');  renderAll(); break;
+    // clearAllFilters() leaves the category tab alone (it's navigation, and that function backs
+    // the filter bar's own "clear" link) — the shortcut means "reset everything", so it also
+    // drops back to the All tab.
+    case 'x': case 'X': state.cat = 'all'; clearAllFilters(); toast('Filters cleared'); break;
     case '?': openShortcutsModal(); break;
   }
 });
@@ -9240,11 +9302,11 @@ function renderTeamView(force) {
           <div style="width:24px;height:24px;border-radius:50%;background:${avatarColor(m.name)};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0">${esc(initials(m.name))}</div>
           ${esc(m.name.split(' ')[0])}
         </div>
-        <div class="team-vel-row">
+        <div class="team-vel-row team-drill" onclick="openTeamTaskPanel('thisweek','${esc(m.name)}')" title="List what ${esc(m.name)} completed this week">
           <span class="team-vel-label">This week</span>
           <span class="team-vel-num">${thisW}</span>
         </div>
-        <div class="team-vel-row">
+        <div class="team-vel-row team-drill" onclick="openTeamTaskPanel('lastweek','${esc(m.name)}')" title="List what ${esc(m.name)} completed last week">
           <span class="team-vel-label">Last week</span>
           <span style="font-size:13px;color:var(--t2);font-weight:600">${lastW}</span>
         </div>
@@ -9306,23 +9368,23 @@ function renderTeamView(force) {
         ${avatarHTML}
         <div>
           <div class="team-profile-name">${esc(m.name)}</div>
-          <div class="team-profile-role">${open.length} open · ${overdue.length ? `<span style="color:#EF4444">${overdue.length} overdue</span>` : 'no overdue'}</div>
+          <div class="team-profile-role"><span class="team-drill" style="padding:0 2px" onclick="event.stopPropagation();openTeamTaskPanel('open','${esc(m.name)}')" title="List ${esc(m.name)}'s open tasks">${open.length} open</span> · ${overdue.length ? `<span class="team-drill" style="color:#EF4444;padding:0 2px" onclick="event.stopPropagation();openTeamTaskPanel('overdue','${esc(m.name)}')" title="List ${esc(m.name)}'s overdue tasks">${overdue.length} overdue</span>` : 'no overdue'}</div>
         </div>
       </div>
       <div class="team-profile-kpis">
-        <div class="team-profile-kpi">
+        <div class="team-profile-kpi team-drill" onclick="openTeamTaskPanel('all','${esc(m.name)}')" title="List all of ${esc(m.name)}'s tasks">
           <div class="team-profile-kpi-val">${all.length}</div>
           <div class="team-profile-kpi-lbl">Total Tasks</div>
         </div>
-        <div class="team-profile-kpi">
+        <div class="team-profile-kpi team-drill" onclick="openTeamTaskPanel('done','${esc(m.name)}')" title="List ${esc(m.name)}'s completed tasks">
           <div class="team-profile-kpi-val" style="color:#059669">${done.length}</div>
           <div class="team-profile-kpi-lbl">Completed</div>
         </div>
-        <div class="team-profile-kpi">
+        <div class="team-profile-kpi team-drill" onclick="openTeamTaskPanel('done','${esc(m.name)}')" title="List ${esc(m.name)}'s completed tasks">
           <div class="team-profile-kpi-val" style="color:${rate>=70?'#059669':'#D97706'}">${rate}%</div>
           <div class="team-profile-kpi-lbl">Done Rate</div>
         </div>
-        <div class="team-profile-kpi">
+        <div class="team-profile-kpi team-drill" onclick="openTeamTaskPanel('done30','${esc(m.name)}')" title="List what ${esc(m.name)} completed in the last 30 days">
           <div class="team-profile-kpi-val" style="color:#2563EB">${done.filter(t => t.completedAt && new Date(t.completedAt) >= thirtyDaysAgo).length}</div>
           <div class="team-profile-kpi-lbl">Done 30d</div>
         </div>
@@ -9358,9 +9420,9 @@ function renderTeamView(force) {
         </div>
         <div class="team-wl-health"><div class="team-wl-health-bar" style="width:${health}%;background:${healthColor}"></div></div>
         <div class="team-wl-stats">
-          <div class="team-wl-stat"><span class="team-wl-stat-num">${open}</span><span>open</span></div>
-          <div class="team-wl-stat"><span class="team-wl-stat-num${high >= 3 ? ' red' : ''}">${high}</span><span>high pri</span></div>
-          <div class="team-wl-stat"><span class="team-wl-stat-num${overdue ? ' red' : ''}">${overdue}</span><span>overdue</span></div>
+          <div class="team-wl-stat team-drill" onclick="event.stopPropagation();openTeamTaskPanel('open','${esc(m.name)}')" title="List ${esc(m.name)}'s open tasks"><span class="team-wl-stat-num">${open}</span><span>open</span></div>
+          <div class="team-wl-stat team-drill" onclick="event.stopPropagation();openTeamTaskPanel('high','${esc(m.name)}')" title="List ${esc(m.name)}'s open high-priority tasks"><span class="team-wl-stat-num${high >= 3 ? ' red' : ''}">${high}</span><span>high pri</span></div>
+          <div class="team-wl-stat team-drill" onclick="event.stopPropagation();openTeamTaskPanel('overdue','${esc(m.name)}')" title="List ${esc(m.name)}'s overdue tasks"><span class="team-wl-stat-num${overdue ? ' red' : ''}">${overdue}</span><span>overdue</span></div>
         </div>
       </div>`;
   }).join('');
@@ -9441,13 +9503,36 @@ function renderTeamView(force) {
       </div>`;
   }).join('');
 
+  // ── Section: Team-wide KPI strip (every tile opens its task list) ──
+  const _openAll   = tasks.filter(t => t.status !== 'done');
+  const _overdueN  = _openAll.filter(t => t.deadline && t.deadline < todayStr).length;
+  const _highN     = _openAll.filter(t => t.priority === 'high').length;
+  const _done7N    = tasks.filter(t => t.status === 'done' && t.completedAt && (now - new Date(t.completedAt)) < 7 * 86400000).length;
+  const _done30N   = tasks.filter(t => t.status === 'done' && t.completedAt && (now - new Date(t.completedAt)) < 30 * 86400000).length;
+  const kpiTile = (kind, label, n, color) => `
+    <button type="button" class="team-kpi-tile" onclick="openTeamTaskPanel('${kind}')" title="List these tasks">
+      <div class="team-kpi-val" style="color:${color || 'var(--t1)'}">${n}</div>
+      <div class="team-kpi-lbl">${label}</div>
+    </button>`;
+  const kpiStripHtml = `<div class="team-kpi-strip">
+    ${kpiTile('all',     'Total Tasks',  tasks.length)}
+    ${kpiTile('open',    'Open',         _openAll.length)}
+    ${kpiTile('overdue', 'Overdue',      _overdueN, _overdueN ? '#DC2626' : '#059669')}
+    ${kpiTile('high',    'High Pri Open', _highN, _highN >= 5 ? '#DC2626' : '')}
+    ${kpiTile('stale',   'Stale',        staleTasks.length, staleTasks.length ? '#D97706' : '#059669')}
+    ${kpiTile('done7',   'Done 7d',      _done7N, '#059669')}
+    ${kpiTile('done30',  'Done 30d',     _done30N, '#059669')}
+    ${kpiTile('done',    'Completed',    tasks.length - _openAll.length, '#059669')}
+  </div>`;
+
   el.innerHTML = `
     <div class="team-dash">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <h1>Team Dashboard</h1>
         <button class="btn-ws" onclick="exportTasksMarkdown()" title="Download all completed and open tasks as a Markdown file">⬇ Export Tasks (.md)</button>
       </div>
-      <div class="team-dash-sub">Team-wide activity and health · click any workload card to filter the Board to that person</div>
+      <div class="team-dash-sub">Team-wide activity and health · click any number to list those tasks, or a workload card to filter the Board to that person</div>
+      ${kpiStripHtml}
 
       ${!isAdmin ? '' : `
       <div class="team-section team-section-side" style="border-color:#FDE68A">
@@ -9513,7 +9598,7 @@ function renderTeamView(force) {
       </div>
 
       <div class="team-section">
-        <div class="team-section-hd">💼 Workload Health <span>click a card to filter Board to that person</span></div>
+        <div class="team-section-hd">💼 Workload Health <span>click a card to filter Board to that person · click a number to list those tasks</span></div>
         <div class="team-workload-grid">${wlCards}</div>
       </div>
 
