@@ -20,6 +20,7 @@
   },
   "homepage": "https://github.com/Pingh3/Chope#readme",
   "dependencies": {
-    "firebase-admin": "^14.2.0"
+    "firebase-admin": "^14.2.0",
+    "jose": "^6.2.3"
   }
 }

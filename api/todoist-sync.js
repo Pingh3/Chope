@@ -15,7 +15,8 @@
 //   CHOPE_TZ              default "Asia/Singapore" — defines "same calendar day" for strikes
 //   CRON_SECRET           shared secret for the scheduled reconcile
 //   FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY   (already set for api/focus.js)
-import { adminDb, adminAuth } from '../lib/firebaseAdmin.js';
+import { adminDb } from '../lib/firebaseAdmin.js';
+import { createFirebaseVerifier } from '../lib/verifyFirebaseToken.js';
 import { createTodoistClient } from '../lib/todoistClient.js';
 import { createFirestoreStore } from '../lib/syncStore.js';
 import { runSync, decide, buildStrikeView } from '../lib/todoistSync.js';
@@ -34,7 +35,7 @@ async function authUser(req) {
   const m = /^Bearer (.+)$/.exec(req.headers.authorization || '');
   if (!m) return null;
   try {
-    const decoded = await adminAuth().verifyIdToken(m[1]);
+    const decoded = await createFirebaseVerifier({ projectId: process.env.FIREBASE_PROJECT_ID })(m[1]);
     if (!decoded.email) return null;
     const snap = await adminDb().collection('chope_allowlist').doc(decoded.email).get();
     if (!snap.exists) return null;
