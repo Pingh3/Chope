@@ -2120,6 +2120,8 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
       <button class="btn-add" onclick="gmailScanInbox()" id="gmailScanBtn" style="flex:1">Scan Inbox</button>
       <button class="btn-ghost" onclick="gmailSendBrief()" id="gmailBriefBtn" style="font-size:12px;padding:6px 12px" title="Email today's tasks to yourself">Send Today's Brief</button>
     </div>
+    <button class="btn-ghost" onclick="gmailPullLabelled(true)" style="width:100%;font-size:12px;padding:6px 12px;margin-top:8px" title="Turn every email labelled Chope (last 30 days) into a task">📥 Pull emails labelled “Chope”</button>
+    <div style="font-size:10px;color:var(--t3);margin-top:6px;line-height:1.5">Tip: label any email <strong>Chope</strong> in Gmail — or drag it into your Chope folder in Outlook (Google Workspace Sync) — and it becomes a task here while Chope is open.</div>
     <button class="btn-ghost" onclick="gmailSendWeeklyAudit()" id="weeklyAuditBtn" style="width:100%;font-size:12px;padding:6px 12px;margin-top:8px;display:flex;justify-content:space-between;align-items:center" title="Send end-of-week team audit to yourself">
       <span>📊 Weekly Audit</span><span id="weeklyAuditAge" style="font-size:10px;color:var(--t3)"></span>
     </button>
@@ -2149,6 +2151,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
       <div class="mf">
         <label>Description</label>
         <textarea class="fi" id="fDesc" placeholder="Add details, context, or steps…" oninput="onDescInput()"></textarea>
+        <a id="emailLinkRow" href="#" target="_blank" rel="noopener noreferrer" style="display:none;font-size:11px;color:var(--p);text-decoration:none;margin-top:2px">📧 Open the original email</a>
         <div class="priority-hint" id="prioHint" style="display:none">
           AI suggestion: <span id="prioSugg" class="psugg"></span>
           <button class="btn-sm" onclick="applyPrioSugg()">Apply</button>
@@ -2948,8 +2951,10 @@ async function _persistToFirestoreMerged(snapshot) {
       activityLog: snapshot.activityLog, scheduleData: snapshot.scheduleData,
       _savedAt: snapshot.savedAt,
     }));
+    window._fsWriteOk = true;
     _tdSchedulePing(); // the server reads Firestore, so only nudge it once this write has landed
   } catch (e) {
+    window._fsWriteOk = false; // _inboxPoll() won't acknowledge inbox items while saves are failing
     // This is the change actually failing to reach the shared board — previously only a
     // console.warn, so a device with a broken write path (stale auth, revoked permission,
     // network drop) would look completely normal to the user while every edit they made
@@ -5353,6 +5358,11 @@ function openTaskModal(id) {
   updateSelDots();
   resetPlanBox();
   _updateDecidedBtn(id);
+  { // "Open the original email" — only for tasks that came from Gmail, and only ever a Gmail link
+    const link = id ? tasks.find(x => x.id === id)?.emailLink : null;
+    const a = document.getElementById('emailLinkRow');
+    if (a) { const ok = typeof link === 'string' && /^https:\/\/mail\.google\.com\//.test(link); a.style.display = ok ? '' : 'none'; if (ok) a.href = link; }
+  }
   if (id) { const t = tasks.find(x => x.id === id); if (t?.durationHours) _planDurationHours = t.durationHours; }
   // Reset notes UI
   document.getElementById('handoffBox').classList.remove('show');
@@ -8424,6 +8434,7 @@ function setupGmailAuth() {
         setInterval(renderAll, 60000);
         setTimeout(checkRefocusPrompt, 1200);
         _tdInitServerMode();
+        _startEmailPickup();
       } else {
         renderHeader();
       }
@@ -8655,6 +8666,102 @@ async function gmailScanInbox() {
 
 function suggestTaskFromSubject(subject) {
   return subject.replace(/^(re:|fwd?:|fw:)\s*/i,'').trim().slice(0,80) || '(no subject)';
+}
+
+/* ── Getting tasks out of email ───────────────────────────────────────────────────────
+   (a) Label route — works in Gmail, Gmail mobile AND Outlook-with-Google-Workspace-Sync (where
+       Gmail labels appear as Outlook folders): label an email "Chope" and, while Chope is open
+       and Gmail is connected, each labelled thread becomes one task, once.
+   (b) Chrome extension route — the extension drops tasks into a server-side inbox
+       (api/inbox.js); this app pulls them into the task list itself, saves, and only THEN
+       acknowledges them. The server never writes the shared task array directly, because a
+       browser saving at the same instant would silently overwrite it. */
+async function _inboxApi(payload) {
+  const user = window._chopeFb?.currentUser;
+  if (!user) throw new Error('not signed in');
+  const r = await fetch('/api/inbox', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await user.getIdToken()}` },
+    body: JSON.stringify(payload),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+}
+let _inboxBusy = false;
+async function _inboxPoll() {
+  if (_inboxBusy || !window._chopeFb?.currentUser || !state.currentUser) return;
+  _inboxBusy = true;
+  try {
+    const { items } = await _inboxApi({ action: 'drain' });
+    if (!items?.length) return;
+    const have = new Set(tasks.map(t => t.id));
+    const fresh = items.filter(t => !have.has(t.id));
+    if (fresh.length) {
+      fresh.forEach(t => tasks.unshift(t));
+      window._fsWriteOk = undefined;
+      persist(); renderAll();
+      toast(`📧 ${fresh.length} task${fresh.length !== 1 ? 's' : ''} added from Gmail`);
+      await _persistChain; // wait for the shared save to finish…
+    }
+    // …and only acknowledge if it really reached the server (or the tasks were already there), so a
+    // failed save can never make an inbox item disappear. Otherwise they simply come back next poll.
+    // (Already-present items — a retry — are only acknowledged once saves are known to be working.)
+    if (fresh.length ? window._fsWriteOk === true : window._fsWriteOk !== false) await _inboxApi({ action: 'ack', ids: items.map(t => t.id) });
+  } catch (e) {
+    console.warn('Inbox pickup:', e.message);
+  } finally { _inboxBusy = false; }
+}
+
+const _labelDoneKey = () => `chope_label_done_${state.currentUser}`;
+function _labelDoneSet() { try { return new Set(JSON.parse(localStorage.getItem(_labelDoneKey()) || '[]')); } catch { return new Set(); } }
+let _labelPullBusy = false;
+async function gmailPullLabelled(manual) {
+  if (_labelPullBusy || !state.currentUser) return;
+  const exp = parseInt(localStorage.getItem('gmailTokenExpiry') || '0');
+  if (!gmailToken || (exp && exp < Date.now())) { if (manual) gmailSignIn(); return; } // never pop a sign-in uninvited
+  _labelPullBusy = true;
+  try {
+    const auth = { headers: { Authorization: 'Bearer ' + gmailToken } };
+    // newer_than keeps the first run from importing years of history; 25 threads max per pull.
+    const r = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/threads?maxResults=25&q=' + encodeURIComponent('label:Chope newer_than:30d'), auth);
+    if (!r.ok) { if (manual) toast(r.status === 401 ? 'Gmail session expired — reconnect Gmail' : `Could not read Gmail (${r.status})`); return; }
+    const threads = (await r.json()).threads || [];
+    const done = _labelDoneSet();
+    const known = new Set(tasks.map(t => t.emailId).filter(Boolean));
+    const fresh = threads.filter(t => !done.has(t.id) && !known.has(t.id));
+    const made = [];
+    for (const th of fresh) {
+      const d = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${th.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From`, auth).then(x => x.json());
+      const msgs = d.messages || [];
+      const hdr = (m, n) => (m?.payload?.headers || []).find(h => h.name === n)?.value || '';
+      const subject = hdr(msgs[0], 'Subject') || '(no subject)';
+      const from = hdr(msgs[msgs.length - 1], 'From');
+      made.push({
+        id: uid(), name: suggestTaskFromSubject(subject), desc: from ? `From: ${from}` : '',
+        cat: 'admin', fund: '', assignee: state.currentUser, priority: 'med', status: 'todo',
+        startDate: todayLocal(), deadline: '', ws: '', createdAt: new Date().toISOString(),
+        emailId: th.id, emailLink: `https://mail.google.com/mail/u/0/#all/${th.id}`, source: 'gmail-label',
+      });
+    }
+    if (made.length) {
+      made.forEach(t => tasks.unshift(t));
+      // Remember them even if the task is later deleted, so a deleted task isn't resurrected by the label.
+      localStorage.setItem(_labelDoneKey(), JSON.stringify([...done, ...made.map(t => t.emailId)].slice(-500)));
+      persist(); renderAll();
+      toast(`📥 ${made.length} task${made.length !== 1 ? 's' : ''} added from emails labelled Chope`);
+    } else if (manual) toast(threads.length ? 'Everything labelled Chope is already a task ✓' : 'No emails labelled “Chope” in the last 30 days');
+  } catch (e) {
+    if (manual) toast('Could not pull emails: ' + e.message);
+    console.warn('Label pull:', e.message);
+  } finally { _labelPullBusy = false; }
+}
+function _startEmailPickup() {
+  _inboxPoll();
+  setInterval(_inboxPoll, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) _inboxPoll(); });
+  setTimeout(() => gmailPullLabelled(false), 5000);
+  setInterval(() => gmailPullLabelled(false), 300000);
 }
 
 function gmailAddTask(msgId, taskName) {

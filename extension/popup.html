@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Add to Chope</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <div class="brand">Cho<em>pe</em></div>
+    <div class="who" id="who"></div>
+  </header>
+
+  <!-- Shown until signed in -->
+  <section id="signedOut" hidden>
+    <p class="lead">Sign in with your work Google account to add emails to Chope.</p>
+    <button id="signInBtn" class="primary">Sign in with Google</button>
+    <p class="hint">A Google window opens. Once you're signed in, click the Chope icon again.</p>
+  </section>
+
+  <form id="form" hidden>
+    <label>Task
+      <input id="name" type="text" maxlength="200" placeholder="What needs doing?" autocomplete="off" required>
+    </label>
+    <label>Notes
+      <textarea id="notes" rows="3" maxlength="2000" placeholder="Context from this email…"></textarea>
+    </label>
+    <div class="row">
+      <label>Due date <input id="deadline" type="date"></label>
+      <label>Priority
+        <select id="priority"><option value="high">High</option><option value="med" selected>Medium</option><option value="low">Low</option></select>
+      </label>
+    </div>
+    <label>Category <select id="cat"></select></label>
+    <p class="hint" id="pageHint"></p>
+    <button id="addBtn" class="primary" type="submit">Add to Chope</button>
+  </form>
+
+  <p id="status" role="status" aria-live="polite"></p>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
