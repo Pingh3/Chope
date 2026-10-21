@@ -284,6 +284,46 @@ test('legacy todoistId values on Chope tasks are adopted as the mapping (backfil
   assert.equal(rec('a').todoistId, 'legacy1');
 });
 
+test('one Todoist task belongs to ONE Chope task: a copy that inherited the original\'s link gets its own', async () => {
+  // Copies made by the old app carried the original's todoistId, so both Chope tasks edited/closed one Todoist task.
+  const { todoist, sync, rec } = setup([
+    T('orig', { name: 'Draft letter', todoistId: 'td1', createdAt: '2026-10-01T00:00:00Z' }),
+    T('copy', { name: 'Draft letter (copy)', todoistId: 'td1', createdAt: '2026-10-05T00:00:00Z' }),
+  ]);
+  todoist._tasks.set('td1', { id: 'td1', content: 'Draft letter', description: '', priority: 3, project_id: 'p1', labels: ['chope'], due: null, deadline: { date: '2026-10-20' }, checked: false });
+  const r = await sync();
+  assert.equal(rec('orig').todoistId, 'td1');                 // the oldest keeps it
+  assert.notEqual(rec('copy').todoistId, 'td1');              // the copy does not
+  assert.ok(rec('copy').todoistId);                           // ...it got a Todoist task of its own
+  assert.equal(r.created, 1);
+  assert.equal(todoist.active().length, 2);
+  assert.equal(todoist._tasks.get('td1').content, 'Draft letter');   // original's Todoist task untouched by the copy
+});
+
+test('completing a copy that once shared a link no longer closes the original\'s Todoist task', async () => {
+  const { todoist, sync, patch, rec } = setup([
+    T('orig', { name: 'Task orig', todoistId: 'td1', createdAt: '2026-10-01T00:00:00Z' }),
+    T('copy', { name: 'Task copy', todoistId: 'td1', createdAt: '2026-10-05T00:00:00Z' }),
+  ]);
+  todoist._tasks.set('td1', { id: 'td1', content: 'Task orig', description: '', priority: 3, project_id: 'p1', labels: ['chope'], due: null, deadline: { date: '2026-10-20' }, checked: false });
+  await sync();
+  patch('copy', { status: 'done' });
+  await sync();
+  assert.equal(todoist._tasks.get('td1').checked, false);                    // original still open
+  assert.equal(todoist._tasks.get(rec('copy').todoistId).checked, true);     // the copy's own task is the one closed
+});
+
+test('two sync-state records pointing at the same Todoist task are untangled too', async () => {
+  const { todoist, sync, rec, store } = setup([
+    T('a', { createdAt: '2026-10-01T00:00:00Z' }), T('b', { createdAt: '2026-10-02T00:00:00Z' }),
+  ]);
+  await sync();
+  store._s.state.tasks.b.todoistId = store._s.state.tasks.a.todoistId;       // corrupt: b claims a's task
+  await sync();
+  assert.notEqual(rec('b').todoistId, rec('a').todoistId);
+  assert.equal(todoist.active().length, 2);
+});
+
 test('strike review lists tasks pushed 3+ times, worst first, with original/current date and age', async () => {
   const { sync, patch, day, deps } = setup([T('a'), T('b'), T('c')]);
   await sync();

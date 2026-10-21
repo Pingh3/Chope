@@ -3012,7 +3012,18 @@ bc.onmessage = e => {
    SEED DATA
 ══════════════════════════════════════════════════════════ */
 
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+// Task ids must never repeat: ids key the shared task array's merge (a repeat would silently
+// collapse two tasks into one) and the Todoist mapping. Timestamp for rough ordering, plus
+// cryptographic randomness so two ids minted in the same millisecond (bulk add, batch duplicate)
+// can't collide — Math.random() alone is not designed for that.
+function uid() {
+  let r = '';
+  try {
+    const b = new Uint8Array(8); crypto.getRandomValues(b);
+    r = [...b].map(x => x.toString(36).padStart(2, '0')).join('');
+  } catch { r = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2); }
+  return Date.now().toString(36) + r;
+}
 
 function seedWs() {
   return [
@@ -3814,6 +3825,7 @@ function applyAutoSort() {
   closeAutoSortReview();
   persist(); renderAll();
   toast(`✨ Revised the plan for ${count} task${count !== 1 ? 's' : ''}`, { label: 'Undo', onClick: undo });
+  _tdSyncMany(toApply.map(p => tasks.find(x => x.id === p.id)));
 }
 
 function setBoardMode(mode) {
@@ -5258,10 +5270,16 @@ function drop(e, col) {
   const t = tasks.find(x => x.id === dragId);
   if (t && t.status !== col) {
     _pushUndo();
+    const wasDone = t.status === 'done';
     t.status = col;
     if (col === 'done') t.completedAt = new Date().toISOString();
+    else if (wasDone) t.completedAt = null;
+    if (col === 'done' && !wasDone) _maybeSpawnRecurrence(t); // before the save, so the next repeat is saved too
     persist(); renderAll();
     toast(`Moved to ${COLS[col].label}`);
+    // Dragging between columns changes completion, which Todoist must hear about too.
+    if (col === 'done' && !wasDone) _tdClose(t);
+    else if (wasDone && col !== 'done') _tdReopen(t);
   }
   dragId = null;
 }
@@ -5468,6 +5486,7 @@ function saveTask() {
   // ── CLOSE MODAL FIRST ───────────────────────────────────
   // Capture editTaskId before closeTaskModal() nulls it out
   const _editId = editTaskId;
+  let _tdMove = null; // 'close' | 'reopen' when this save changes completion — Todoist must be told
   closeTaskModal();   // hides the modal before any save logic can throw
 
   // ── SAVE LOGIC ──────────────────────────────────────────
@@ -5487,6 +5506,7 @@ function saveTask() {
       _pushUndo();
       const oldStatus = t.status, oldPriority = t.priority, oldDeadline = t.deadline, oldAssignee = t.assignee;
       const wasDone = t.status === 'done';
+      _tdMove = (status === 'done' && !wasDone) ? 'close' : (wasDone && status !== 'done') ? 'reopen' : null;
       Object.assign(t, { name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, recurrence, durationHours: _planDurationHours !== null ? _planDurationHours : t.durationHours });
       if (status === 'done' && !wasDone) { t.completedAt = new Date().toISOString(); _maybeSpawnRecurrence(t); }
       if (status !== 'done') t.completedAt = null;
@@ -5512,7 +5532,15 @@ function saveTask() {
   }
   persist();
   try { renderAll(); } catch(e) { console.warn('renderAll error after save:', e); }
-  if (syncTask) _tdSync(syncTask);
+  if (syncTask) {
+    // Completion goes through close/reopen — before this, setting Status to Done in the modal only
+    // sent an *update*, which Todoist can't apply to a task that was never closed there. Reopen first,
+    // then update, in order, so the update isn't aimed at a still-closed task.
+    (async () => {
+      if (_tdMove === 'close') await _tdClose(syncTask);
+      else { if (_tdMove === 'reopen') await _tdReopen(syncTask); await _tdSync(syncTask); }
+    })();
+  }
 }
 
 function deleteTask() {
@@ -5526,15 +5554,41 @@ function deleteTask() {
   toast('Task deleted');
 }
 
+// A copy of a task as a brand-new task. It must NOT inherit the original's Todoist link: with the
+// link copied, two Chope tasks pointed at one Todoist task, so editing or completing either one
+// changed (or closed) the other's Todoist task. Only content carries over.
+function _cloneAsNewTask(t, overrides = {}) {
+  const copy = { ...t, id: uid(), createdAt: new Date().toISOString(), status: 'todo', completedAt: null, ...overrides };
+  delete copy.todoistId;
+  delete copy.deadlineHistory;
+  return copy;
+}
+
+// Safety net for data that already has the problem (copies made before this fix): if several tasks
+// share a Todoist id, the OLDEST keeps it — it's the one that created the Todoist task — and the
+// rest are cleared so they get their own. Returns true if anything changed.
+function _repairTodoistIds() {
+  const owner = new Map();
+  let changed = false;
+  [...tasks].filter(t => t.todoistId)
+    .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')) || (a.id < b.id ? -1 : 1))
+    .forEach(t => {
+      const k = String(t.todoistId);
+      if (!owner.has(k)) owner.set(k, t.id);
+      else if (owner.get(k) !== t.id) { t.todoistId = null; changed = true; }
+    });
+  return changed;
+}
+
 function duplicateTask(id) {
   const t = tasks.find(x => x.id === id);
   if (!t) return;
   _pushUndo();
-  const copy = { ...t, id: uid(), name: t.name + ' (copy)', createdAt: new Date().toISOString(), status: 'todo', completedAt: null };
-  delete copy.deadlineHistory;
+  const copy = _cloneAsNewTask(t, { name: t.name + ' (copy)' });
   tasks.splice(tasks.indexOf(t) + 1, 0, copy);
   persist(); renderAll();
   toast(`Duplicated: "${t.name.slice(0,28)}"`);
+  _tdSync(copy);
 }
 
 // Same per-task copy as duplicateTask(), just applied to every selected card in one undo step
@@ -5547,14 +5601,14 @@ function duplicateSelected() {
   ids.forEach(id => {
     const t = tasks.find(x => x.id === id);
     if (!t) return;
-    const copy = { ...t, id: uid(), name: t.name + ' (copy)', createdAt: new Date().toISOString(), status: 'todo', completedAt: null };
-    delete copy.deadlineHistory;
+    const copy = _cloneAsNewTask(t, { name: t.name + ' (copy)' });
     tasks.splice(tasks.indexOf(t) + 1, 0, copy);
     copies.push(copy);
   });
   clearSelection();
   persist(); renderAll();
   toast(`Duplicated ${copies.length} task${copies.length !== 1 ? 's' : ''}`);
+  _tdSyncMany(copies);
 }
 
 // Recurring tasks: when a task with a `recurrence` field is marked done, spawn the next
@@ -5577,14 +5631,12 @@ function _maybeSpawnRecurrence(t) {
   const nextStart = nextDeadline
     ? _localDateStr(new Date(new Date(nextDeadline + 'T00:00:00').getTime() - gapDays * 86400000))
     : _advanceDateStr(t.startDate, t.recurrence);
-  const next = {
-    ...t, id: uid(), status: 'todo', completedAt: null,
-    startDate: nextStart, deadline: nextDeadline,
-    createdAt: new Date().toISOString(),
-  };
-  delete next.deadlineHistory;
+  // _cloneAsNewTask drops the todoistId: the next occurrence is a new task and needs its own Todoist
+  // task — sharing the completed one's is exactly how the repeat ended up "uncompletable".
+  const next = _cloneAsNewTask(t, { startDate: nextStart, deadline: nextDeadline });
   delete next.notes;
   tasks.unshift(next);
+  _tdSync(next);
   _logActivity('create', next.id, next.name, { recurrence: t.recurrence });
   toast(`🔁 Next "${t.name.slice(0,28)}" scheduled for ${fmtDate(nextDeadline) || 'today'}`);
 }
@@ -5660,6 +5712,7 @@ function bulkSetField(field, value) {
   ids.forEach(id => document.querySelector('.card[data-id="' + id + '"]')?.classList.add('card-selected'));
   updateSelectionBar();
   toast(`Updated ${fieldLabel} for ${ids.length} task${ids.length !== 1 ? 's' : ''}`);
+  _tdSyncMany(ids.map(id => tasks.find(x => x.id === id)));
 }
 
 function selectCard(id) {
@@ -6800,9 +6853,34 @@ async function _tdSync(task) {
 }
 
 // Throwing version used by bulk sync for proper error reporting
+// True unless ANOTHER, older task holds this task's Todoist id (a copy made before the id-sharing fix).
+// Such a task must not touch that Todoist task — it would edit or close the original's.
+function _tdOwnsLink(task) {
+  if (!task.todoistId) return true;
+  return !tasks.some(o => o.id !== task.id && String(o.todoistId) === String(task.todoistId)
+    && String(o.createdAt || '') <= String(task.createdAt || '') && (String(o.createdAt || '') < String(task.createdAt || '') || o.id < task.id));
+}
+// Sync a batch (bulk edits, Revise Plan, batch duplicate) — one at a time so Todoist isn't flooded,
+// then one save for the ids that were assigned. Quietly does nothing if sync isn't set up here.
+async function _tdSyncMany(list) {
+  if (_tdServerMode || !_todoistToken) return;
+  let assigned = false;
+  for (const t of list) {
+    if (!t || t.assignee !== state.currentUser) continue;
+    const had = !!t.todoistId;
+    try { await _tdSyncThrows(t); } catch (e) { console.warn('Todoist sync:', e.message); }
+    if (!had && t.todoistId) assigned = true;
+  }
+  if (assigned) persist();
+}
 async function _tdSyncThrows(task) {
   if (_tdServerMode) return; // the server owns syncing now
   if (!_todoistToken || task.assignee !== state.currentUser) return;
+  // A completed task is closed (see _tdClose), never updated: Todoist rejects updates to a closed
+  // task with a 404, which the code below read as "deleted in Todoist" and answered by CREATING a
+  // fresh open copy — a duplicate for every completed task that got saved afterwards.
+  if (task.status === 'done') return;
+  if (!_tdOwnsLink(task)) task.todoistId = null; // not ours: get our own Todoist task below
   const projectId = await _tdEnsureProject();
   // Todoist API v1 create/update task fields are flat (not nested), confirmed against
   // the live OpenAPI spec at developer.todoist.com/api/v1/:
@@ -6858,13 +6936,13 @@ async function _tdSyncThrows(task) {
 }
 
 async function _tdClose(task) {
-  if (_tdServerMode || !_todoistToken || !task.todoistId) return;
+  if (_tdServerMode || !_todoistToken || !task.todoistId || !_tdOwnsLink(task)) return;
   try { await fetch(`${_TODOIST}/tasks/${task.todoistId}/close`, { method: 'POST', headers: { Authorization: `Bearer ${_todoistToken}` } }); }
   catch(e) {}
 }
 
 async function _tdReopen(task) {
-  if (_tdServerMode || !_todoistToken || !task.todoistId) return;
+  if (_tdServerMode || !_todoistToken || !task.todoistId || !_tdOwnsLink(task)) return;
   try { await fetch(`${_TODOIST}/tasks/${task.todoistId}/reopen`, { method: 'POST', headers: { Authorization: `Bearer ${_todoistToken}` } }); }
   catch(e) {}
 }
@@ -8416,7 +8494,9 @@ function setupGmailAuth() {
         await load();
         loadScheduleData();
         // Migrate old category keys to new consolidated structure
-        if (migrateCategories()) persist();
+        // Also untangle tasks that share one Todoist link (copies made before the fix) — persist once
+        // if either migration changed anything.
+        { const a = migrateCategories(), b = _repairTodoistIds(); if (a || b) persist(); }
         // Wire workstream IDs to seed tasks on first load
         if (workstreams.length && tasks.length) {
           const wsMap = {};
