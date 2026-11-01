@@ -511,6 +511,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 }
 .fpill.active{background:var(--t1);color:#fff;border-color:var(--t1)}
 .fpill:hover:not(.active){background:var(--bg);color:var(--t1)}
+.fpill-prio{display:inline-flex;align-items:center;gap:6px}
+.fpill-prio.prio-high:not(.active){color:#B91C1C;background:#FEE2E2;border-color:#FCA5A5}
+.fpill-prio.prio-med:not(.active){color:#C2570C;background:#FFEDD5;border-color:#FDBA74}
+.fpill-prio.prio-low:not(.active){color:#1D4ED8;background:#DBEAFE;border-color:#93C5FD}
+.fpill-prio.prio-someday:not(.active){color:#6B7280;background:#F3F4F6;border-color:#D1D5DB}
+.fpill-prio.prio-high.active{background:#DC2626;border-color:#DC2626}
+.fpill-prio.prio-med.active{background:#EA7A0C;border-color:#EA7A0C}
+.fpill-prio.prio-low.active{background:#2563EB;border-color:#2563EB}
+.fpill-prio.prio-someday.active{background:#6B7280;border-color:#6B7280}
+.fpill-prio.active .prio-dot{background:#fff!important}
+[data-theme="dark"] .fpill-prio.prio-high:not(.active){background:#3B0F0F;color:#F87171;border-color:#991B1B}
+[data-theme="dark"] .fpill-prio.prio-med:not(.active){background:#3A1D05;color:#FB923C;border-color:#9A3412}
+[data-theme="dark"] .fpill-prio.prio-low:not(.active){background:#0B1F4A;color:#60A5FA;border-color:#1E40AF}
+[data-theme="dark"] .fpill-prio.prio-someday:not(.active){background:#1F2937;color:#9CA3AF;border-color:#374151}
 .fpill-avatar{
   width:16px;height:16px;
   border-radius:50%;font-size:8px;font-weight:700;color:#fff;
@@ -3512,6 +3526,9 @@ function renderCatNav() {
 function renderFilterBar() {
   const p = (val, label, group, active) =>
     `<button class="fpill ${active?'active':''}" onclick="setFilter('${group}','${val}')">${esc(label)}</button>`;
+  // Priority pill: coloured P1-P4 (tinted when idle, solid when selected)
+  const pp = (val, label, active) =>
+    `<button class="fpill fpill-prio prio-${val} ${active?'active':''}" onclick="setFilter('priority','${val}')"><span class="prio-dot" style="background:${PRIO_COLORS[val]}"></span>${esc(label)}</button>`;
   // Multi-select pill — several can be active at once, toggled independently (assignee/fund only)
   const pm = (val, label, group, active) =>
     `<button class="fpill ${active?'active':''}" onclick="toggleFilterMulti('${group}','${val}')">${esc(label)}</button>`;
@@ -3557,10 +3574,10 @@ function renderFilterBar() {
       <span class="fb-label">Priority</span>
       <div class="fb-group">
         ${p('all','All','priority',state.priority==='all')}
-        ${p('high','● P1','priority',state.priority==='high')}
-        ${p('med','● P2','priority',state.priority==='med')}
-        ${p('low','● P3','priority',state.priority==='low')}
-        ${p('someday','● P4','priority',state.priority==='someday')}
+        ${pp('high','P1',state.priority==='high')}
+        ${pp('med','P2',state.priority==='med')}
+        ${pp('low','P3',state.priority==='low')}
+        ${pp('someday','P4',state.priority==='someday')}
       </div>
     </div>
     <div class="fb-row">
