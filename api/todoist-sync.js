@@ -21,6 +21,7 @@ import { createTodoistClient } from '../lib/todoistClient.js';
 import { createFirestoreStore } from '../lib/syncStore.js';
 import { runSync, decide, buildStrikeView } from '../lib/todoistSync.js';
 import { planCleanup, applyCleanup, summarizePlan } from '../lib/todoistCleanup.js';
+import { createDryRun, createDryStore } from '../lib/dryRun.js';
 
 function config() {
   return {
@@ -95,6 +96,25 @@ export default async function handler(req, res) {
       const result = await applyCleanup(d, plan);
       console.log('todoist cleanup applied', JSON.stringify(result));
       return res.status(200).json({ ok: result.errors.length === 0, applied: true, result });
+    }
+
+    // Dry-run of the real sync: reads everything for real, performs nothing. Owner only, needs the
+    // token but not the sync switch — it's how the owner sees what switching syncing on WILL do.
+    if (body.action === 'preview') {
+      if (user.name !== cfg.ownerName) return res.status(403).json({ error: 'only the owner can preview the sync' });
+      if (!cfg.token) return res.status(400).json({ error: 'TODOIST_API_TOKEN is not set' });
+      const real = makeDeps();
+      const dry = createDryRun(real.todoist);
+      const report = await runSync({ ...real, todoist: dry.todoist, store: createDryStore(real.store) });
+      const by = k => dry.writes.filter(w => w.kind === k);
+      return res.status(200).json({
+        ok: true, dryRun: true,
+        counts: { createTask: by('createTask').length, updateTask: by('updateTask').length, closeTask: by('closeTask').length,
+          reopenTask: by('reopenTask').length, deleteTask: by('deleteTask').length, createLabel: by('createLabel').length, createProject: by('createProject').length },
+        report: { created: report.created, updated: report.updated, closed: report.closed, reopened: report.reopened, deleted: report.deleted,
+          adopted: report.adopted, recreated: report.recreated, errors: report.errors, skipped: report.skipped },
+        writes: dry.writes,
+      });
     }
 
     if (!cfg.syncOn) return res.status(200).json({ enabled: false });

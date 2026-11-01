@@ -2518,6 +2518,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
       <div style="padding:12px 20px;font-size:12px;color:var(--t3);border-bottom:1px solid var(--border)">
         A revised start date for <span id="autoSortCount">0</span> of your currently-visible open tasks that have a due date — leveled per assignee so work doesn't all pile onto the same days. Due dates and priorities are never changed automatically. Uncheck any you don't want, then apply — nothing changes until you do.
       </div>
+      <div id="autoSortNotice" style="display:none;padding:10px 20px;font-size:12px;line-height:1.5;color:#92400E;background:#FFFBEB;border-bottom:1px solid #FDE68A"></div>
       <label class="asort-select-all">
         <input type="checkbox" id="autoSortSelectAll" checked onchange="_asortToggleAll(this.checked)">
         <span>Select all</span>
@@ -3723,11 +3724,16 @@ function _computeRevisedSchedule(taskList) {
 
 let _autoSortPending = [];
 function openAutoSortReview() {
+  const cantFit = []; // dated tasks that can't be started before their due date at 8h/day
   const open = filteredTasks().filter(t => t.status !== 'done' && t.status !== 'waiting' && t.priority !== 'someday');
   const schedule = _computeRevisedSchedule(open.filter(t => t.deadline));
   _autoSortPending = [];
   open.forEach(t => {
     const sched = schedule[t.id];
+    // If the plan can't even START this before its due date (more work ahead of it than there are
+    // working hours), a start date after the deadline is nonsense — it used to be proposed anyway and
+    // pushed tasks into next year. Leave such tasks alone and say so instead.
+    if (sched?.startDate && t.deadline && sched.startDate > t.deadline) { cantFit.push(t); return; }
     const startChanged = !!(sched && sched.startDate && sched.startDate !== (t.startDate || null));
     if (!startChanged) return;
 
@@ -3744,7 +3750,15 @@ function openAutoSortReview() {
       hint: bits.join(' · '), included: true,
     });
   });
-  if (!_autoSortPending.length) { toast('Your plan already looks well-sorted ✓'); return; }
+  const notice = document.getElementById('autoSortNotice');
+  if (cantFit.length) {
+    const names = cantFit.slice(0, 4).map(t => '“' + esc(t.name.length > 40 ? t.name.slice(0, 40) + '…' : t.name) + '”').join(', ');
+    if (notice) { notice.style.display = ''; notice.innerHTML = `⚠ <strong>${cantFit.length} task${cantFit.length !== 1 ? 's' : ''} can't be started before ${cantFit.length !== 1 ? 'their' : 'its'} due date</strong> — there's more work ahead of ${cantFit.length !== 1 ? 'them' : 'it'} than working hours (8h/day). Left unchanged: ${names}${cantFit.length > 4 ? ' and ' + (cantFit.length - 4) + ' more' : ''}. Consider moving a due date, delegating, or trimming scope.`; }
+  } else if (notice) notice.style.display = 'none';
+  if (!_autoSortPending.length) {
+    toast(cantFit.length ? `${cantFit.length} task${cantFit.length !== 1 ? 's' : ''} can't fit before ${cantFit.length !== 1 ? 'their' : 'its'} due date — nothing to change` : 'Your plan already looks well-sorted ✓');
+    return;
+  }
   renderAutoSortModal();
   document.getElementById('autoSortOverlay').classList.add('open');
 }

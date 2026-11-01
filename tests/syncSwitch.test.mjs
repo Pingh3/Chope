@@ -41,6 +41,28 @@ test('cleanup needs the token, the owner, and real credentials', env({}, async (
   assert.equal((await call('PUT')).code, 405);
 }));
 
+test('a dry-run sync reads for real but changes nothing — in Todoist or in the saved state', async () => {
+  const { runSync } = await import('../lib/todoistSync.js');
+  const { createDryRun, createDryStore } = await import('../lib/dryRun.js');
+  const { createMemoryStore } = await import('../lib/syncStore.js');
+  const todoist = createFakeTodoist();
+  const existing = todoist.userAdd({ content: 'Task a', deadline: { date: '2026-10-01' } });   // will be adopted
+  const store = createMemoryStore({ tasks: [
+    { id: 'a', name: 'Task a', assignee: 'Victor', priority: 'high', status: 'todo', deadline: '2026-10-20', createdAt: '2026-10-01T00:00:00Z' },
+    { id: 'b', name: 'Task b', assignee: 'Victor', priority: 'low', status: 'todo', deadline: '2026-10-25', createdAt: '2026-10-02T00:00:00Z' },
+  ] });
+  const dry = createDryRun(todoist);
+  const r = await runSync({ todoist: dry.todoist, store: createDryStore(store), ownerName: 'Victor', tz: 'Asia/Singapore', now: () => new Date('2026-10-14T04:00:00Z') });
+  assert.equal(r.created, 1);                                  // it reports what it WOULD do…
+  assert.equal(r.adopted, 1);
+  assert.deepEqual(dry.writes.filter(w => w.kind === 'createTask').map(w => w.body.content), ['Task b']);
+  assert.deepEqual(todoist.writeCalls(), []);                  // …but Todoist was never written to
+  assert.equal(todoist.active().length, 1);
+  assert.equal(todoist._tasks.get(existing).deadline.date, '2026-10-01');
+  assert.equal(store._s.saves, 0);                             // and no sync state was saved
+  assert.deepEqual(store._s.state.tasks, {});
+});
+
 test('summarizePlan returns a JSON-safe view without full task objects', () => {
   const todoist = createFakeTodoist();
   const a = todoist.userAdd({ content: 'Draft letter', deadline: { date: '2026-10-01' } });
