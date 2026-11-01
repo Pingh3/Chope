@@ -6,6 +6,14 @@
     }
   },
   "functions": {
-    "api/todoist-sync.js": { "maxDuration": 120 }
-  }
+    "api/todoist-sync.js": {
+      "maxDuration": 120
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/todoist-sync",
+      "schedule": "0 21 * * *"
+    }
+  ]
 }
