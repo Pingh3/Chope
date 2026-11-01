@@ -23,9 +23,9 @@
   --sh-md:0 4px 12px rgba(0,0,0,.08);
   --sh-lg:0 12px 32px rgba(0,0,0,.14);
 
-  --p-high:#EF4444;
-  --p-med:#F59E0B;
-  --p-low:#22C55E;
+  --p-high:#DC2626;
+  --p-med:#EA7A0C;
+  --p-low:#2563EB;
 
   --col-todo:#6B7280;
   --col-ip:#3B82F6;
@@ -111,9 +111,9 @@
 /* Moved badge */
 [data-theme="dark"] .dl-moved-badge{background:#2D1C00;border-color:#78350F;color:#FDE68A}
 /* Priority pills */
-[data-theme="dark"] .prio-pill.high{background:#3B0F0F;color:#F87171;border-color:#7F1D1D}
-[data-theme="dark"] .prio-pill.med{background:#2D1E00;color:#FBBF24;border-color:#92400E}
-[data-theme="dark"] .prio-pill.low{background:#052E16;color:#4ADE80;border-color:#14532D}
+[data-theme="dark"] .prio-pill.high{background:#3B0F0F;color:#F87171;border-color:#991B1B}
+[data-theme="dark"] .prio-pill.med{background:#3A1D05;color:#FB923C;border-color:#9A3412}
+[data-theme="dark"] .prio-pill.low{background:#0B1F4A;color:#60A5FA;border-color:#1E40AF}
 [data-theme="dark"] .prio-pill.someday{background:#1F2937;color:#9CA3AF;border-color:#374151}
 /* Workstream chip */
 [data-theme="dark"] .ws-chip{background:rgba(99,102,241,.18);color:#A5B4FC}
@@ -545,14 +545,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   cursor:pointer;min-height:120px;padding:14px 0 10px;gap:10px;
   border:1px dashed var(--border);transition:all .2s ease;
 }
-.kol-done-strip:hover{border-color:#22C55E;background:#F0FDF4}
+.kol-done-strip:hover{border-color:var(--strip,#22C55E);background:var(--card)}
+.kol-fold{margin-left:6px;background:none;border:none;cursor:pointer;font-size:13px;color:var(--t3);padding:0 2px;line-height:1;transition:color .12s}
+.kol-fold:hover{color:var(--t1)}
 .kol-done-strip-label{
   writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);
   font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--t2);
 }
 .kol-done-strip-count{
-  background:rgba(34,197,94,.15);border-radius:8px;padding:2px 5px;
-  font-size:9px;font-weight:700;color:#22C55E;
+  background:var(--card);border:1px solid var(--border);border-radius:8px;padding:2px 5px;
+  font-size:9px;font-weight:700;color:var(--strip,#22C55E);
 }
 .kol-done-strip-arrow{font-size:11px;color:var(--t3);margin-top:auto;padding-bottom:4px}
 .kol{
@@ -663,10 +665,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
   font-size:10px;font-weight:700;
   border:1px solid transparent;
 }
-.prio-pill.high{background:#FEF2F2;color:#EF4444;border-color:#FECACA}
-.prio-pill.med{background:#FFFBEB;color:#D97706;border-color:#FDE68A}
-.prio-pill.low{background:#F0FDF4;color:#16A34A;border-color:#BBF7D0}
-.prio-pill.someday{background:#F3F4F6;color:#6B7280;border-color:#E5E7EB}
+.prio-pill.high{background:#FEE2E2;color:#B91C1C;border-color:#FCA5A5}
+.prio-pill.med{background:#FFEDD5;color:#C2570C;border-color:#FDBA74}
+.prio-pill.low{background:#DBEAFE;color:#1D4ED8;border-color:#93C5FD}
+.prio-pill.someday{background:#F3F4F6;color:#6B7280;border-color:#D1D5DB}
 .prio-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;display:inline-block}
 .fund-chip{
   background:var(--bg);border:1px solid var(--border);
@@ -3209,10 +3211,10 @@ function parseDateFromText(text) {
    tasks, the shared data and the Todoist priority mapping keep working untouched; "someday" (P4) is
    the parked level, hidden from everyday views until the P4 filter is on. */
 const PRIORITIES = {
-  high:    { short: 'P1', color: '#EF4444' },
-  med:     { short: 'P2', color: '#F59E0B' },
-  low:     { short: 'P3', color: '#22C55E' },
-  someday: { short: 'P4', color: '#9CA3AF' },
+  high:    { short: 'P1', color: '#DC2626' },
+  med:     { short: 'P2', color: '#EA7A0C' },
+  low:     { short: 'P3', color: '#2563EB' },
+  someday: { short: 'P4', color: '#8B8B94' },
 };
 const PRIO_ORDER  = { high: 0, med: 1, low: 2, someday: 3 };           // sort order; Someday always last
 const PRIO_COLORS = Object.fromEntries(Object.entries(PRIORITIES).map(([k, v]) => [k, v.color]));
@@ -3693,6 +3695,13 @@ function renderBoardBanner() {
 }
 
 function toggleHideDone() { hideDone = !hideDone; saveUserPrefs(); renderBoard(); }
+// To Do / In Progress / Under Review / Waiting can be folded away too (remembered per person)
+let collapsedCols = new Set();
+function toggleColumn(key) {
+  if (key === 'done') return toggleHideDone();
+  if (collapsedCols.has(key)) collapsedCols.delete(key); else collapsedCols.add(key);
+  saveUserPrefs(); renderBoard();
+}
 
 let listAllDoneHidden = false;
 
@@ -4102,16 +4111,25 @@ function renderBoard() {
   const ft = filteredTasks();
   const doneCount = ft.filter(t => t.status === 'done').length;
 
-  if (hideDone) {
-    boardEl.style.gridTemplateColumns = '1fr 1fr 1fr 1fr 36px';
-  } else {
-    boardEl.style.gridTemplateColumns = '';
-  }
+  const allKeys = ['todo','inprogress','review','waiting','done'];
+  const isFolded = k => k === 'done' ? hideDone : collapsedCols.has(k);
+  boardEl.style.gridTemplateColumns = allKeys.some(isFolded)
+    ? allKeys.map(k => isFolded(k) ? '36px' : 'minmax(0,1fr)').join(' ')
+    : '';
 
   let html = '';
   ['todo','inprogress','review','waiting'].forEach(key => {
     const col = COLS[key];
     const colTasks = ft.filter(t => t.status === key).sort(_boardSortFn);
+    if (collapsedCols.has(key)) {
+      html += `<div class="kol-done-strip" id="kol-${key}" style="--strip:${col.color}" onclick="toggleColumn('${key}')" title="Show ${esc(col.label)}"
+          ondragover="dragOver(event,'${key}')" ondrop="drop(event,'${key}')">
+        <div class="kol-done-strip-label">${esc(col.label)}</div>
+        <div class="kol-done-strip-count">${colTasks.length}</div>
+        <div class="kol-done-strip-arrow">▶</div>
+      </div>`;
+      return;
+    }
     html += `
       <div class="kol" id="kol-${key}"
         ondragover="dragOver(event,'${key}')"
@@ -4121,6 +4139,7 @@ function renderBoard() {
           <div class="kol-bar" style="background:${col.color}"></div>
           <div class="kol-title">${esc(col.label)}</div>
           <div class="kol-count">${colTasks.length}</div>
+          <button class="kol-fold" onclick="toggleColumn('${key}')" title="Hide ${esc(col.label)}">◀</button>
         </div>
         <div class="kol-body" id="body-${key}">
           ${colTasks.length ? colTasks.map(cardHTML).join('') : `<div class="kol-empty">No tasks</div>`}
@@ -4129,7 +4148,8 @@ function renderBoard() {
   });
 
   if (hideDone) {
-    html += `<div class="kol-done-strip" onclick="toggleHideDone()" title="Show Done tasks">
+    html += `<div class="kol-done-strip" id="kol-done" style="--strip:${COLS.done.color}" onclick="toggleHideDone()" title="Show Done tasks"
+      ondragover="dragOver(event,'done')" ondrop="drop(event,'done')">
       <div class="kol-done-strip-label">Done</div>
       <div class="kol-done-strip-count">${doneCount}</div>
       <div class="kol-done-strip-arrow">▶</div>
@@ -4146,7 +4166,7 @@ function renderBoard() {
           <div class="kol-bar" style="background:${col.color}"></div>
           <div class="kol-title">${esc(col.label)}</div>
           <div class="kol-count">${colTasks.length}</div>
-          <button onclick="toggleHideDone()" title="Collapse Done" style="margin-left:6px;background:none;border:none;cursor:pointer;font-size:13px;color:var(--t3);padding:0;line-height:1;transition:color .12s" onmouseover="this.style.color='#22C55E'" onmouseout="this.style.color='var(--t3)'">◀</button>
+          <button class="kol-fold" onclick="toggleHideDone()" title="Hide Done">◀</button>
         </div>
         <div class="kol-body" id="body-done">
           ${colTasks.length ? colTasks.map(cardHTML).join('') : `<div class="kol-empty">No tasks</div>`}
@@ -4159,7 +4179,7 @@ function renderBoard() {
   // Mobile column nav strip
   if (colNav) {
     if (window.innerWidth <= 480) {
-      const colKeys = hideDone ? ['todo','inprogress','review','waiting'] : ['todo','inprogress','review','waiting','done'];
+      const colKeys = allKeys.filter(k => !isFolded(k));
       const colLabels = { todo:'To Do', inprogress:'In Progress', review:'Review', waiting:'Waiting', done:'Done' };
       colNav.style.display = 'flex';
       colNav.innerHTML = colKeys.map((k,i) =>
@@ -4539,7 +4559,7 @@ function dailyTaskRow(t) {
   const over  = isOverdue(t);
   const urgent = isUrgent(t);
   const isDone = t.status === 'done';
-  const pCol  = {high:'#EF4444',med:'#F59E0B',low:'#94A3B8'}[t.priority];
+  const pCol  = PRIO_COLORS[t.priority] || '#8B8B94';
   return `
     <div class="daily-task ${over||urgent?'urgent-task':''} ${isDone?'card-done':''}" onclick="openTaskModal('${t.id}')" style="cursor:pointer">
       <button class="row-check ${isDone?'checked':''}" onclick="toggleTaskDone('${t.id}');event.stopPropagation()" title="Mark ${isDone?'incomplete':'complete'}">
@@ -5252,6 +5272,7 @@ function loadUserPrefs(user) {
     if (p.boardMode)          boardMode         = p.boardMode;
     if (p.boardSortMode)      boardSortMode     = p.boardSortMode;
     if (p.hideDone !== undefined) hideDone       = !!p.hideDone;
+    if (Array.isArray(p.collapsedCols)) collapsedCols = new Set(p.collapsedCols);
     if (p.listAllDoneHidden !== undefined) {
       listAllDoneHidden = !!p.listAllDoneHidden;
       const keys = ['high','med','low','someday'];
@@ -5274,7 +5295,7 @@ function loadUserPrefs(user) {
 function saveUserPrefs() {
   const user = state.currentUser;
   if (!user) return;
-  localStorage.setItem(_prefsKey(user), JSON.stringify({ boardMode, boardSortMode, hideDone, listAllDoneHidden, defaultView: state.view, listColWidths, wsViewMode, wsListSortCol, wsListSortDir, wsCardOrder, wsTaskSortMode }));
+  localStorage.setItem(_prefsKey(user), JSON.stringify({ boardMode, boardSortMode, hideDone, collapsedCols: [...collapsedCols], listAllDoneHidden, defaultView: state.view, listColWidths, wsViewMode, wsListSortCol, wsListSortDir, wsCardOrder, wsTaskSortMode }));
 }
 
 function onUserChange() {
