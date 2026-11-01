@@ -2,14 +2,15 @@
 // into duplicate Todoist tasks.
 //
 //   POST (browser)  Authorization: Bearer <Firebase ID token of an allowlisted user>
-//        {action:'status'}                       -> {enabled}
-//        {action:'sync', deleted?:[taskIds]}     -> run a sync now (debounced pings after each save)
-//        {action:'strikes', min?:3}              -> reschedule counts + the 3-strike review list
-//        {action:'decided', taskId}              -> owner only: reset a task's strike count
+//        {action:'status'}                       -> {enabled, tracking}   enabled = Todoist sync on; tracking is always on
+//        {action:'sync', deleted?:[taskIds]}     -> run now (debounced pings after each save). Records date pushes for
+//                                                   EVERY task; also syncs the owner's tasks to Todoist when it is on
+//        {action:'strikes', min?:3}              -> everyone's push counts + the 3-strike review list
+//        {action:'decided', taskId}              -> reset a task's push count (the task's assignee, or the owner)
 //   GET  (Vercel Cron / external scheduler)  Authorization: Bearer <CRON_SECRET>  -> full reconcile
 //
 // Config (environment variables only — never committed):
-//   TODOIST_API_TOKEN     the owner's Todoist token (sync is disabled until this is set)
+//   TODOIST_API_TOKEN     the owner's Todoist token (Todoist sync stays off until this AND TODOIST_SYNC_ENABLED=1)
 //   TODOIST_PROJECT_NAME  default "Chope"
 //   TODOIST_OWNER         default "Victor" — only tasks assigned to this person are synced
 //   CHOPE_TZ              default "Asia/Singapore" — defines "same calendar day" for strikes
@@ -56,8 +57,10 @@ export default async function handler(req, res) {
   const cronOk = !!process.env.CRON_SECRET && authz === `Bearer ${process.env.CRON_SECRET}`;
 
   try {
-    const makeDeps = () => ({
-      todoist: createTodoistClient({ token: cfg.token }),
+    // Without Todoist configured the engine still runs, tracking date pushes for the whole team and
+    // touching nothing else (todoist: null). Cleanup/preview always need the real client.
+    const makeDeps = (withTodoist = cfg.syncOn) => ({
+      todoist: withTodoist ? createTodoistClient({ token: cfg.token }) : null,
       store: createFirestoreStore(adminDb()),
       ownerName: cfg.ownerName, tz: cfg.tz, projectName: cfg.projectName,
     });
@@ -65,7 +68,6 @@ export default async function handler(req, res) {
     // Scheduled reconcile (Vercel Cron issues GET).
     if (req.method === 'GET') {
       if (!cronOk) return res.status(401).json({ error: 'unauthorized' });
-      if (!cfg.syncOn) return res.status(200).json({ ok: true, skipped: 'Todoist sync is switched off' });
       const r = await runSync(makeDeps());
       console.log('todoist-sync (cron)', JSON.stringify({ ...r, counts: undefined }));
       return res.status(200).json({ ...r, counts: undefined });
@@ -79,14 +81,14 @@ export default async function handler(req, res) {
     const user = cronOk ? { name: cfg.ownerName } : await authUser(req);
     if (!user) return res.status(401).json({ error: 'unauthorized' });
 
-    if (body.action === 'status') return res.status(200).json({ enabled: cfg.syncOn, owner: cfg.ownerName });
+    if (body.action === 'status') return res.status(200).json({ enabled: cfg.syncOn, tracking: true, owner: cfg.ownerName });
 
     // One-off duplicate cleanup. Owner only, needs the token but NOT the sync switch. Without
     // apply:true it only reports what it WOULD do (nothing is changed); applying needs confirm:'APPLY'.
     if (body.action === 'cleanup') {
       if (user.name !== cfg.ownerName) return res.status(403).json({ error: 'only the owner can run the cleanup' });
       if (!cfg.token) return res.status(400).json({ error: 'TODOIST_API_TOKEN is not set' });
-      const d = makeDeps();
+      const d = makeDeps(true);
       const project = (await d.todoist.listProjects()).find(p => p.name === cfg.projectName);
       if (!project) return res.status(200).json({ ok: true, applied: false, note: `No Todoist project named "${cfg.projectName}" yet — nothing to clean.` });
       const [chopeTasks, state, todoistTasks] = await Promise.all([d.store.loadTasks(), d.store.loadState(), d.todoist.listActive({ projectId: project.id })]);
@@ -103,7 +105,7 @@ export default async function handler(req, res) {
     if (body.action === 'preview') {
       if (user.name !== cfg.ownerName) return res.status(403).json({ error: 'only the owner can preview the sync' });
       if (!cfg.token) return res.status(400).json({ error: 'TODOIST_API_TOKEN is not set' });
-      const real = makeDeps();
+      const real = makeDeps(true);
       const dry = createDryRun(real.todoist);
       const report = await runSync({ ...real, todoist: dry.todoist, store: createDryStore(real.store) });
       const by = k => dry.writes.filter(w => w.kind === k);
@@ -117,27 +119,27 @@ export default async function handler(req, res) {
       });
     }
 
-    if (!cfg.syncOn) return res.status(200).json({ enabled: false });
-
     const deps = makeDeps();
     switch (body.action) {
       case 'sync': {
         const deleted = Array.isArray(body.deleted) ? body.deleted.slice(0, 200).map(String) : [];
         const r = await runSync(deps, { deleted });
         console.log('todoist-sync', JSON.stringify({ ...r, counts: undefined }));
-        return res.status(200).json({ enabled: true, ...r });
+        return res.status(200).json({ ...r, enabled: cfg.syncOn, tracking: true });
       }
       case 'strikes': {
         const v = await buildStrikeView(deps, Number(body.min) || 3);
-        return res.status(200).json({ enabled: true, ...v });
+        return res.status(200).json({ enabled: cfg.syncOn, tracking: true, ...v });
       }
       case 'decided': {
-        if (user.name !== cfg.ownerName) return res.status(403).json({ error: 'only the owner can mark a task decided' });
+        // The person who owns the task (or the owner) may reset it. A signed-in user with no name on
+        // the allowlist can't be matched to any task, so they get nothing rather than owner-level access.
+        if (!user.name) return res.status(403).json({ error: 'your account has no name set — ask your admin' });
         const taskId = String(body.taskId || '');
-        const out = await decide(deps, taskId);
-        if (!out.ok) return res.status(out.error === 'busy' ? 409 : 404).json(out);
+        const out = await decide(deps, taskId, user.name);
+        if (!out.ok) return res.status(out.error === 'busy' ? 409 : out.error === 'forbidden' ? 403 : 404).json(out);
         const v = await buildStrikeView(deps, 3);
-        return res.status(200).json({ enabled: true, ...out, counts: v.counts });
+        return res.status(200).json({ enabled: cfg.syncOn, tracking: true, ...out, counts: v.counts });
       }
       default:
         return res.status(400).json({ error: 'unknown action' });

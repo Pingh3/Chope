@@ -1,7 +1,7 @@
 // Run with: npm test   (node --test tests/)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runSync, decide, buildStrikeView, evaluateDateChange, localDay, strikeLabelFor, idempotencyKey, priorityToTodoist } from '../lib/todoistSync.js';
+import { runSync, decide, buildStrikeView, evaluateDateChange, localDay, strikeLabelFor, idempotencyKey, priorityToTodoist, runTracking } from '../lib/todoistSync.js';
 import { createMemoryStore } from '../lib/syncStore.js';
 import { createFakeTodoist } from './helpers/fakeTodoist.mjs';
 import { createTodoistClient, TodoistError } from '../lib/todoistClient.js';
@@ -322,6 +322,120 @@ test('two sync-state records pointing at the same Todoist task are untangled too
   await sync();
   assert.notEqual(rec('b').todoistId, rec('a').todoistId);
   assert.equal(todoist.active().length, 2);
+});
+
+// ── strike tracking is TEAM-WIDE (Todoist stays Victor-only) ──
+const D = (id, o = {}) => T(id, { assignee: 'Danial', ...o });
+
+test('TEAM-WIDE: a teammate\'s date pushed later on 3 different days is counted, and nothing goes to Todoist for it', async () => {
+  const { todoist, sync, patch, day, rec } = setup([D('d1')]);
+  await sync();
+  assert.deepEqual(todoist.writeCalls(), []);                         // Danial's task never reaches Victor's Todoist
+  assert.equal(rec('d1').count, 0);                                   // first sight is not a push
+  for (const date of ['2026-10-25', '2026-10-30', '2026-11-05']) { day(1); patch('d1', { deadline: date }); await sync(); }
+  assert.equal(rec('d1').count, 3);
+  assert.deepEqual(todoist.writeCalls(), []);
+  assert.equal(todoist.active().length, 0);
+});
+
+test('TEAM-WIDE: the same rules apply — earlier, first-set, same-day, recurring and completed tasks are not strikes', async () => {
+  const { sync, patch, day, rec } = setup([D('e', { deadline: '2026-10-20' }), D('nodate', { deadline: null }), D('rec', { recurrence: 'weekly' }), D('fin')]);
+  await sync();
+  day(1);
+  patch('e', { deadline: '2026-10-22' }); await sync();
+  patch('e', { deadline: '2026-10-24' }); await sync();               // same calendar day
+  patch('nodate', { deadline: '2026-10-30' });                        // first time a date is set
+  patch('rec', { deadline: '2026-10-30' });                           // recurring
+  patch('fin', { status: 'done', deadline: '2026-10-30' });           // completed
+  await sync();
+  day(1); patch('e', { deadline: '2026-10-21' }); await sync();       // moved earlier
+  assert.equal(rec('e').count, 1);
+  assert.equal(rec('nodate').count, 0);
+  assert.equal(rec('rec').count, 0);
+  assert.equal(rec('fin')?.count ?? 0, 0);
+});
+
+test('TEAM-WIDE: records for teammates are light, and finished tasks nobody pushed leave no record', async () => {
+  const { sync, patch, rec, store } = setup([D('open'), D('done', { status: 'done' })]);
+  await sync();
+  assert.deepEqual(Object.keys(rec('open')).sort(), ['count', 'firstDate', 'firstSeenAt', 'lastChopeDeadline', 'lastStrikeDay']);
+  assert.equal(store._s.state.tasks.done, undefined);                 // done tasks of teammates aren't tracked at all
+  patch('open', { status: 'done' }); await sync();
+  assert.equal(store._s.state.tasks.open, undefined);                 // finished, never pushed -> record dropped
+});
+
+test('TEAM-WIDE: a pushed task keeps its history when finished', async () => {
+  const { sync, patch, day, rec } = setup([D('p')]);
+  await sync();
+  day(1); patch('p', { deadline: '2026-10-25' }); await sync();
+  patch('p', { status: 'done' }); await sync();
+  assert.equal(rec('p').count, 1);
+});
+
+test('REASSIGN away: Victor -> Danial removes the Todoist task (after the grace period) but keeps the push count', async () => {
+  const { todoist, sync, patch, day, rec, advance } = setup([T('a')]);
+  await sync();
+  for (const date of ['2026-10-25', '2026-10-30']) { day(1); patch('a', { deadline: date }); await sync(); }
+  assert.equal(rec('a').count, 2);
+  patch('a', { assignee: 'Danial' });
+  await sync();
+  assert.equal(todoist.active().length, 1);                            // not yet: a flapping assignee must not delete anything
+  advance(61000);
+  const r = await sync();
+  assert.equal(r.deleted, 1);
+  assert.equal(todoist.active().length, 0);
+  assert.equal(rec('a').count, 2);                                     // history stays with the task
+  assert.equal(rec('a').todoistId, null);
+  day(1); patch('a', { deadline: '2026-11-10' }); await sync();        // Danial pushes it again: counts for him
+  assert.equal(rec('a').count, 3);
+});
+
+test('REASSIGN to Victor: arrives with its history, and a legacy Todoist id from someone else\'s account is NOT adopted', async () => {
+  const { todoist, sync, patch, day, rec } = setup([D('x', { todoistId: 'danials-own-td-id' })]);
+  await sync();
+  for (const date of ['2026-10-25', '2026-10-30']) { day(1); patch('x', { deadline: date }); await sync(); }
+  assert.equal(rec('x').count, 2);
+  patch('x', { assignee: 'Victor' });
+  const r = await sync();
+  assert.equal(r.created, 1);                                          // a fresh Todoist task, not Danial's id
+  assert.notEqual(rec('x').todoistId, 'danials-own-td-id');
+  assert.equal(rec('x').count, 2);
+  assert.ok(todoist.active()[0].labels.includes('strike-2'));          // the warning label follows the task
+});
+
+test('TRACKING WITHOUT TODOIST: pushes are counted for everyone when no Todoist is configured', async () => {
+  const { sync, patch, day, rec, deps } = setup([T('v'), D('d')]);
+  await runTracking({ ...deps(), todoist: null });
+  for (const date of ['2026-10-25', '2026-10-30']) { day(1); patch('v', { deadline: date }); patch('d', { deadline: date }); await runTracking({ ...deps(), todoist: null }); }
+  assert.equal(rec('v').count, 2);
+  assert.equal(rec('d').count, 2);
+  // switching Todoist on afterwards still works and keeps the counts
+  const r = await sync();
+  assert.equal(r.created, 1);
+  assert.equal(rec('v').count, 2);
+});
+
+test('DECIDED: the task\'s own assignee may reset it, a colleague may not, the owner may reset anyone\'s', async () => {
+  const { sync, patch, day, rec, deps } = setup([D('d')]);
+  await sync();
+  for (const date of ['2026-10-25', '2026-10-30', '2026-11-05']) { day(1); patch('d', { deadline: date }); await sync(); }
+  assert.equal(rec('d').count, 3);
+  assert.deepEqual(await decide(deps(), 'd', 'Denise'), { ok: false, error: 'forbidden' });
+  assert.equal(rec('d').count, 3);
+  assert.deepEqual(await decide(deps(), 'd', 'Danial'), { ok: true, before: 3 });
+  assert.equal(rec('d').count, 0);
+  day(1); patch('d', { deadline: '2026-11-20' }); await sync(); day(1); patch('d', { deadline: '2026-11-25' }); await sync();
+  assert.equal(rec('d').count, 2);
+  assert.equal((await decide(deps(), 'd', 'Victor')).ok, true);
+});
+
+test('REVIEW LIST shows everyone\'s tasks pushed 3+ times, with who owns them', async () => {
+  const { sync, patch, day, deps } = setup([T('v'), D('d'), D('quiet')]);
+  await sync();
+  for (const date of ['2026-10-25', '2026-10-30', '2026-11-05']) { day(1); patch('v', { deadline: date }); patch('d', { deadline: date }); await sync(); }
+  const view = await buildStrikeView(deps(), 3);
+  assert.deepEqual(view.items.map(i => [i.taskId, i.assignee, i.count]).sort(), [['d', 'Danial', 3], ['v', 'Victor', 3]]);
+  assert.equal(view.counts.quiet, undefined);
 });
 
 test('clearing a start date in Chope clears the Todoist Date it created, but never one the owner re-planned', async () => {

@@ -19,14 +19,16 @@ const env = (vars, fn) => async () => {
   try { await fn(); } finally { keys.forEach(k => saved[k] === undefined ? delete process.env[k] : (process.env[k] = saved[k])); }
 };
 
-test('a token alone does NOT switch syncing on', env({ TODOIST_API_TOKEN: 'tok' }, async () => {
-  assert.deepEqual((await call('POST', { action: 'status' })).body, { enabled: false, owner: 'Victor' });
-  assert.deepEqual((await call('POST', { action: 'sync' })).body, { enabled: false });   // refused before any Todoist/Firestore access
-  assert.equal((await call('GET')).body.skipped, 'Todoist sync is switched off');
+test('a token alone does NOT switch Todoist syncing on (push tracking is always on, though)', env({ TODOIST_API_TOKEN: 'tok' }, async () => {
+  assert.deepEqual((await call('POST', { action: 'status' })).body, { enabled: false, tracking: true, owner: 'Victor' });
+}));
+
+test('with no token at all, Todoist is off but team-wide push tracking still reports as available', env({}, async () => {
+  assert.deepEqual((await call('POST', { action: 'status' })).body, { enabled: false, tracking: true, owner: 'Victor' });
 }));
 
 test('token + TODOIST_SYNC_ENABLED=1 reports syncing as on', env({ TODOIST_API_TOKEN: 'tok', TODOIST_SYNC_ENABLED: '1' }, async () => {
-  assert.equal((await call('POST', { action: 'status' })).body.enabled, true);
+  assert.deepEqual((await call('POST', { action: 'status' })).body, { enabled: true, tracking: true, owner: 'Victor' });
 }));
 
 test('the flag without a token is still off', env({ TODOIST_SYNC_ENABLED: '1' }, async () => {

@@ -2049,7 +2049,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
     <button class="bvt-btn" id="badDatesBtn" style="display:none" onclick="openBadDatesPanel()" title="Your tasks whose start date is AFTER their due date — usually left over from an old plan. Click to review and clear them.">
       ⚠<span class="btn-lbl" id="badDatesLbl"> Dates to fix</span>
     </button>
-    <button class="bvt-btn" id="pushedReviewBtn" style="display:none" onclick="openPushedReview()" title="Tasks whose date you've pushed 3 or more times — for your weekly review">
+    <button class="bvt-btn" id="pushedReviewBtn" style="display:none" onclick="openPushedReview()" title="Tasks whose due date has been pushed back 3 or more times, across the team — for the weekly review">
       🔁<span class="btn-lbl"> Pushed 3×</span>
     </button>
     <div style="width:1px;height:18px;background:var(--border);margin:0 2px"></div>
@@ -2794,7 +2794,8 @@ let suggestedPrio = 'med';
 let _undoStack = [];
 // Todoist sync runs on the server once TODOIST_API_TOKEN is set there (api/todoist-sync.js). The
 // browser only nudges it after saves and reads back the reschedule ("pushed N×") counts.
-let _tdServerMode = false;        // set by _tdInitServerMode() when the server reports it is enabled
+let _tdServerMode = false;        // set by _tdInitServerMode() when the server's TODOIST sync is on (Victor's tasks -> Todoist)
+let _tdTracking = false;          // team-wide "date pushed later" tracking is available (it is for everyone, with or without Todoist)
 let _tdStrikes = {};              // taskId -> reschedule count, from the server
 let _tdPingTimer = null, _tdPingBusy = false, _tdLastSync = null;
 const _tdPingHints = new Set();   // ids deleted in Chope, so the server can mirror the delete at once
@@ -5841,7 +5842,7 @@ async function decideApply() {
   toast(msg + ' — push count reset', { label: 'Undo', onClick: undo });
   if (created.length) _tdSyncMany(created);
   // Reset the push count and strike labels on the server (best effort — it's harmless if it can't).
-  if (_tdServerMode) { try { _tdApplyCounts((await _tdApi({ action: 'decided', taskId: id })).counts); } catch (e) { console.warn('Decide reset:', e.message); } }
+  if (_tdTracking) { try { _tdApplyCounts((await _tdApi({ action: 'decided', taskId: id })).counts); } catch (e) { console.warn('Decide reset:', e.message); } }
   if (document.getElementById('overduePanelTitle')?.textContent.includes('🔁')) openPushedReview();
 }
 
@@ -7014,11 +7015,11 @@ async function _tdApi(payload) {
   return data;
 }
 async function _tdInitServerMode() {
-  try { _tdServerMode = !!(await _tdApi({ action: 'status' })).enabled; } catch { _tdServerMode = false; }
+  try { const st = await _tdApi({ action: 'status' }); _tdServerMode = !!st.enabled; _tdTracking = st.tracking !== false; } catch { _tdServerMode = false; _tdTracking = false; }
   renderTodoistStatus();
   const btn = document.getElementById('pushedReviewBtn');
-  if (btn) btn.style.display = _tdServerMode ? '' : 'none';
-  if (_tdServerMode) {
+  if (btn) btn.style.display = _tdTracking ? '' : 'none';
+  if (_tdTracking) {
     try { _tdApplyCounts((await _tdApi({ action: 'strikes', min: 3 })).counts); } catch (e) { console.warn('strike counts:', e.message); }
   }
 }
@@ -7029,12 +7030,12 @@ function _tdApplyCounts(counts) {
   renderAll();
 }
 function _tdSchedulePing() {
-  if (!_tdServerMode) return;
+  if (!_tdServerMode && !_tdTracking) return;
   clearTimeout(_tdPingTimer);
   _tdPingTimer = setTimeout(_tdPingNow, 4000); // coalesce a burst of edits into one sync
 }
 async function _tdPingNow(manual) {
-  if (!_tdServerMode) return null;
+  if (!_tdServerMode && !_tdTracking) return null;
   if (_tdPingBusy) { _tdSchedulePing(); return null; }
   _tdPingBusy = true;
   const deleted = [..._tdPingHints]; _tdPingHints.clear();
@@ -7063,7 +7064,8 @@ function _updateDecidedBtn(taskId) {
   const b = document.getElementById('btnDecided');
   if (!b) return;
   const n = taskId ? _tdStrikes[taskId] : 0;
-  const show = _tdServerMode && n >= 1 && state.currentUser === ADMIN_USER;
+  const t = taskId ? tasks.find(x => x.id === taskId) : null;
+  const show = _tdTracking && n >= 1 && !!t && (t.assignee === state.currentUser || state.currentUser === ADMIN_USER);
   b.style.display = show ? '' : 'none';
   if (show) b.textContent = `✓ Decided (pushed ${n}×)`;
 }
@@ -7084,11 +7086,12 @@ async function openPushedReview() {
           <div style="font-size:13px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(i.title)}</div>
           <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap;font-size:11px;color:var(--t3)">
             <span class="push-badge">Pushed ${i.count}×</span>
+            ${i.assignee ? `<span>${esc(i.assignee)}</span>` : ''}
             <span>Originally ${i.originalDate ? fmtDate(i.originalDate) : '—'} → now <strong style="color:var(--t1)">${i.currentDate ? fmtDate(i.currentDate) : 'no date'}</strong></span>
             <span>${i.daysSinceFirstScheduled == null ? '' : i.daysSinceFirstScheduled + ' days since first scheduled'}</span>
           </div>
         </div>
-        ${state.currentUser === ADMIN_USER ? `<button class="btn-ghost" style="font-size:11px;white-space:nowrap" onclick="markDecided('${i.taskId}')">✓ Decided</button>` : ''}
+        ${(i.assignee === state.currentUser || state.currentUser === ADMIN_USER) ? `<button class="btn-ghost" style="font-size:11px;white-space:nowrap" onclick="markDecided('${i.taskId}')">✓ Decided</button>` : ''}
       </div>`).join('')
       : '<div style="text-align:center;padding:32px;color:var(--t3);font-size:13px">Nothing has been pushed 3 times. 🎉</div>';
   } catch (e) {
