@@ -20,10 +20,15 @@ import { createFirebaseVerifier } from '../lib/verifyFirebaseToken.js';
 import { createTodoistClient } from '../lib/todoistClient.js';
 import { createFirestoreStore } from '../lib/syncStore.js';
 import { runSync, decide, buildStrikeView } from '../lib/todoistSync.js';
+import { planCleanup, applyCleanup, summarizePlan } from '../lib/todoistCleanup.js';
 
 function config() {
   return {
     token: process.env.TODOIST_API_TOKEN || '',
+    // Having a token is NOT enough to start syncing: the switch is TODOIST_SYNC_ENABLED=1. That lets the
+    // token be stored and the one-off duplicate cleanup be run and reviewed first, so nothing is
+    // created in Todoist until the owner deliberately turns syncing on.
+    syncOn: !!process.env.TODOIST_API_TOKEN && process.env.TODOIST_SYNC_ENABLED === '1',
     projectName: process.env.TODOIST_PROJECT_NAME || 'Chope',
     ownerName: process.env.TODOIST_OWNER || 'Victor',
     tz: process.env.CHOPE_TZ || 'Asia/Singapore',
@@ -59,7 +64,7 @@ export default async function handler(req, res) {
     // Scheduled reconcile (Vercel Cron issues GET).
     if (req.method === 'GET') {
       if (!cronOk) return res.status(401).json({ error: 'unauthorized' });
-      if (!cfg.token) return res.status(200).json({ ok: true, skipped: 'TODOIST_API_TOKEN not set' });
+      if (!cfg.syncOn) return res.status(200).json({ ok: true, skipped: 'Todoist sync is switched off' });
       const r = await runSync(makeDeps());
       console.log('todoist-sync (cron)', JSON.stringify({ ...r, counts: undefined }));
       return res.status(200).json({ ...r, counts: undefined });
@@ -73,8 +78,26 @@ export default async function handler(req, res) {
     const user = cronOk ? { name: cfg.ownerName } : await authUser(req);
     if (!user) return res.status(401).json({ error: 'unauthorized' });
 
-    if (body.action === 'status') return res.status(200).json({ enabled: !!cfg.token, owner: cfg.ownerName });
-    if (!cfg.token) return res.status(200).json({ enabled: false });
+    if (body.action === 'status') return res.status(200).json({ enabled: cfg.syncOn, owner: cfg.ownerName });
+
+    // One-off duplicate cleanup. Owner only, needs the token but NOT the sync switch. Without
+    // apply:true it only reports what it WOULD do (nothing is changed); applying needs confirm:'APPLY'.
+    if (body.action === 'cleanup') {
+      if (user.name !== cfg.ownerName) return res.status(403).json({ error: 'only the owner can run the cleanup' });
+      if (!cfg.token) return res.status(400).json({ error: 'TODOIST_API_TOKEN is not set' });
+      const d = makeDeps();
+      const project = (await d.todoist.listProjects()).find(p => p.name === cfg.projectName);
+      if (!project) return res.status(200).json({ ok: true, applied: false, note: `No Todoist project named "${cfg.projectName}" yet — nothing to clean.` });
+      const [chopeTasks, state, todoistTasks] = await Promise.all([d.store.loadTasks(), d.store.loadState(), d.todoist.listActive({ projectId: project.id })]);
+      const plan = planCleanup({ chopeTasks, todoistTasks, ownerName: cfg.ownerName, state });
+      if (body.apply !== true) return res.status(200).json({ ok: true, applied: false, todoistActive: todoistTasks.length, plan: summarizePlan(plan) });
+      if (body.confirm !== 'APPLY') return res.status(400).json({ error: 'to apply, send confirm: "APPLY"' });
+      const result = await applyCleanup(d, plan);
+      console.log('todoist cleanup applied', JSON.stringify(result));
+      return res.status(200).json({ ok: result.errors.length === 0, applied: true, result });
+    }
+
+    if (!cfg.syncOn) return res.status(200).json({ enabled: false });
 
     const deps = makeDeps();
     switch (body.action) {
