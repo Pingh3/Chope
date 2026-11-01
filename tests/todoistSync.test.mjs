@@ -1,7 +1,7 @@
 // Run with: npm test   (node --test tests/)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runSync, decide, buildStrikeView, evaluateDateChange, localDay, strikeLabelFor, idempotencyKey } from '../lib/todoistSync.js';
+import { runSync, decide, buildStrikeView, evaluateDateChange, localDay, strikeLabelFor, idempotencyKey, priorityToTodoist } from '../lib/todoistSync.js';
 import { createMemoryStore } from '../lib/syncStore.js';
 import { createFakeTodoist } from './helpers/fakeTodoist.mjs';
 import { createTodoistClient, TodoistError } from '../lib/todoistClient.js';
@@ -322,6 +322,43 @@ test('two sync-state records pointing at the same Todoist task are untangled too
   await sync();
   assert.notEqual(rec('b').todoistId, rec('a').todoistId);
   assert.equal(todoist.active().length, 2);
+});
+
+test('"Waiting on" tasks are never created in Todoist (they don\'t need me)', async () => {
+  const { todoist, sync } = setup([T('a', { status: 'waiting', waitingOn: 'Legal' }), T('b')]);
+  const r = await sync();
+  assert.equal(r.created, 1);
+  assert.deepEqual(todoist.active().map(t => t.content), ['Task b']);
+});
+
+test('moving a synced task to Waiting removes it from Todoist but keeps its push count; moving back recreates it', async () => {
+  const { todoist, sync, patch, day, rec } = setup([T('a')]);
+  await sync();
+  for (const d of ['2026-10-25', '2026-10-30']) { day(1); patch('a', { deadline: d }); await sync(); }
+  assert.equal(rec('a').count, 2);
+  patch('a', { status: 'waiting' });
+  const r = await sync();
+  assert.equal(r.deleted, 1);
+  assert.equal(todoist.active().length, 0);
+  assert.equal(rec('a').count, 2);                 // history survives the parking
+  assert.equal(rec('a').todoistId, null);
+  patch('a', { status: 'todo' });
+  const back = await sync();
+  assert.equal(back.created, 1);
+  assert.ok(todoist.active()[0].labels.includes('strike-2'));   // ...and the warning label comes back with it
+});
+
+test('a date pushed later while parked on Waiting is not counted as a push when it comes back', async () => {
+  const { sync, patch, day, rec } = setup([T('a')]);
+  await sync();
+  patch('a', { status: 'waiting' }); await sync();
+  day(1); patch('a', { deadline: '2026-12-01' }); await sync();      // moved later while waiting
+  patch('a', { status: 'todo' }); await sync();
+  assert.equal(rec('a').count, 0);
+});
+
+test('P4 Someday maps to Todoist\'s lowest priority; P1 stays the highest', () => {
+  assert.deepEqual(['high', 'med', 'low', 'someday', undefined].map(priorityToTodoist), [4, 3, 2, 1, 1]);
 });
 
 test('strike review lists tasks pushed 3+ times, worst first, with original/current date and age', async () => {

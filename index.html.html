@@ -114,6 +114,7 @@
 [data-theme="dark"] .prio-pill.high{background:#3B0F0F;color:#F87171;border-color:#7F1D1D}
 [data-theme="dark"] .prio-pill.med{background:#2D1E00;color:#FBBF24;border-color:#92400E}
 [data-theme="dark"] .prio-pill.low{background:#052E16;color:#4ADE80;border-color:#14532D}
+[data-theme="dark"] .prio-pill.someday{background:#1F2937;color:#9CA3AF;border-color:#374151}
 /* Workstream chip */
 [data-theme="dark"] .ws-chip{background:rgba(99,102,241,.18);color:#A5B4FC}
 /* Duplicate warning */
@@ -210,6 +211,11 @@
 /* "Pushed N×": this task's date has been moved later 3+ times (see api/todoist-sync.js) */
 .push-badge{display:inline-flex;align-items:center;background:#FEE2E2;color:#B91C1C;border:1px solid #FECACA;border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap}
 [data-theme="dark"] .push-badge{background:#3B1212;color:#FCA5A5;border-color:#7F1D1D}
+/* "Waiting on" chip: who/what a task is waiting for, red once the follow-up date has arrived */
+.wait-chip{display:inline-flex;align-items:center;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#EDE9FE;color:#6D28D9;border:1px solid #DDD6FE;border-radius:20px;padding:1px 8px;font-size:10px;font-weight:600}
+.wait-chip.late{background:#FEE2E2;color:#B91C1C;border-color:#FECACA}
+[data-theme="dark"] .wait-chip{background:#2E1065;color:#C4B5FD;border-color:#4C1D95}
+[data-theme="dark"] .wait-chip.late{background:#3B1212;color:#FCA5A5;border-color:#7F1D1D}
 /* Team drill-downs: any number that opens a task list in the slide-in panel */
 .team-drill{cursor:pointer;border-radius:6px;transition:background .12s}
 .team-drill:hover{background:var(--col)}
@@ -506,7 +512,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 #boardView{padding:0}
 .board{
   display:grid;
-  grid-template-columns:repeat(4,1fr);
+  grid-template-columns:repeat(5,1fr);
   gap:12px;
   padding:18px 20px;
   min-height:calc(100vh - 160px);
@@ -640,6 +646,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .prio-pill.high{background:#FEF2F2;color:#EF4444;border-color:#FECACA}
 .prio-pill.med{background:#FFFBEB;color:#D97706;border-color:#FDE68A}
 .prio-pill.low{background:#F0FDF4;color:#16A34A;border-color:#BBF7D0}
+.prio-pill.someday{background:#F3F4F6;color:#6B7280;border-color:#E5E7EB}
 .prio-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;display:inline-block}
 .fund-chip{
   background:var(--bg);border:1px solid var(--border);
@@ -2016,7 +2023,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
   <div id="boardBanner"></div>
   <!-- View mode toggle: Kanban | List -->
   <div id="boardViewToggle">
-    <button class="bvt-btn" onclick="openAutoSortReview()" title="Review a revised plan — start dates and priority — for every open task">
+    <button class="bvt-btn" onclick="openAutoSortReview()" title="Review a revised plan — suggested start dates — for your dated tasks">
       ✨<span class="btn-lbl"> Revise Plan</span>
     </button>
     <button class="bvt-btn" id="pushedReviewBtn" style="display:none" onclick="openPushedReview()" title="Tasks whose date you've pushed 3 or more times — for your weekly review">
@@ -2199,14 +2206,15 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
         <div class="sel-wrap">
           <div class="sel-dot" id="dot-priority"></div>
           <select class="fi" id="fPriority" onchange="updateSelDots()">
-            <option value="high">High</option>
-            <option value="med" selected>Medium</option>
-            <option value="low">Low</option>
+            <option value="high">P1 · Must do</option>
+            <option value="med" selected>P2 · Growth</option>
+            <option value="low">P3 · Reactive / admin</option>
+            <option value="someday">P4 · Someday</option>
           </select>
         </div>
       </div>
       <div class="plan-box" id="planBox">
-        <div class="plan-box-title">Planning <span style="font-weight:400;font-size:10px;color:var(--t3);text-transform:none;letter-spacing:0">— fills in dates below</span></div>
+        <div class="plan-box-title">Planning <span style="font-weight:400;font-size:10px;color:var(--t3);text-transform:none;letter-spacing:0">— optional · sets the time estimate and start date, never a due date</span></div>
         <div class="plan-row">
           <div class="plan-q">How long will this take?</div>
           <div class="plan-pills" id="planDuration">
@@ -2254,10 +2262,11 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
           <label>Status</label>
           <div class="sel-wrap">
             <div class="sel-dot" id="dot-status"></div>
-            <select class="fi" id="fStatus" onchange="updateSelDots()">
+            <select class="fi" id="fStatus" onchange="updateSelDots();toggleWaitingBox()">
               <option value="todo">To Do</option>
               <option value="inprogress">In Progress</option>
               <option value="review">Under Review</option>
+              <option value="waiting">Waiting on</option>
               <option value="done">Done</option>
             </select>
           </div>
@@ -2267,11 +2276,18 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
           <input class="fi" type="date" id="fStartDate" onchange="this.dataset.userSet='1';validateDates();_recalcDeadline()">
         </div>
         <div class="mf">
-          <label>Due Date</label>
+          <label title="Only for a real commitment — otherwise leave it blank">Due Date <span style="font-weight:400;text-transform:none;letter-spacing:0">· commitments only</span></label>
           <input class="fi" type="date" id="fDeadline" onchange="this.dataset.userSet='1';validateDates();onDescInput()">
         </div>
       </div>
       <div id="dateError" style="display:none;color:#EF4444;font-size:11px;margin-top:-6px;padding:0 2px">Due date can't be earlier than start date.</div>
+      <div id="waitingBox" style="display:none">
+        <div class="mfrow">
+          <div class="mf"><label>Waiting on</label><input class="fi" id="fWaitingOn" placeholder="Who or what?" maxlength="120" autocomplete="off"></div>
+          <div class="mf"><label>Follow up on</label><input class="fi" type="date" id="fFollowUp"></div>
+        </div>
+        <button type="button" class="btn-ghost" id="btnFollowUp" style="font-size:11px;margin-top:8px" onclick="createFollowUpTask()" title="Make a separate task for you to chase this on the follow-up date">+ Create a follow-up task for me</button>
+      </div>
       <div class="mf">
         <label>Workstream / Project</label>
         <select class="fi" id="fWs" onchange="this.dataset.userSet='1'">
@@ -2474,9 +2490,9 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
         <div class="sc-group-label">Filters</div>
         <div class="sc-row"><kbd>A</kbd><span>Show all team tasks</span></div>
         <div class="sc-row"><kbd>S</kbd><span>Show only my tasks</span></div>
-        <div class="sc-row"><kbd>H</kbd><span>Filter High priority</span></div>
-        <div class="sc-row"><kbd>M</kbd><span>Filter Medium priority</span></div>
-        <div class="sc-row"><kbd>L</kbd><span>Filter Low priority</span></div>
+        <div class="sc-row"><kbd>H</kbd><span>Filter P1 · Must do</span></div>
+        <div class="sc-row"><kbd>M</kbd><span>Filter P2 · Growth</span></div>
+        <div class="sc-row"><kbd>L</kbd><span>Filter P3 · Reactive / admin</span></div>
         <div class="sc-row"><kbd>X</kbd><span>Clear all filters</span></div>
       </div>
       <div class="sc-group" style="border-bottom:none">
@@ -2500,7 +2516,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
     </div>
     <div class="modal-body" style="gap:0;padding:0">
       <div style="padding:12px 20px;font-size:12px;color:var(--t3);border-bottom:1px solid var(--border)">
-        A revised start date and/or priority for your <span id="autoSortCount">0</span> currently-visible open tasks — start dates are leveled per assignee so work doesn't all pile onto the same days (deadlines are never moved automatically), and priority reflects how much slack is left. Uncheck any you don't want, then apply — nothing changes until you do.
+        A revised start date for <span id="autoSortCount">0</span> of your currently-visible open tasks that have a due date — leveled per assignee so work doesn't all pile onto the same days. Due dates and priorities are never changed automatically. Uncheck any you don't want, then apply — nothing changes until you do.
       </div>
       <label class="asort-select-all">
         <input type="checkbox" id="autoSortSelectAll" checked onchange="_asortToggleAll(this.checked)">
@@ -2616,9 +2632,10 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
   <select class="sel-field" id="bulkPriority" title="Set priority for selected tasks"
     onchange="bulkSetField('priority', this.value); this.value=''">
     <option value="" disabled selected>Priority</option>
-    <option value="high">High</option>
-    <option value="med">Medium</option>
-    <option value="low">Low</option>
+    <option value="high">P1 · Must do</option>
+    <option value="med">P2 · Growth</option>
+    <option value="low">P3 · Reactive / admin</option>
+    <option value="someday">P4 · Someday</option>
   </select>
   <select class="sel-field" id="bulkWs" title="Set workstream/project for selected tasks"
     onchange="bulkSetField('ws', this.value); this.value=''"></select>
@@ -2677,6 +2694,7 @@ const COLS = {
   todo:       { label: 'To Do',         color: '#6B7280' },
   inprogress: { label: 'In Progress',   color: '#3B82F6' },
   review:     { label: 'Under Review',  color: '#F59E0B' },
+  waiting:    { label: 'Waiting on',    color: '#8B5CF6' },
   done:       { label: 'Done',          color: '#22C55E' },
 };
 
@@ -3127,8 +3145,24 @@ function parseDateFromText(text) {
   return null;
 }
 
-const PRIO_COLORS   = { high:'#EF4444', med:'#F59E0B', low:'#22C55E' };
-const STATUS_COLORS = { todo:'#6B7280', inprogress:'#3B82F6', review:'#F59E0B', done:'#22C55E' };
+/* Priority is a judgement about the KIND of work, not about how soon it's due (team rule):
+     P1 Must do   crises, problems, hard deadlines → do first
+     P2 Growth    opportunities, projects, relationships, learning → protect fixed blocks
+     P3 Reactive  calls, utilities, interruptions, admin → batch, delegate, timebox
+     P4 Someday   someday or delete → looked at in the weekly review
+   The stored keys stay high/med/low (+ someday) so existing tasks, the shared data and the Todoist
+   priority mapping keep working untouched — only the names shown to people changed. */
+const PRIORITIES = {
+  high:    { short: 'P1', name: 'Must do',          color: '#EF4444', tip: 'Crises, problems, hard deadlines — do first' },
+  med:     { short: 'P2', name: 'Growth',           color: '#F59E0B', tip: 'Opportunities, projects, relationships, learning — protect fixed blocks' },
+  low:     { short: 'P3', name: 'Reactive / admin', color: '#22C55E', tip: 'Calls, utilities, interruptions — batch, delegate, timebox' },
+  someday: { short: 'P4', name: 'Someday',          color: '#9CA3AF', tip: 'Someday or delete — reviewed in the weekly review' },
+};
+const PRIO_ORDER  = { high: 0, med: 1, low: 2, someday: 3 };           // sort order; Someday always last
+const PRIO_COLORS = Object.fromEntries(Object.entries(PRIORITIES).map(([k, v]) => [k, v.color]));
+const prioShort = p => PRIORITIES[p]?.short || '';
+const prioFull  = p => PRIORITIES[p] ? `${PRIORITIES[p].short} · ${PRIORITIES[p].name}` : String(p || '');
+const STATUS_COLORS = { todo:'#6B7280', inprogress:'#3B82F6', review:'#F59E0B', waiting:'#8B5CF6', done:'#22C55E' };
 const FUND_COLORS   = { WHPMT:'#4F46E5', 'Fund II':'#0891B2', 'Fund III':'#059669', 'Fund IV':'#D97706', cross:'#7C3AED', none:'#D1D5DB', '':'#D1D5DB' };
 
 function updateSelDots() {
@@ -3191,17 +3225,14 @@ function onDescInput() {
     const sdEl = document.getElementById('fStartDate');
     if (!dlEl.dataset.userSet) {
       const parsed = parseDateFromText(name);
-      if (parsed) {
-        dlEl.value = parsed;
-        if (!sdEl.dataset.userSet) sdEl.value = todayLocal();
-      }
+      if (parsed) dlEl.value = parsed; // a date the person typed into the name ("…by 15 Nov") is a stated commitment; the start date is left alone
     }
   }
 
   // Auto-estimate priority (factor in deadline)
   const deadline = document.getElementById('fDeadline')?.value || null;
   suggestedPrio = estimatePriority(name, desc, deadline);
-  const labels = { high: '🔴 High', med: '🟡 Medium', low: '⚪ Low' };
+  const labels = { high: '🔴 P1 · Must do', med: '🟡 P2 · Growth', low: '⚪ P3 · Reactive / admin' };
   const colors = { high: '#FEF2F2', med: '#FFFBEB', low: '#F9FAFB' };
   const tcols  = { high: '#DC2626', med: '#D97706', low: '#6B7280' };
   const sp = document.getElementById('prioSugg');
@@ -3304,6 +3335,7 @@ function applyFilters(list, {ignoreAssignee=false, ignoreWs=false}={}) {
   return list.filter(t => {
     if (state.cat      !== 'all' && t.cat !== state.cat) return false;
     if (state.priority !== 'all' && t.priority !== state.priority) return false;
+    if (t.priority === 'someday' && state.priority !== 'someday') return false; // P4 stays out of sight until asked for
     if (state.fund.length) {
       const tFund = (t.fund && t.fund !== 'none') ? t.fund : 'none';
       if (!state.fund.includes(tFund)) return false;
@@ -3440,7 +3472,7 @@ function renderFilterBar() {
   ).join('');
 
   const activePills = [
-    state.priority !== 'all' ? ({high:'High',med:'Medium',low:'Low'}[state.priority]) : null,
+    state.priority !== 'all' ? prioFull(state.priority) : null,
     ...state.fund.map(f => f === 'none' ? 'No fund' : f === 'cross' ? 'Cross-funds' : f),
     ...state.assignee.map(a => a.split(' ')[0]),
     state.ws !== 'all' ? (state.ws === '' ? 'No WS' : (getWs(state.ws)?.name.slice(0,12) || state.ws)) : null,
@@ -3467,9 +3499,10 @@ function renderFilterBar() {
       <span class="fb-label">Priority</span>
       <div class="fb-group">
         ${p('all','All','priority',state.priority==='all')}
-        ${p('high','● High','priority',state.priority==='high')}
-        ${p('med','● Medium','priority',state.priority==='med')}
-        ${p('low','● Low','priority',state.priority==='low')}
+        ${p('high','● P1 Must do','priority',state.priority==='high')}
+        ${p('med','● P2 Growth','priority',state.priority==='med')}
+        ${p('low','● P3 Reactive','priority',state.priority==='low')}
+        ${p('someday','● P4 Someday','priority',state.priority==='someday')}
       </div>
     </div>
     <div class="fb-row">
@@ -3609,7 +3642,7 @@ let listAllDoneHidden = false;
 
 function toggleListAllDone() {
   listAllDoneHidden = !listAllDoneHidden; saveUserPrefs();
-  const keys = ['high','med','low'];
+  const keys = ['high','med','low','someday'];
   if (listAllDoneHidden) {
     // collapse all done sections
     keys.forEach(k => listDoneExpanded.delete(k));
@@ -3630,7 +3663,7 @@ function toggleListAllDone() {
 function _boardSortFn(a, b) {
   if (boardSortMode === 'deadline') return (a.deadline||'9999-99-99').localeCompare(b.deadline||'9999-99-99');
   if (boardSortMode === 'duration') return (a.durationHours ?? Infinity) - (b.durationHours ?? Infinity);
-  const po = {high:0,med:1,low:2};
+  const po = PRIO_ORDER;
   return (po[a.priority]??1) - (po[b.priority]??1);
 }
 function setBoardSortMode(mode) {
@@ -3639,36 +3672,20 @@ function setBoardSortMode(mode) {
   renderBoard();
 }
 
-/* ── Revise Plan: a reviewable, revertible re-plan of priority + start dates ──
-   Priority side: a slack heuristic — days left before the deadline minus days the task is
-   estimated to take. Less slack (or a negative one, i.e. overdue) means less room to react, so
-   it scores higher regardless of whatever priority was manually set earlier. Tasks with no
-   deadline have nothing to compute a schedule risk from, so priority is left untouched for them.
+/* ── Revise Plan: a reviewable, revertible re-plan of START dates ──
+   It does NOT touch priority. Priority (P1–P4) is a judgement about the kind of work — crisis,
+   growth, reactive, someday — not about how soon something is due, so a days-left formula that
+   re-labelled it contradicted the team's definitions and has been removed.
 
-   Start-date side: per assignee, walk each person's OWN open+dated tasks in earliest-deadline-
-   first order and greedily fill weekdays at an assumed 8h/day capacity, spilling overflow into
-   the next day. Deadlines are treated as fixed — this never moves a deadline, only suggests
-   when to START so the workload stops piling onto the same few near-term days. A task whose
-   filled-in days run past its own deadline is flagged "at risk" rather than silently accepted,
-   since the fix for that is a human call (move the deadline, reassign, drop scope) not a
-   silent date change. */
-function _autoSortScore(t) {
-  if (!t.deadline) return null;
-  const daysLeft = Math.round((new Date(t.deadline + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000);
-  const durationDays = t.durationHours ? t.durationHours / 8 : 0.5; // assume an 8hr workday; unestimated tasks default to a half day
-  if (daysLeft < 0) return 100;
-  const slack = daysLeft - durationDays;
-  if (slack <= 0)  return 90;
-  if (slack <= 2)  return 70;
-  if (slack <= 5)  return 50;
-  if (slack <= 10) return 30;
-  return 10;
-}
-function _autoSortSuggestedPriority(t) {
-  const score = _autoSortScore(t);
-  if (score === null) return null;
-  return score >= 70 ? 'high' : score >= 30 ? 'med' : 'low';
-}
+   Per assignee, walk each person's OWN open, dated tasks in earliest-deadline-first order and
+   greedily fill weekdays at an assumed 8h/day capacity, spilling overflow into the next day.
+   Deadlines are treated as fixed — this never moves a deadline, only suggests when to START so
+   the workload stops piling onto the same few near-term days. Only tasks WITH a deadline are
+   planned (a deadline marks a real commitment; undated tasks aren't forced onto the calendar).
+   Tasks that are Waiting on someone else or parked as Someday don't take the owner's time, so
+   they're left out. A task whose filled-in days run past its own deadline is flagged "at risk"
+   rather than silently accepted, since the fix for that is a human call (move the deadline,
+   reassign, drop scope), not a silent date change. */
 
 const PLAN_DAILY_CAPACITY_HOURS = 8;
 function _planIsWorkday(d) { const day = d.getDay(); return day !== 0 && day !== 6; }
@@ -3706,15 +3723,13 @@ function _computeRevisedSchedule(taskList) {
 
 let _autoSortPending = [];
 function openAutoSortReview() {
-  const open = filteredTasks().filter(t => t.status !== 'done');
+  const open = filteredTasks().filter(t => t.status !== 'done' && t.status !== 'waiting' && t.priority !== 'someday');
   const schedule = _computeRevisedSchedule(open.filter(t => t.deadline));
   _autoSortPending = [];
   open.forEach(t => {
-    const suggestedPriority = _autoSortSuggestedPriority(t);
-    const priorityChanged = !!suggestedPriority && suggestedPriority !== t.priority;
     const sched = schedule[t.id];
     const startChanged = !!(sched && sched.startDate && sched.startDate !== (t.startDate || null));
-    if (!priorityChanged && !startChanged) return;
+    if (!startChanged) return;
 
     const over = isOverdue(t);
     const daysOver = over ? Math.round((new Date(new Date().toDateString()) - new Date(t.deadline + 'T00:00:00')) / 86400000) : 0;
@@ -3724,7 +3739,7 @@ function openAutoSortReview() {
     if (sched?.atRisk) bits.push(`⚠ at this pace won't start in time to hit ${fmtDate(t.deadline)}`);
     _autoSortPending.push({
       id: t.id, name: t.name,
-      fromPriority: t.priority, toPriority: priorityChanged ? suggestedPriority : null,
+      fromPriority: t.priority, toPriority: null, // priority is never suggested (see note above)
       fromStart: t.startDate || null, toStart: startChanged ? sched.startDate : null,
       hint: bits.join(' · '), included: true,
     });
@@ -3734,8 +3749,7 @@ function openAutoSortReview() {
   document.getElementById('autoSortOverlay').classList.add('open');
 }
 function renderAutoSortModal() {
-  const PRIO_LABEL = { high: 'High', med: 'Medium', low: 'Low' };
-  const pill = p => `<span class="prio-pill ${p}" style="display:inline-flex"><span class="prio-dot" style="background:${PRIO_COLORS[p]}"></span>${PRIO_LABEL[p]}</span>`;
+  const pill = p => `<span class="prio-pill ${p}" style="display:inline-flex"><span class="prio-dot" style="background:${PRIO_COLORS[p]}"></span>${prioFull(p)}</span>`;
   document.getElementById('autoSortBody').innerHTML = _autoSortPending.map(p => `
     <div class="asort-row">
       <input type="checkbox" class="asort-check" ${p.included ? 'checked' : ''} onchange="_asortToggle('${p.id}')">
@@ -3755,9 +3769,9 @@ function renderAutoSortModal() {
         <div class="asort-field-row">
           ${pill(p.fromPriority)}<span class="asort-arrow">→</span>
           <select class="asort-prio-select" onchange="_asortEditPriority('${p.id}', this.value)">
-            <option value="high" ${p.toPriority === 'high' ? 'selected' : ''}>High</option>
-            <option value="med"  ${p.toPriority === 'med'  ? 'selected' : ''}>Medium</option>
-            <option value="low"  ${p.toPriority === 'low'  ? 'selected' : ''}>Low</option>
+            <option value="high" ${p.toPriority === 'high' ? 'selected' : ''}>P1 · Must do</option>
+            <option value="med"  ${p.toPriority === 'med'  ? 'selected' : ''}>P2 · Growth</option>
+            <option value="low"  ${p.toPriority === 'low'  ? 'selected' : ''}>P3 · Reactive / admin</option>
           </select>
         </div>` : ''}
     </div>`).join('');
@@ -3840,7 +3854,7 @@ function setBoardMode(mode) {
   renderBoard();
 }
 
-let listDoneExpanded = new Set(['high','med','low']); // all expanded by default
+let listDoneExpanded = new Set(['high','med','low','someday']); // all expanded by default
 
 function toggleListDoneGroup(key) {
   if (listDoneExpanded.has(key)) listDoneExpanded.delete(key);
@@ -3875,15 +3889,16 @@ function setListSort(col) {
 
 function renderBoardAsList() {
   const ft = filteredTasks();
-  const STATUS_LABEL = { todo: 'To Do', inprogress: 'In Progress', review: 'Under Review', done: 'Done' };
-  const STATUS_BG    = { todo: '#F3F4F6', inprogress: '#DBEAFE', review: '#FEF3C7', done: '#DCFCE7' };
-  const STATUS_COL   = { todo: '#6B7280', inprogress: '#1D4ED8', review: '#B45309', done: '#15803D' };
+  const STATUS_LABEL = { todo: 'To Do', inprogress: 'In Progress', review: 'Under Review', waiting: 'Waiting on', done: 'Done' };
+  const STATUS_BG    = { todo: '#F3F4F6', inprogress: '#DBEAFE', review: '#FEF3C7', waiting: '#EDE9FE', done: '#DCFCE7' };
+  const STATUS_COL   = { todo: '#6B7280', inprogress: '#1D4ED8', review: '#B45309', waiting: '#6D28D9', done: '#15803D' };
   const byDeadline   = (a,b) => (a.deadline||'z').localeCompare(b.deadline||'z');
 
   const groups = [
-    { key: 'high', label: 'High Priority',  color: '#EF4444', tasks: ft.filter(t => t.priority === 'high') },
-    { key: 'med',  label: 'Medium Priority', color: '#F59E0B', tasks: ft.filter(t => t.priority === 'med')  },
-    { key: 'low',  label: 'Low Priority',    color: '#22C55E', tasks: ft.filter(t => t.priority === 'low')  },
+    { key: 'high',    label: prioFull('high'),    color: PRIO_COLORS.high,    tasks: ft.filter(t => t.priority === 'high') },
+    { key: 'med',     label: prioFull('med'),     color: PRIO_COLORS.med,     tasks: ft.filter(t => t.priority === 'med')  },
+    { key: 'low',     label: prioFull('low'),     color: PRIO_COLORS.low,     tasks: ft.filter(t => t.priority === 'low')  },
+    { key: 'someday', label: prioFull('someday'), color: PRIO_COLORS.someday, tasks: ft.filter(t => t.priority === 'someday') },
   ].filter(g => g.tasks.length);
 
   if (!groups.length) {
@@ -3898,7 +3913,7 @@ function renderBoardAsList() {
   const sortDir = listSortDir === 'asc' ? 1 : -1;
   const sortFn = (a, b) => {
     if (!listSortCol) return (a.deadline||'z').localeCompare(b.deadline||'z');
-    const SORDER = { todo: 0, inprogress: 1, review: 2, done: 3 };
+    const SORDER = { todo: 0, inprogress: 1, review: 2, waiting: 3, done: 4 };
     switch (listSortCol) {
       case 'name':     return sortDir * a.name.localeCompare(b.name);
       case 'desc':     return sortDir * (a.desc||'').localeCompare(b.desc||'');
@@ -4018,13 +4033,13 @@ function renderBoard() {
   const doneCount = ft.filter(t => t.status === 'done').length;
 
   if (hideDone) {
-    boardEl.style.gridTemplateColumns = '1fr 1fr 1fr 36px';
+    boardEl.style.gridTemplateColumns = '1fr 1fr 1fr 1fr 36px';
   } else {
     boardEl.style.gridTemplateColumns = '';
   }
 
   let html = '';
-  ['todo','inprogress','review'].forEach(key => {
+  ['todo','inprogress','review','waiting'].forEach(key => {
     const col = COLS[key];
     const colTasks = ft.filter(t => t.status === key).sort(_boardSortFn);
     html += `
@@ -4074,8 +4089,8 @@ function renderBoard() {
   // Mobile column nav strip
   if (colNav) {
     if (window.innerWidth <= 480) {
-      const colKeys = hideDone ? ['todo','inprogress','review'] : ['todo','inprogress','review','done'];
-      const colLabels = { todo:'To Do', inprogress:'In Progress', review:'Review', done:'Done' };
+      const colKeys = hideDone ? ['todo','inprogress','review','waiting'] : ['todo','inprogress','review','waiting','done'];
+      const colLabels = { todo:'To Do', inprogress:'In Progress', review:'Review', waiting:'Waiting', done:'Done' };
       colNav.style.display = 'flex';
       colNav.innerHTML = colKeys.map((k,i) =>
         `<button id="bcn-${k}" onclick="document.getElementById('board').scrollTo({left:${i}*window.innerWidth,behavior:'smooth'})"
@@ -4110,7 +4125,7 @@ function cardHTML(t) {
   const aCol   = avatarColor(t.assignee);
   const wsObj  = t.ws ? getWs(t.ws) : null;
   const prioCls = t.priority || 'med';
-  const prioLabel = { high: 'High', med: 'Medium', low: 'Low' }[t.priority] || t.priority;
+  const prioLabel = prioShort(t.priority) || t.priority;
 
   const isDone = t.status === 'done';
   const isSel  = selectedTaskIds.has(t.id);
@@ -4139,7 +4154,7 @@ function cardHTML(t) {
       ${t.desc ? `<div class="card-notes">${esc(t.desc)}</div>` : ''}
       <div class="card-rows">
         <div class="card-row">
-          <span class="prio-pill ${prioCls}">
+          <span class="prio-pill ${prioCls}" title="${esc(prioFull(t.priority))} — ${esc(PRIORITIES[t.priority]?.tip || '')}">
             <span class="prio-dot" style="background:${PRIO_COLORS[t.priority]}"></span>
             ${prioLabel}
           </span>
@@ -4151,6 +4166,7 @@ function cardHTML(t) {
           ${dl ? `<div class="card-dl ${dlCls}" style="margin-left:auto">📅 ${dl}${t.deadlineHistory?.length?`<span class="dl-moved-badge">↻${t.deadlineHistory.length}</span>`:''}</div>` : ''}
           ${wsObj ? `<div class="ws-chip" title="${wsObj.owner ? 'Lead: ' + esc(wsObj.owner) : 'No lead assigned'}">${esc(wsObj.name)}</div>` : ''}
         </div>
+        ${t.status === 'waiting' ? `<div class="card-row"><span class="wait-chip${t.followUpDate && t.followUpDate <= todayLocal() ? ' late' : ''}" title="Waiting on ${esc(t.waitingOn || 'someone')}${t.followUpDate ? ' — follow up ' + esc(fmtDate(t.followUpDate)) : ''}">⏳ ${esc(t.waitingOn || 'add who…')}${t.followUpDate ? ' · ' + esc(fmtDate(t.followUpDate)) : ''}</span></div>` : ''}
         <div class="card-row">
           <div class="card-avatar" style="background:${aCol};cursor:pointer" onclick="event.stopPropagation();openProfileModal('${esc(t.assignee)}')" title="${esc(t.assignee)}">${esc(initials(t.assignee))}</div>
           <span class="card-assignee-name" style="cursor:pointer" onclick="event.stopPropagation();openProfileModal('${esc(t.assignee)}')">${esc(t.assignee.split(' ')[0])}</span>
@@ -4169,7 +4185,9 @@ function renderDaily() {
   // Subject: follow assignee filter when exactly one person is selected, else default to self
   const subject = state.assignee.length === 1 ? state.assignee[0] : me;
   const isMe = subject === me;
-  const myTasks = base.filter(t => t.assignee === subject && t.status !== 'done');
+  const myTasks = base.filter(t => t.assignee === subject && t.status !== 'done' && t.status !== 'waiting'); // waiting = doesn't need me right now
+  const myWaiting = base.filter(t => t.assignee === subject && t.status === 'waiting')
+    .sort((a, b) => (a.followUpDate || '9999').localeCompare(b.followUpDate || '9999'));
   const myDone  = base.filter(t => t.assignee === subject && t.status === 'done');
   const myTotal = myTasks.length + myDone.length;
   const myRate  = myTotal ? Math.round(myDone.length / myTotal * 100) : 0;
@@ -4180,14 +4198,14 @@ function renderDaily() {
 
   const todayStr = _localDateStr(now);
   const todayTasks = myTasks.filter(t => !t.deadline || t.deadline <= todayStr).sort((a,b) => {
-    const po = {high:0,med:1,low:2};
+    const po = PRIO_ORDER;
     return (po[a.priority]||1)-(po[b.priority]||1);
   });
   const weekTasks = myTasks.filter(t => {
     if (!t.deadline) return false;
     const d7 = new Date(now); d7.setDate(d7.getDate()+7);
     return t.deadline > todayStr && t.deadline <= _localDateStr(d7);
-  }).sort((a,b) => {const po={high:0,med:1,low:2}; return (po[a.priority]??1)-(po[b.priority]??1);});
+  }).sort((a,b) => {const po=PRIO_ORDER; return (po[a.priority]??1)-(po[b.priority]??1);});
 
   // Team efficiency
   const teamRows = team.map(m => {
@@ -4210,6 +4228,19 @@ function renderDaily() {
   const isMonday = now.getDay() === 1;
   const myOverdue = myTasks.filter(t => t.deadline && t.deadline < todayStr)
     .sort((a,b) => a.deadline.localeCompare(b.deadline));
+
+  const waitingSectionHtml = myWaiting.length ? `
+    <div class="daily-section">
+      <h2>⏳ Waiting on others <span style="font-size:12px;color:var(--t3);font-weight:400">${myWaiting.length} · not counted in your open tasks</span></h2>
+      <div class="daily-tasks">
+        ${myWaiting.map(t => `
+          <div class="daily-task" onclick="openTaskModal('${t.id}')" style="cursor:pointer">
+            <div class="prio-dot" style="background:${PRIO_COLORS[t.priority] || '#9CA3AF'};flex-shrink:0"></div>
+            <div class="dt-name">${esc(t.name)}</div>
+            <span class="wait-chip${t.followUpDate && t.followUpDate <= todayStr ? ' late' : ''}">⏳ ${esc(t.waitingOn || 'someone')}${t.followUpDate ? ' · follow up ' + esc(fmtDate(t.followUpDate)) : ''}</span>
+          </div>`).join('')}
+      </div>
+    </div>` : '';
 
   document.getElementById('dailyContent').innerHTML = `
     <div class="daily-greeting">
@@ -4334,6 +4365,8 @@ function renderDaily() {
         </div>`;
       } catch { return ''; }
     })()}
+
+    ${waitingSectionHtml}
 
     <div class="daily-main-row">
       <div class="daily-schedule-col">
@@ -4577,7 +4610,7 @@ function renderMyWeek() {
   const week2 = fortnight.slice(7,14);
 
   const ft = filteredTasks();
-  const _po = (t) => ({high:0,med:1,low:2}[t.priority]??1);
+  const _po = (t) => (PRIO_ORDER[t.priority]??1);
   const activeTasks = ft.filter(t => t.status !== 'done' && t.deadline && t.deadline >= todayStr && t.deadline <= fortnight[13]).sort((a,b)=>_po(a)-_po(b));
   const overdue = ft.filter(t => t.status !== 'done' && t.deadline && t.deadline < todayStr).sort((a,b)=>_po(a)-_po(b));
 
@@ -4597,7 +4630,7 @@ function renderMyWeek() {
             <div class="stat-value" style="font-size:20px">${totalThisWeek}</div>
           </div>
           <div class="stat-card" style="padding:10px 16px;text-align:center">
-            <div class="stat-label">High Priority</div>
+            <div class="stat-label">P1 · Must do</div>
             <div class="stat-value" style="font-size:20px;color:${highCount?'#EF4444':'var(--t1)'}">${highCount}</div>
           </div>
           <div class="stat-card" style="padding:10px 16px;text-align:center${overdue.length?';cursor:pointer':''}" ${overdue.length?'onclick="openOverduePanel()" title="Click to see overdue tasks"':''}>
@@ -4675,7 +4708,7 @@ function renderMyWeek() {
         const w2end   = new Date(weekDays[6]+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
         const dayCells = weekDays.map(dateStr => {
           const d = new Date(dateStr+'T12:00:00');
-          const dayTasks = activeTasks.filter(t => t.deadline === dateStr).sort((a,b)=>{const po={high:0,med:1,low:2};return po[a.priority]-po[b.priority];});
+          const dayTasks = activeTasks.filter(t => t.deadline === dateStr).sort((a,b)=>{const po=PRIO_ORDER;return po[a.priority]-po[b.priority];});
           const bdays = team.filter(m => m.birthday && m.birthday.slice(5) === dateStr.slice(5));
           const isToday = dateStr === todayStr;
           const isWeekend = d.getDay()===0||d.getDay()===6;
@@ -4789,7 +4822,7 @@ function _sortWsTasks(list) {
   if (wsTaskSortMode === 'deadline') {
     return [...list].sort((a, b) => (a.deadline || '9999-99-99').localeCompare(b.deadline || '9999-99-99'));
   }
-  const po = { high: 0, med: 1, low: 2 };
+  const po = PRIO_ORDER;
   return [...list].sort((a, b) => (po[a.priority] ?? 1) - (po[b.priority] ?? 1));
 }
 
@@ -5124,7 +5157,7 @@ function loadUserPrefs(user) {
     if (p.hideDone !== undefined) hideDone       = !!p.hideDone;
     if (p.listAllDoneHidden !== undefined) {
       listAllDoneHidden = !!p.listAllDoneHidden;
-      const keys = ['high','med','low'];
+      const keys = ['high','med','low','someday'];
       if (listAllDoneHidden) keys.forEach(k => listDoneExpanded.delete(k));
       else keys.forEach(k => listDoneExpanded.add(k));
     }
@@ -5271,6 +5304,7 @@ function drop(e, col) {
   if (t && t.status !== col) {
     _pushUndo();
     const wasDone = t.status === 'done';
+    const wasWaiting = t.status === 'waiting';
     t.status = col;
     if (col === 'done') t.completedAt = new Date().toISOString();
     else if (wasDone) t.completedAt = null;
@@ -5278,8 +5312,13 @@ function drop(e, col) {
     persist(); renderAll();
     toast(`Moved to ${COLS[col].label}`);
     // Dragging between columns changes completion, which Todoist must hear about too.
-    if (col === 'done' && !wasDone) _tdClose(t);
-    else if (wasDone && col !== 'done') _tdReopen(t);
+    (async () => {
+      if (col === 'done' && !wasDone) await _tdClose(t);
+      else {
+        if (wasDone && col !== 'done' && col !== 'waiting') await _tdReopen(t);
+        if (col === 'waiting' || wasWaiting) await _tdSync(t); // parked tasks leave Todoist; un-parked ones come back
+      }
+    })();
   }
   dragId = null;
 }
@@ -5355,9 +5394,8 @@ function openTaskModal(id) {
     _origAssignee = null;
     document.getElementById('fPriority').value = 'med';
     document.getElementById('fStatus').value    = 'todo';
-    document.getElementById('fStartDate').value = todayLocal();
-    const d = new Date(); d.setDate(d.getDate()+7);
-    document.getElementById('fDeadline').value  = _localDateStr(d);
+    document.getElementById('fStartDate').value = '';
+    document.getElementById('fDeadline').value  = ''; // no date unless it's a real commitment (team rule)
     document.getElementById('fWs').value       = state.ws !== 'all' ? (state.ws||'') : '';
     document.getElementById('fRecurrence').value = '';
     del.style.display = 'none';
@@ -5376,6 +5414,7 @@ function openTaskModal(id) {
   updateSelDots();
   resetPlanBox();
   _updateDecidedBtn(id);
+  _fillWaitingBox(id);
   { // "Open the original email" — only for tasks that came from Gmail, and only ever a Gmail link
     const link = id ? tasks.find(x => x.id === id)?.emailLink : null;
     const a = document.getElementById('emailLinkRow');
@@ -5474,6 +5513,8 @@ function saveTask() {
   const deadline  = document.getElementById('fDeadline').value;
   const ws        = document.getElementById('fWs').value;
   const recurrence = document.getElementById('fRecurrence').value || null;
+  const waitingOn = status === 'waiting' ? (document.getElementById('fWaitingOn')?.value || '').trim().slice(0, 120) : '';
+  const followUpDate = status === 'waiting' ? (document.getElementById('fFollowUp')?.value || '') : '';
   const handoffNote = (document.getElementById('handoffNote')?.value || '').trim();
 
   // Validate — re-enable and bail on failure
@@ -5507,7 +5548,7 @@ function saveTask() {
       const oldStatus = t.status, oldPriority = t.priority, oldDeadline = t.deadline, oldAssignee = t.assignee;
       const wasDone = t.status === 'done';
       _tdMove = (status === 'done' && !wasDone) ? 'close' : (wasDone && status !== 'done') ? 'reopen' : null;
-      Object.assign(t, { name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, recurrence, durationHours: _planDurationHours !== null ? _planDurationHours : t.durationHours });
+      Object.assign(t, { name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, recurrence, waitingOn, followUpDate, durationHours: _planDurationHours !== null ? _planDurationHours : t.durationHours });
       if (status === 'done' && !wasDone) { t.completedAt = new Date().toISOString(); _maybeSpawnRecurrence(t); }
       if (status !== 'done') t.completedAt = null;
       if (status !== oldStatus)   _logActivity('status',   _editId, name, { from: oldStatus,   to: status });
@@ -5519,7 +5560,7 @@ function saveTask() {
     toast('✓ Task saved');
   } else {
     _pushUndo();
-    tasks.unshift({ id: uid(), name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, recurrence, ...(_planDurationHours != null && { durationHours: _planDurationHours }), createdAt: new Date().toISOString() });
+    tasks.unshift({ id: uid(), name, desc, cat, fund, assignee, priority, status, startDate, deadline, ws, recurrence, waitingOn, followUpDate, ...(_planDurationHours != null && { durationHours: _planDurationHours }), createdAt: new Date().toISOString() });
     _logActivity('create', tasks[0].id, name, {});
     toast('✓ Task created');
   }
@@ -5552,6 +5593,39 @@ function deleteTask() {
   tasks = tasks.filter(x => x.id !== editTaskId);
   persist(); closeTaskModal(); renderAll();
   toast('Task deleted');
+}
+
+// ── "Waiting on" (the task needs someone else, not me) ───────────────────────────────
+function toggleWaitingBox() {
+  const box = document.getElementById('waitingBox');
+  if (box) box.style.display = document.getElementById('fStatus').value === 'waiting' ? '' : 'none';
+}
+function _fillWaitingBox(id) {
+  const t = id ? tasks.find(x => x.id === id) : null;
+  document.getElementById('fWaitingOn').value = t?.waitingOn || '';
+  document.getElementById('fFollowUp').value = t?.followUpDate || '';
+  const b = document.getElementById('btnFollowUp'); if (b) b.style.display = id ? '' : 'none'; // a brand-new task has no id to link to yet
+  toggleWaitingBox();
+}
+// A separate task for ME to chase the waiting one — "Todoist follow-up if it matters". It's an
+// ordinary task (P3, starts on the follow-up date, no due date) so it syncs and shows up like any other.
+function createFollowUpTask() {
+  const src = tasks.find(x => x.id === editTaskId);
+  if (!src) return;
+  if (src.followUpTaskId && tasks.some(x => x.id === src.followUpTaskId && x.status !== 'done')) { toast('A follow-up task already exists for this'); return; }
+  const who = document.getElementById('fWaitingOn').value.trim() || src.waitingOn || 'someone';
+  const when = document.getElementById('fFollowUp').value || src.followUpDate || '';
+  _pushUndo();
+  const f = {
+    id: uid(), name: ('Follow up: ' + src.name).slice(0, 200), desc: 'Waiting on ' + who + '. Original task: "' + src.name + '".',
+    cat: src.cat, fund: src.fund || '', assignee: state.currentUser || src.assignee, priority: 'low', status: 'todo',
+    startDate: when, deadline: '', ws: src.ws || '', createdAt: new Date().toISOString(), followUpOf: src.id,
+  };
+  tasks.unshift(f);
+  src.followUpTaskId = f.id;
+  persist(); renderAll();
+  toast('✓ Follow-up task created' + (when ? ' for ' + fmtDate(when) : ''));
+  _tdSync(f);
 }
 
 // A copy of a task as a brand-new task. It must NOT inherit the original's Todoist link: with the
@@ -5855,8 +5929,8 @@ function renderScheduleGrid() {
       .flatMap(([, dayData]) => Object.values(dayData).flat())
   );
   const myOpen = tasks
-    .filter(t => t.assignee === me && t.status !== 'done')
-    .sort((a,b) => { const po={high:0,med:1,low:2}; return (po[a.priority]??1)-(po[b.priority]??1); });
+    .filter(t => t.assignee === me && t.status !== 'done' && t.priority !== 'someday')
+    .sort((a,b) => { const po=PRIO_ORDER; return (po[a.priority]??1)-(po[b.priority]??1); });
   // Build a map of taskId -> earliest scheduled date for this user
   const taskScheduledDate = {};
   Object.entries(scheduleData).filter(([k]) => k.endsWith('_' + me)).forEach(([k, dayData]) => {
@@ -6218,7 +6292,7 @@ function _panelTaskRow(t, todayStr, mode) {
     if (isOverdue) deadlineBadge = `<span style="font-size:11px;color:#EF4444;font-weight:600">📅 ${fmtDate(t.deadline)} · ${daysOver}d overdue</span>`;
     else deadlineBadge = `<span style="font-size:11px;color:var(--t3)">📅 ${fmtDate(t.deadline)}</span>`;
   }
-  const statusMap = { todo:'To Do', inprogress:'In Progress', blocked:'Blocked', done:'Done' };
+  const statusMap = { todo:'To Do', inprogress:'In Progress', blocked:'Blocked', review:'Under Review', waiting:'Waiting on', done:'Done' };
   const statusBadge = mode === 'open'
     ? `<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:${t.status==='inprogress'?'rgba(37,99,235,.12)':t.status==='blocked'?'rgba(220,38,38,.12)':'var(--col)'};color:${t.status==='inprogress'?'#2563EB':t.status==='blocked'?'#DC2626':'var(--t3)'}">${statusMap[t.status]||t.status}</span>`
     : '';
@@ -6245,7 +6319,7 @@ function openOverduePanel(filterUser) {
   const todayStr = todayLocal();
   let overdue = tasks.filter(t => t.status !== 'done' && t.deadline && t.deadline < todayStr);
   if (filterUser) overdue = overdue.filter(t => t.assignee === filterUser);
-  overdue.sort((a,b) => (a.deadline < b.deadline ? -1 : 1) || ({high:0,med:1,low:2}[a.priority]??1) - ({high:0,med:1,low:2}[b.priority]??1));
+  overdue.sort((a,b) => (a.deadline < b.deadline ? -1 : 1) || (PRIO_ORDER[a.priority]??1) - (PRIO_ORDER[b.priority]??1));
   const titleEl = document.getElementById('overduePanelTitle');
   titleEl.textContent = `⚠ ${filterUser ? filterUser + "'s " : ''}Overdue Tasks (${overdue.length})`;
   titleEl.style.color = '#DC2626';
@@ -6259,7 +6333,7 @@ function openUpcomingPanel(filterUser) {
   const todayStr = todayLocal();
   let upcoming = tasks.filter(t => isUpcoming(t));
   if (filterUser) upcoming = upcoming.filter(t => t.assignee === filterUser);
-  upcoming.sort((a,b) => (a.deadline < b.deadline ? -1 : 1) || ({high:0,med:1,low:2}[a.priority]??1) - ({high:0,med:1,low:2}[b.priority]??1));
+  upcoming.sort((a,b) => (a.deadline < b.deadline ? -1 : 1) || (PRIO_ORDER[a.priority]??1) - (PRIO_ORDER[b.priority]??1));
   const titleEl = document.getElementById('overduePanelTitle');
   titleEl.textContent = `📆 ${filterUser ? filterUser + "'s " : ''}Upcoming Deadlines (${upcoming.length})`;
   titleEl.style.color = '#B45309';
@@ -6292,7 +6366,7 @@ function openTeamTaskPanel(kind, member) {
     open:     { icon: '📋', label: 'Open Tasks',         color: 'var(--t1)', test: t => t.status !== 'done',                                      empty: 'No open tasks 🎉' },
     done:     { icon: '✅', label: 'Completed',          color: '#059669',   test: t => t.status === 'done',                                      empty: 'No completed tasks yet.' },
     overdue:  { icon: '⚠',  label: 'Overdue',            color: '#DC2626',   test: t => t.status !== 'done' && t.deadline && t.deadline < todayStr, empty: 'Nothing overdue 🎉' },
-    high:     { icon: '⚡', label: 'High Priority Open', color: '#DC2626',   test: t => t.status !== 'done' && t.priority === 'high',             empty: 'No open high-priority tasks.' },
+    high:     { icon: '⚡', label: 'P1 · Must do (open)', color: '#DC2626',   test: t => t.status !== 'done' && t.priority === 'high',             empty: 'No open high-priority tasks.' },
     stale:    { icon: '⏳', label: 'Stale In-Progress',  color: '#D97706',   test: t => t.status === 'inprogress' && t.createdAt && (now - new Date(t.createdAt)) > 5 * D, empty: 'No stale in-progress tasks.' },
     done7:    { icon: '✅', label: 'Done in Last 7 Days',  color: '#059669', test: t => { const d = doneAt(t); return d && (now - d) < 7 * D; },  empty: 'Nothing completed in the last 7 days.' },
     done30:   { icon: '✅', label: 'Done in Last 30 Days', color: '#059669', test: t => { const d = doneAt(t); return d && (now - d) < 30 * D; }, empty: 'Nothing completed in the last 30 days.' },
@@ -6303,7 +6377,7 @@ function openTeamTaskPanel(kind, member) {
   if (!k) return;
   const isDoneKind = ['done', 'done7', 'done30', 'thisweek', 'lastweek'].includes(kind);
   const list = tasks.filter(t => (!member || t.assignee === member) && k.test(t));
-  const prio = { high: 0, med: 1, low: 2 };
+  const prio = PRIO_ORDER;
   list.sort(isDoneKind
     ? (a, b) => (b.completedAt || '').localeCompare(a.completedAt || '')
     : (a, b) => (a.deadline || '9999').localeCompare(b.deadline || '9999') || (prio[a.priority] ?? 1) - (prio[b.priority] ?? 1));
@@ -6342,7 +6416,7 @@ function closeOverduePanel() {
 function openInProgressPanel(filterUser) {
   let ip = tasks.filter(t => t.status === 'inprogress');
   if (filterUser) ip = ip.filter(t => t.assignee === filterUser);
-  ip.sort((a,b) => ({high:0,med:1,low:2}[a.priority]??1) - ({high:0,med:1,low:2}[b.priority]??1) || (a.deadline||'z').localeCompare(b.deadline||'z'));
+  ip.sort((a,b) => (PRIO_ORDER[a.priority]??1) - (PRIO_ORDER[b.priority]??1) || (a.deadline||'z').localeCompare(b.deadline||'z'));
   const titleEl = document.getElementById('overduePanelTitle');
   titleEl.textContent = `🔄 ${filterUser ? filterUser + "'s " : ''}In Progress (${ip.length})`;
   titleEl.style.color = '#2563EB';
@@ -6373,8 +6447,8 @@ function openCompletedPanel(filterUser) {
 }
 
 function openOpenTasksPanel(filterUser) {
-  let open = tasks.filter(t => t.status !== 'done' && (!filterUser || t.assignee === filterUser));
-  open.sort((a,b) => ({high:0,med:1,low:2}[a.priority]??1) - ({high:0,med:1,low:2}[b.priority]??1) || (a.deadline||'z').localeCompare(b.deadline||'z'));
+  let open = tasks.filter(t => t.status !== 'done' && t.status !== 'waiting' && t.priority !== 'someday' && (!filterUser || t.assignee === filterUser));
+  open.sort((a,b) => (PRIO_ORDER[a.priority]??1) - (PRIO_ORDER[b.priority]??1) || (a.deadline||'z').localeCompare(b.deadline||'z'));
   const titleEl = document.getElementById('overduePanelTitle');
   titleEl.textContent = `📋 ${filterUser ? filterUser + "'s " : ''}Open Tasks (${open.length})`;
   titleEl.style.color = 'var(--t1)';
@@ -6846,7 +6920,7 @@ async function _tdSync(task) {
   const hadId = !!task.todoistId;
   try {
     await _tdSyncThrows(task);
-    if (!hadId && task.todoistId) persist(); // save the newly-assigned todoistId
+    if (hadId !== !!task.todoistId) persist(); // save a newly-assigned (or newly-removed) todoistId
   } catch(e) {
     console.warn('Todoist sync:', e.message);
   }
@@ -6880,6 +6954,13 @@ async function _tdSyncThrows(task) {
   // task with a 404, which the code below read as "deleted in Todoist" and answered by CREATING a
   // fresh open copy — a duplicate for every completed task that got saved afterwards.
   if (task.status === 'done') return;
+  // "Waiting on" = it doesn't need me, so it isn't in Todoist: remove it (keeps nothing behind) and
+  // forget the link, so it gets a fresh Todoist task if it ever comes back to me.
+  if (task.status === 'waiting') {
+    if (task.todoistId && _tdOwnsLink(task)) await _tdDelete(task.todoistId);
+    task.todoistId = null;
+    return;
+  }
   if (!_tdOwnsLink(task)) task.todoistId = null; // not ours: get our own Todoist task below
   const projectId = await _tdEnsureProject();
   // Todoist API v1 create/update task fields are flat (not nested), confirmed against
@@ -7464,9 +7545,9 @@ function _renderBulkRows() {
         oninput="_bulkRows[${i}].name=this.value;_bulkRows[${i}]._key=this.value">
       <select class="fi" style="width:86px;font-size:11px;padding:5px 4px;flex-shrink:0"
         onchange="_bulkRows[${i}].priority=this.value">
-        <option value="high" ${row.priority==='high'?'selected':''}>🔴 High</option>
-        <option value="med"  ${row.priority==='med' ?'selected':''}>🟡 Med</option>
-        <option value="low"  ${row.priority==='low' ?'selected':''}>🟢 Low</option>
+        <option value="high" ${row.priority==='high'?'selected':''}>🔴 P1</option>
+        <option value="med"  ${row.priority==='med' ?'selected':''}>🟡 P2</option>
+        <option value="low"  ${row.priority==='low' ?'selected':''}>🟢 P3</option>
       </select>
       <select class="fi" style="width:106px;font-size:11px;padding:5px 4px;flex-shrink:0"
         onchange="_bulkRows[${i}].assignee=this.value">
@@ -7999,17 +8080,11 @@ function validateDates() {
   return true;
 }
 
+// This used to compute a due date from start date + duration, which invented a "deadline" for
+// almost every task. Team rule: a due date is only for a real commitment, so the planning pills
+// now set the start date and the time estimate and nothing else — the due date is only ever typed
+// or picked by a person. (Name kept so the many callers don't change.)
 function _recalcDeadline() {
-  const startVal = document.getElementById('fStartDate').value;
-  if (!startVal || _planDurationDays === null) return;
-  const daysToAdd = _planDurationDays < 1 ? 0 : Math.ceil(_planDurationDays);
-  if (daysToAdd === 0) {
-    document.getElementById('fDeadline').value = startVal;
-  } else {
-    const [y, mo, d] = startVal.split('-').map(Number);
-    const due = new Date(y, mo - 1, d + daysToAdd);
-    document.getElementById('fDeadline').value = _localDateStr(due);
-  }
   validateDates();
 }
 
@@ -9766,7 +9841,7 @@ function renderTeamView(force) {
         <div class="team-wl-health"><div class="team-wl-health-bar" style="width:${health}%;background:${healthColor}"></div></div>
         <div class="team-wl-stats">
           <div class="team-wl-stat team-drill" onclick="event.stopPropagation();openTeamTaskPanel('open','${esc(m.name)}')" title="List ${esc(m.name)}'s open tasks"><span class="team-wl-stat-num">${open}</span><span>open</span></div>
-          <div class="team-wl-stat team-drill" onclick="event.stopPropagation();openTeamTaskPanel('high','${esc(m.name)}')" title="List ${esc(m.name)}'s open high-priority tasks"><span class="team-wl-stat-num${high >= 3 ? ' red' : ''}">${high}</span><span>high pri</span></div>
+          <div class="team-wl-stat team-drill" onclick="event.stopPropagation();openTeamTaskPanel('high','${esc(m.name)}')" title="List ${esc(m.name)}'s open P1 (Must do) tasks"><span class="team-wl-stat-num${high >= 3 ? ' red' : ''}">${high}</span><span>P1</span></div>
           <div class="team-wl-stat team-drill" onclick="event.stopPropagation();openTeamTaskPanel('overdue','${esc(m.name)}')" title="List ${esc(m.name)}'s overdue tasks"><span class="team-wl-stat-num${overdue ? ' red' : ''}">${overdue}</span><span>overdue</span></div>
         </div>
       </div>`;
@@ -9863,7 +9938,7 @@ function renderTeamView(force) {
     ${kpiTile('all',     'Total Tasks',  tasks.length)}
     ${kpiTile('open',    'Open',         _openAll.length)}
     ${kpiTile('overdue', 'Overdue',      _overdueN, _overdueN ? '#DC2626' : '#059669')}
-    ${kpiTile('high',    'High Pri Open', _highN, _highN >= 5 ? '#DC2626' : '')}
+    ${kpiTile('high',    'P1 Open', _highN, _highN >= 5 ? '#DC2626' : '')}
     ${kpiTile('stale',   'Stale',        staleTasks.length, staleTasks.length ? '#D97706' : '#059669')}
     ${kpiTile('done7',   'Done 7d',      _done7N, '#059669')}
     ${kpiTile('done30',  'Done 30d',     _done30N, '#059669')}
@@ -10702,7 +10777,7 @@ function autoDraftWeeklySummary(field) {
       lines.push(`Summary: ${done.length} task${done.length === 1 ? '' : 's'} completed — ${catBreakdown}${fundBreakdown ? '. Funds: ' + fundBreakdown : ''}.`);
     }
   } else {
-    const priorityRank = { high: 0, med: 1, low: 2 };
+    const priorityRank = PRIO_ORDER;
     const open = tasks
       .filter(t => t.assignee === cu && t.status !== 'done')
       .sort((a, b) => {
