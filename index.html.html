@@ -2229,10 +2229,10 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
         <div class="sel-wrap">
           <div class="sel-dot" id="dot-priority"></div>
           <select class="fi" id="fPriority" onchange="updateSelDots()">
-            <option value="high">P1 · Must do</option>
-            <option value="med" selected>P2 · Growth</option>
-            <option value="low">P3 · Reactive / admin</option>
-            <option value="someday">P4 · Someday</option>
+            <option value="high">P1</option>
+            <option value="med" selected>P2</option>
+            <option value="low">P3</option>
+            <option value="someday">P4</option>
           </select>
         </div>
       </div>
@@ -2513,9 +2513,9 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
         <div class="sc-group-label">Filters</div>
         <div class="sc-row"><kbd>A</kbd><span>Show all team tasks</span></div>
         <div class="sc-row"><kbd>S</kbd><span>Show only my tasks</span></div>
-        <div class="sc-row"><kbd>H</kbd><span>Filter P1 · Must do</span></div>
-        <div class="sc-row"><kbd>M</kbd><span>Filter P2 · Growth</span></div>
-        <div class="sc-row"><kbd>L</kbd><span>Filter P3 · Reactive / admin</span></div>
+        <div class="sc-row"><kbd>H</kbd><span>Filter P1</span></div>
+        <div class="sc-row"><kbd>M</kbd><span>Filter P2</span></div>
+        <div class="sc-row"><kbd>L</kbd><span>Filter P3</span></div>
         <div class="sc-row"><kbd>X</kbd><span>Clear all filters</span></div>
       </div>
       <div class="sc-group" style="border-bottom:none">
@@ -2569,7 +2569,7 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
       <div class="decide-grid">
         <button type="button" class="decide-opt" data-choice="break"   onclick="decideChoose('break')"><span>🔨</span><b>Break it down</b><i>into smaller tasks</i></button>
         <button type="button" class="decide-opt" data-choice="delegate" onclick="decideChoose('delegate')"><span>👤</span><b>Delegate</b><i>hand it to someone</i></button>
-        <button type="button" class="decide-opt" data-choice="someday" onclick="decideChoose('someday')"><span>🌙</span><b>Someday</b><i>park it as P4</i></button>
+        <button type="button" class="decide-opt" data-choice="someday" onclick="decideChoose('someday')"><span>🌙</span><b>Park it</b><i>move it to P4</i></button>
         <button type="button" class="decide-opt" data-choice="delete"  onclick="decideChoose('delete')"><span>🗑</span><b>Delete</b><i>drop it</i></button>
       </div>
       <div id="decidePane"></div>
@@ -2682,10 +2682,10 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
   <select class="sel-field" id="bulkPriority" title="Set priority for selected tasks"
     onchange="bulkSetField('priority', this.value); this.value=''">
     <option value="" disabled selected>Priority</option>
-    <option value="high">P1 · Must do</option>
-    <option value="med">P2 · Growth</option>
-    <option value="low">P3 · Reactive / admin</option>
-    <option value="someday">P4 · Someday</option>
+    <option value="high">P1</option>
+    <option value="med">P2</option>
+    <option value="low">P3</option>
+    <option value="someday">P4</option>
   </select>
   <select class="sel-field" id="bulkWs" title="Set workstream/project for selected tasks"
     onchange="bulkSetField('ws', this.value); this.value=''"></select>
@@ -3204,23 +3204,20 @@ function parseDateFromText(text) {
   return null;
 }
 
-/* Priority is a judgement about the KIND of work, not about how soon it's due (team rule):
-     P1 Must do   crises, problems, hard deadlines → do first
-     P2 Growth    opportunities, projects, relationships, learning → protect fixed blocks
-     P3 Reactive  calls, utilities, interruptions, admin → batch, delegate, timebox
-     P4 Someday   someday or delete → looked at in the weekly review
-   The stored keys stay high/med/low (+ someday) so existing tasks, the shared data and the Todoist
-   priority mapping keep working untouched — only the names shown to people changed. */
+/* Priorities are shown as plain P1–P4 (P1 = highest, P4 = lowest / parked). No descriptive names:
+   what each level means is up to each team. The stored keys stay high/med/low (+ someday) so existing
+   tasks, the shared data and the Todoist priority mapping keep working untouched; "someday" (P4) is
+   the parked level, hidden from everyday views until the P4 filter is on. */
 const PRIORITIES = {
-  high:    { short: 'P1', name: 'Must do',          color: '#EF4444', tip: 'Crises, problems, hard deadlines — do first' },
-  med:     { short: 'P2', name: 'Growth',           color: '#F59E0B', tip: 'Opportunities, projects, relationships, learning — protect fixed blocks' },
-  low:     { short: 'P3', name: 'Reactive / admin', color: '#22C55E', tip: 'Calls, utilities, interruptions — batch, delegate, timebox' },
-  someday: { short: 'P4', name: 'Someday',          color: '#9CA3AF', tip: 'Someday or delete — reviewed in the weekly review' },
+  high:    { short: 'P1', color: '#EF4444' },
+  med:     { short: 'P2', color: '#F59E0B' },
+  low:     { short: 'P3', color: '#22C55E' },
+  someday: { short: 'P4', color: '#9CA3AF' },
 };
 const PRIO_ORDER  = { high: 0, med: 1, low: 2, someday: 3 };           // sort order; Someday always last
 const PRIO_COLORS = Object.fromEntries(Object.entries(PRIORITIES).map(([k, v]) => [k, v.color]));
 const prioShort = p => PRIORITIES[p]?.short || '';
-const prioFull  = p => PRIORITIES[p] ? `${PRIORITIES[p].short} · ${PRIORITIES[p].name}` : String(p || '');
+const prioFull  = p => PRIORITIES[p] ? PRIORITIES[p].short : String(p || '');
 const STATUS_COLORS = { todo:'#6B7280', inprogress:'#3B82F6', review:'#F59E0B', waiting:'#8B5CF6', done:'#22C55E' };
 const FUND_COLORS   = { WHPMT:'#4F46E5', 'Fund II':'#0891B2', 'Fund III':'#059669', 'Fund IV':'#D97706', cross:'#7C3AED', none:'#D1D5DB', '':'#D1D5DB' };
 
@@ -3291,7 +3288,7 @@ function onDescInput() {
   // Auto-estimate priority (factor in deadline)
   const deadline = document.getElementById('fDeadline')?.value || null;
   suggestedPrio = estimatePriority(name, desc, deadline);
-  const labels = { high: '🔴 P1 · Must do', med: '🟡 P2 · Growth', low: '⚪ P3 · Reactive / admin' };
+  const labels = { high: '🔴 P1', med: '🟡 P2', low: '⚪ P3' };
   const colors = { high: '#FEF2F2', med: '#FFFBEB', low: '#F9FAFB' };
   const tcols  = { high: '#DC2626', med: '#D97706', low: '#6B7280' };
   const sp = document.getElementById('prioSugg');
@@ -3558,10 +3555,10 @@ function renderFilterBar() {
       <span class="fb-label">Priority</span>
       <div class="fb-group">
         ${p('all','All','priority',state.priority==='all')}
-        ${p('high','● P1 Must do','priority',state.priority==='high')}
-        ${p('med','● P2 Growth','priority',state.priority==='med')}
-        ${p('low','● P3 Reactive','priority',state.priority==='low')}
-        ${p('someday','● P4 Someday','priority',state.priority==='someday')}
+        ${p('high','● P1','priority',state.priority==='high')}
+        ${p('med','● P2','priority',state.priority==='med')}
+        ${p('low','● P3','priority',state.priority==='low')}
+        ${p('someday','● P4','priority',state.priority==='someday')}
       </div>
     </div>
     <div class="fb-row">
@@ -3841,9 +3838,9 @@ function renderAutoSortModal() {
         <div class="asort-field-row">
           ${pill(p.fromPriority)}<span class="asort-arrow">→</span>
           <select class="asort-prio-select" onchange="_asortEditPriority('${p.id}', this.value)">
-            <option value="high" ${p.toPriority === 'high' ? 'selected' : ''}>P1 · Must do</option>
-            <option value="med"  ${p.toPriority === 'med'  ? 'selected' : ''}>P2 · Growth</option>
-            <option value="low"  ${p.toPriority === 'low'  ? 'selected' : ''}>P3 · Reactive / admin</option>
+            <option value="high" ${p.toPriority === 'high' ? 'selected' : ''}>P1</option>
+            <option value="med"  ${p.toPriority === 'med'  ? 'selected' : ''}>P2</option>
+            <option value="low"  ${p.toPriority === 'low'  ? 'selected' : ''}>P3</option>
           </select>
         </div>` : ''}
     </div>`).join('');
@@ -4227,7 +4224,7 @@ function cardHTML(t) {
       ${t.desc ? `<div class="card-notes">${esc(t.desc)}</div>` : ''}
       <div class="card-rows">
         <div class="card-row">
-          <span class="prio-pill ${prioCls}" title="${esc(prioFull(t.priority))} — ${esc(PRIORITIES[t.priority]?.tip || '')}">
+          <span class="prio-pill ${prioCls}" title="Priority ${esc(prioFull(t.priority))}">
             <span class="prio-dot" style="background:${PRIO_COLORS[t.priority]}"></span>
             ${prioLabel}
           </span>
@@ -4730,7 +4727,7 @@ function renderMyWeek() {
             <div class="stat-value" style="font-size:20px">${totalThisWeek}</div>
           </div>
           <div class="stat-card" style="padding:10px 16px;text-align:center">
-            <div class="stat-label">P1 · Must do</div>
+            <div class="stat-label">P1</div>
             <div class="stat-value" style="font-size:20px;color:${highCount?'#EF4444':'var(--t1)'}">${highCount}</div>
           </div>
           <div class="stat-card" style="padding:10px 16px;text-align:center${overdue.length?';cursor:pointer':''}" ${overdue.length?'onclick="openOverduePanel()" title="Click to see overdue tasks"':''}>
@@ -5792,8 +5789,8 @@ function decideChoose(choice) {
       <div class="decide-note">It's reassigned with a handoff note, and leaves your Todoist.</div>`;
     btn.textContent = 'Delegate';
   } else if (choice === 'someday') {
-    pane.innerHTML = '<div class="decide-note" style="font-size:12px">Moves it to <strong>P4 · Someday</strong> and clears its start and due dates. It disappears from your boards and My Day until your weekly review.</div>';
-    btn.textContent = 'Move to Someday';
+    pane.innerHTML = '<div class="decide-note" style="font-size:12px">Moves it to <strong>P4</strong> and clears its start and due dates. It disappears from your boards and My Day until you filter for P4.</div>';
+    btn.textContent = 'Park it as P4';
   } else {
     pane.innerHTML = '<div class="decide-note" style="font-size:12px">The task is deleted (Undo is available).</div>';
     btn.textContent = 'Delete it';
@@ -5830,7 +5827,7 @@ async function decideApply() {
     _pushUndo();
     _logActivity('priority', t.id, t.name, { from: t.priority, to: 'someday' });
     t.priority = 'someday'; t.startDate = ''; t.deadline = '';
-    msg = '🌙 Parked as Someday';
+    msg = '🌙 Parked as P4';
   } else {
     _pushUndo();
     _tdDelete(t.todoistId); _markDeleted(t.id);
@@ -6617,7 +6614,7 @@ function openTeamTaskPanel(kind, member) {
     open:     { icon: '📋', label: 'Open Tasks',         color: 'var(--t1)', test: t => t.status !== 'done',                                      empty: 'No open tasks 🎉' },
     done:     { icon: '✅', label: 'Completed',          color: '#059669',   test: t => t.status === 'done',                                      empty: 'No completed tasks yet.' },
     overdue:  { icon: '⚠',  label: 'Overdue',            color: '#DC2626',   test: t => t.status !== 'done' && t.deadline && t.deadline < todayStr, empty: 'Nothing overdue 🎉' },
-    high:     { icon: '⚡', label: 'P1 · Must do (open)', color: '#DC2626',   test: t => t.status !== 'done' && t.priority === 'high',             empty: 'No open high-priority tasks.' },
+    high:     { icon: '⚡', label: 'P1 (open)', color: '#DC2626',   test: t => t.status !== 'done' && t.priority === 'high',             empty: 'No open high-priority tasks.' },
     stale:    { icon: '⏳', label: 'Stale In-Progress',  color: '#D97706',   test: t => t.status === 'inprogress' && t.createdAt && (now - new Date(t.createdAt)) > 5 * D, empty: 'No stale in-progress tasks.' },
     done7:    { icon: '✅', label: 'Done in Last 7 Days',  color: '#059669', test: t => { const d = doneAt(t); return d && (now - d) < 7 * D; },  empty: 'Nothing completed in the last 7 days.' },
     done30:   { icon: '✅', label: 'Done in Last 30 Days', color: '#059669', test: t => { const d = doneAt(t); return d && (now - d) < 30 * D; }, empty: 'Nothing completed in the last 30 days.' },
@@ -10086,7 +10083,7 @@ function renderTeamView(force) {
         <div class="team-wl-health"><div class="team-wl-health-bar" style="width:${health}%;background:${healthColor}"></div></div>
         <div class="team-wl-stats">
           <div class="team-wl-stat team-drill" onclick="event.stopPropagation();openTeamTaskPanel('open','${esc(m.name)}')" title="List ${esc(m.name)}'s open tasks"><span class="team-wl-stat-num">${open}</span><span>open</span></div>
-          <div class="team-wl-stat team-drill" onclick="event.stopPropagation();openTeamTaskPanel('high','${esc(m.name)}')" title="List ${esc(m.name)}'s open P1 (Must do) tasks"><span class="team-wl-stat-num${high >= 3 ? ' red' : ''}">${high}</span><span>P1</span></div>
+          <div class="team-wl-stat team-drill" onclick="event.stopPropagation();openTeamTaskPanel('high','${esc(m.name)}')" title="List ${esc(m.name)}'s open P1 tasks"><span class="team-wl-stat-num${high >= 3 ? ' red' : ''}">${high}</span><span>P1</span></div>
           <div class="team-wl-stat team-drill" onclick="event.stopPropagation();openTeamTaskPanel('overdue','${esc(m.name)}')" title="List ${esc(m.name)}'s overdue tasks"><span class="team-wl-stat-num${overdue ? ' red' : ''}">${overdue}</span><span>overdue</span></div>
         </div>
       </div>`;
