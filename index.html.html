@@ -208,6 +208,26 @@
 .team-wl-stat{font-size:11px;color:var(--t3);display:flex;flex-direction:column;align-items:center;gap:1px;flex:1;min-width:40px}
 .team-wl-stat-num{font-size:17px;font-weight:800;color:var(--t1);line-height:1}
 .team-wl-stat-num.red{color:#DC2626}
+/* Today's 3 */
+.today3{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px 12px}
+.today3 h2{margin-bottom:8px}
+.t3-nudge{font-size:12px;color:var(--t2);background:var(--col);border-radius:8px;padding:8px 10px;margin-bottom:8px}
+.t3-row{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--border)}
+.t3-row:last-of-type{border-bottom:none}
+.t3-name{flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--t1);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t3-row.done .t3-name{text-decoration:line-through;color:var(--t3);font-weight:500}
+.t3-meta{font-size:11px;color:var(--t3);white-space:nowrap}
+.t3-x{background:none;border:none;color:var(--t3);font-size:16px;line-height:1;cursor:pointer;padding:2px 4px;border-radius:4px}
+.t3-x:hover{background:var(--col);color:var(--t1)}
+.t3-select{width:100%;margin-top:8px;padding:7px 9px;font:inherit;font-size:12px;color:var(--t2);background:var(--bg);border:1px dashed var(--border);border-radius:8px;cursor:pointer}
+/* Decide dialog */
+.decide-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.decide-opt{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:10px;align-items:center;text-align:left;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:var(--t1);cursor:pointer;font-family:inherit}
+.decide-opt span{grid-row:1/3;font-size:20px}
+.decide-opt b{font-size:13px}.decide-opt i{font-style:normal;font-size:11px;color:var(--t3)}
+.decide-opt:hover{background:var(--col)}
+.decide-opt.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.decide-note{font-size:11px;color:var(--t3);line-height:1.5;margin-top:6px}
 /* "Pushed N×": this task's date has been moved later 3+ times (see api/todoist-sync.js) */
 .push-badge{display:inline-flex;align-items:center;background:#FEE2E2;color:#B91C1C;border:1px solid #FECACA;border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap}
 [data-theme="dark"] .push-badge{background:#3B1212;color:#FCA5A5;border-color:#7F1D1D}
@@ -2026,6 +2046,9 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
     <button class="bvt-btn" onclick="openAutoSortReview()" title="Review a revised plan — suggested start dates — for your dated tasks">
       ✨<span class="btn-lbl"> Revise Plan</span>
     </button>
+    <button class="bvt-btn" id="badDatesBtn" style="display:none" onclick="openBadDatesPanel()" title="Your tasks whose start date is AFTER their due date — usually left over from an old plan. Click to review and clear them.">
+      ⚠<span class="btn-lbl" id="badDatesLbl"> Dates to fix</span>
+    </button>
     <button class="bvt-btn" id="pushedReviewBtn" style="display:none" onclick="openPushedReview()" title="Tasks whose date you've pushed 3 or more times — for your weekly review">
       🔁<span class="btn-lbl"> Pushed 3×</span>
     </button>
@@ -2532,6 +2555,32 @@ body:has(.overlay.open) #mobileNav { display:none !important; }
   </div>
 </div>
 
+<!-- Decide: what happens to a task that has been pushed 3 times (team rule: break it down, delegate,
+     park it as Someday, or delete — not reschedule it again). Acting resets its push count. -->
+<div class="overlay" id="decideOverlay" onmousedown="overlayMouseDown(event)" onclick="overlayClick(event,'decideOverlay')">
+  <div class="modal" style="width:480px">
+    <div class="modal-hd">
+      <div class="modal-title">✓ Decide</div>
+      <button class="mclose" onclick="closeDecide()">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="decideTaskName" style="font-size:14px;font-weight:700"></div>
+      <div id="decideIntro" style="font-size:12px;color:var(--t3);line-height:1.5"></div>
+      <div class="decide-grid">
+        <button type="button" class="decide-opt" data-choice="break"   onclick="decideChoose('break')"><span>🔨</span><b>Break it down</b><i>into smaller tasks</i></button>
+        <button type="button" class="decide-opt" data-choice="delegate" onclick="decideChoose('delegate')"><span>👤</span><b>Delegate</b><i>hand it to someone</i></button>
+        <button type="button" class="decide-opt" data-choice="someday" onclick="decideChoose('someday')"><span>🌙</span><b>Someday</b><i>park it as P4</i></button>
+        <button type="button" class="decide-opt" data-choice="delete"  onclick="decideChoose('delete')"><span>🗑</span><b>Delete</b><i>drop it</i></button>
+      </div>
+      <div id="decidePane"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-ghost" onclick="closeDecide()">Cancel</button>
+      <button class="btn-primary" id="decideConfirm" onclick="decideApply()" disabled>Choose an option</button>
+    </div>
+  </div>
+</div>
+
 <!-- Notifications panel -->
 <div id="notifPanel">
   <div class="np-hd">
@@ -2716,6 +2765,9 @@ let weekFocus = {};
 // "<mondayDateOfWeek>__<username>" (e.g. "2026-07-20__Danial"). Each person can only edit
 // their own entry (state.currentUser); Victor's Team Dashboard shows everyone's read-only.
 let weeklySummaries = {};
+// Today's 3: who picked which tasks for which day, keyed "<YYYY-MM-DD>__<name>" -> [taskId, ...].
+// Shared like weeklySummaries so it follows a person across devices. Chope-only: never sent to Todoist.
+let todayPicks = {};
 let feedback = [];
 let state = {
   view: 'daily',
@@ -2823,7 +2875,7 @@ async function load() {
   // localStorage first — instant paint while Firestore loads
   try {
     const d = JSON.parse(localStorage.getItem('chope_v2') || 'null');
-    if (d) { tasks = d.tasks || []; workstreams = d.workstreams || []; team = d.team || DEFAULT_TEAM; funds = Array.isArray(d.funds) && d.funds.length ? d.funds : DEFAULT_FUNDS; weekFocus = d.weekFocus || {}; weeklySummaries = d.weeklySummaries || {}; if (Array.isArray(d.activityLog)) activityLog = d.activityLog; }
+    if (d) { tasks = d.tasks || []; workstreams = d.workstreams || []; team = d.team || DEFAULT_TEAM; funds = Array.isArray(d.funds) && d.funds.length ? d.funds : DEFAULT_FUNDS; weekFocus = d.weekFocus || {}; weeklySummaries = d.weeklySummaries || {}; todayPicks = d.todayPicks || {}; if (Array.isArray(d.activityLog)) activityLog = d.activityLog; }
     else   { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; funds = DEFAULT_FUNDS; }
   } catch { tasks = seedTasks(); workstreams = seedWs(); team = DEFAULT_TEAM; funds = DEFAULT_FUNDS; }
 
@@ -2848,15 +2900,16 @@ async function load() {
         funds = Array.isArray(d.funds) && d.funds.length ? d.funds : funds;
         weekFocus = d.weekFocus || weekFocus;
         weeklySummaries = d.weeklySummaries || weeklySummaries;
+        todayPicks = d.todayPicks || todayPicks;
         if (Array.isArray(d.activityLog)) activityLog = d.activityLog;
         if (d.scheduleData && typeof d.scheduleData === 'object') {
           scheduleData = d.scheduleData;
           localStorage.setItem('chope_schedule', JSON.stringify(scheduleData));
         }
-        localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, weekFocus, weeklySummaries, activityLog }));
+        localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, weekFocus, weeklySummaries, todayPicks, activityLog }));
       } else {
         // First ever load — push local data to Firestore
-        await setDoc(ref, _stripUndefinedDeep({ tasks, workstreams, team, funds, weekFocus, weeklySummaries, activityLog, scheduleData }));
+        await setDoc(ref, _stripUndefinedDeep({ tasks, workstreams, team, funds, weekFocus, weeklySummaries, todayPicks, activityLog, scheduleData }));
       }
     } catch(e) {
       console.warn('Firestore load failed, falling back to localStorage', e);
@@ -2880,6 +2933,7 @@ async function load() {
       funds = Array.isArray(d.funds) && d.funds.length ? d.funds : DEFAULT_FUNDS;
       weekFocus = d.weekFocus || {};
       weeklySummaries = d.weeklySummaries || {};
+      todayPicks = d.todayPicks || {};
       if (Array.isArray(d.activityLog)) activityLog = d.activityLog;
       if (d.scheduleData && typeof d.scheduleData === 'object') {
         scheduleData = d.scheduleData;
@@ -2895,7 +2949,7 @@ async function load() {
         const idx = tasks.findIndex(t => t.id === id);
         if (idx >= 0) { const { _ts, ...td } = ov; tasks[idx] = td; }
       });
-      localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, weekFocus, weeklySummaries, activityLog }));
+      localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, weekFocus, weeklySummaries, todayPicks, activityLog }));
       renderAll();
       toast('🔄 Board updated by a colleague');
     }, err => {
@@ -2923,11 +2977,11 @@ let _persistChain = Promise.resolve(); // serializes Firestore writes so a merge
                                         // below never races against another in-flight write
 
 function persist() {
-  localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, weekFocus, weeklySummaries, activityLog }));
-  try { bc.postMessage({ tasks, workstreams, team, funds, weekFocus, weeklySummaries, activityLog, scheduleData }); } catch {}
+  localStorage.setItem('chope_v2', JSON.stringify({ tasks, workstreams, team, funds, weekFocus, weeklySummaries, todayPicks, activityLog }));
+  try { bc.postMessage({ tasks, workstreams, team, funds, weekFocus, weeklySummaries, todayPicks, activityLog, scheduleData }); } catch {}
   if (window._chopeFb) {
     _lastLocalWrite = Date.now();
-    const snapshot = { tasks, workstreams, team, funds, weekFocus, weeklySummaries, activityLog, scheduleData, savedAt: _lastLocalWrite };
+    const snapshot = { tasks, workstreams, team, funds, weekFocus, weeklySummaries, todayPicks, activityLog, scheduleData, savedAt: _lastLocalWrite };
     _persistChain = _persistChain.then(() => _persistToFirestoreMerged(snapshot));
   }
 }
@@ -2946,7 +3000,7 @@ async function _persistToFirestoreMerged(snapshot) {
   const { db, doc, setDoc, getDoc } = window._chopeFb;
   const ref = doc(db, 'chope', 'main');
   let mergedTasks = snapshot.tasks, mergedWorkstreams = snapshot.workstreams;
-  let mergedWeekFocus = snapshot.weekFocus, mergedWeeklySummaries = snapshot.weeklySummaries;
+  let mergedWeekFocus = snapshot.weekFocus, mergedWeeklySummaries = snapshot.weeklySummaries, mergedTodayPicks = snapshot.todayPicks;
   try {
     const snap = await getDoc(ref);
     if (snap.exists()) {
@@ -2960,6 +3014,7 @@ async function _persistToFirestoreMerged(snapshot) {
       // each other's key entirely. A shallow key merge (local wins per key) fixes both.
       mergedWeekFocus = _mergeFlat(server.weekFocus, snapshot.weekFocus);
       mergedWeeklySummaries = _mergeFlat(server.weeklySummaries, snapshot.weeklySummaries);
+      mergedTodayPicks = _mergeFlat(server.todayPicks, snapshot.todayPicks);
     }
   } catch (e) { console.warn('Pre-write reconciliation read failed, writing local state as-is:', e); }
   try {
@@ -2967,6 +3022,7 @@ async function _persistToFirestoreMerged(snapshot) {
       tasks: mergedTasks, workstreams: mergedWorkstreams,
       team: snapshot.team, funds: snapshot.funds, weekFocus: mergedWeekFocus,
       weeklySummaries: mergedWeeklySummaries,
+      todayPicks: mergedTodayPicks,
       activityLog: snapshot.activityLog, scheduleData: snapshot.scheduleData,
       _savedAt: snapshot.savedAt,
     }));
@@ -3022,6 +3078,7 @@ bc.onmessage = e => {
   if (Array.isArray(e.data.funds) && e.data.funds.length) funds = e.data.funds;
   if (e.data.weekFocus) weekFocus = e.data.weekFocus;
   if (e.data.weeklySummaries) weeklySummaries = e.data.weeklySummaries;
+  if (e.data.todayPicks) todayPicks = e.data.todayPicks;
   if (Array.isArray(e.data.activityLog)) activityLog = e.data.activityLog;
   if (e.data.scheduleData && typeof e.data.scheduleData === 'object') scheduleData = e.data.scheduleData;
   renderAll(); toast('Board updated by a colleague');
@@ -4020,6 +4077,7 @@ function renderBoard() {
   document.getElementById('bvt-kanban')?.classList.toggle('active', boardMode === 'kanban');
   document.getElementById('bvt-list')?.classList.toggle('active', boardMode === 'list');
   document.querySelectorAll('.bvt-sort-btn').forEach(b => b.classList.toggle('active', b.dataset.sort === boardSortMode));
+  _updateBadDatesBtn();
 
   const boardEl   = document.getElementById('board');
   const listWrap  = document.getElementById('boardListWrap');
@@ -4243,6 +4301,31 @@ function renderDaily() {
   const myOverdue = myTasks.filter(t => t.deadline && t.deadline < todayStr)
     .sort((a,b) => a.deadline.localeCompare(b.deadline));
 
+  // Today's 3 (team rule: pick three each morning; everything else can wait). Mine only, Chope only.
+  const t3 = isMe ? getTodayPicks(me).map(id => tasks.find(t => t.id === id)).filter(Boolean) : [];
+  const t3Done = t3.filter(t => t.status === 'done').length;
+  const t3Options = isMe && t3.length < 3
+    ? myTasks.filter(t => !t3.some(p => p.id === t.id))
+        .sort((a, b) => (PRIO_ORDER[a.priority] ?? 1) - (PRIO_ORDER[b.priority] ?? 1) || (a.deadline || '9999').localeCompare(b.deadline || '9999'))
+        .map(t => `<option value="${t.id}">${esc(prioShort(t.priority))} · ${esc(t.name.length > 60 ? t.name.slice(0, 60) + '…' : t.name)}${t.deadline ? ' (due ' + esc(fmtDate(t.deadline)) + ')' : ''}</option>`).join('')
+    : '';
+  const todayPicksHtml = isMe ? `
+    <div class="daily-section today3">
+      <h2>🎯 Today's 3 <span style="font-size:12px;color:var(--t3);font-weight:400">${t3.length ? t3Done + ' of ' + t3.length + ' done' : 'choose what really matters today'}</span></h2>
+      ${!t3.length && hour < 12 ? '<div class="t3-nudge">☀ Start the day by choosing up to three tasks. Everything else can wait.</div>' : ''}
+      ${t3.map(t => { const dn = t.status === 'done'; return `
+        <div class="t3-row${dn ? ' done' : ''}">
+          <button class="panel-check ${dn ? 'checked' : ''}" onclick="toggleTaskDone('${t.id}')" title="${dn ? 'Mark incomplete' : 'Mark complete'}">
+            <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>
+          </button>
+          <div class="t3-name" onclick="openTaskModal('${t.id}')" title="${esc(t.name)}">${esc(t.name)}</div>
+          <span class="prio-pill ${t.priority || 'med'}" title="${esc(prioFull(t.priority))}">${esc(prioShort(t.priority))}</span>
+          ${t.deadline ? `<span class="t3-meta">due ${esc(fmtDate(t.deadline))}</span>` : ''}
+          <button class="t3-x" onclick="removeTodayPick('${t.id}')" title="Take off today's 3">×</button>
+        </div>`; }).join('')}
+      ${t3.length < 3 ? `<select class="t3-select" onchange="addTodayPick(this.value);this.value=''"><option value="">＋ Pick a task for today… (${3 - t3.length} left)</option>${t3Options}</select>` : ''}
+    </div>` : '';
+
   const waitingSectionHtml = myWaiting.length ? `
     <div class="daily-section">
       <h2>⏳ Waiting on others <span style="font-size:12px;color:var(--t3);font-weight:400">${myWaiting.length} · not counted in your open tasks</span></h2>
@@ -4261,6 +4344,8 @@ function renderDaily() {
       <h1>${esc(greeting)}, ${esc(me)} 👋</h1>
       <p>${now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}<span style="font-size:12px;color:var(--p);cursor:pointer;margin-left:8px" onclick="openProfileModal('${esc(me)}')">✎ My Profile</span></p>
     </div>
+
+    ${todayPicksHtml}
 
     <div class="daily-grid">
       <div class="daily-card" style="cursor:pointer" onclick="openOpenTasksPanel('${esc(subject)}')" title="Click to see open tasks">
@@ -5609,6 +5694,157 @@ function deleteTask() {
   toast('Task deleted');
 }
 
+// ── Today's 3 ───────────────────────────────────────────────────────────────────────
+const _pickKey = (name, day) => `${day || todayLocal()}__${name}`;
+function getTodayPicks(name) { return (todayPicks[_pickKey(name)] || []).filter(id => tasks.some(t => t.id === id)); }
+function _pruneTodayPicks() { // keep two weeks; older days are of no use and would grow the shared document forever
+  const cutoff = _localDateStr(new Date(Date.now() - 14 * 86400000));
+  Object.keys(todayPicks).forEach(k => { if (k.slice(0, 10) < cutoff) delete todayPicks[k]; });
+}
+function addTodayPick(id) {
+  const me = state.currentUser;
+  if (!me || !id) return;
+  const cur = getTodayPicks(me);
+  if (cur.includes(id)) return;
+  if (cur.length >= 3) { toast("That's your 3 for today — take one off first"); return; }
+  todayPicks[_pickKey(me)] = [...cur, id];
+  _pruneTodayPicks();
+  persist(); renderAll();
+}
+function removeTodayPick(id) {
+  const me = state.currentUser;
+  if (!me) return;
+  todayPicks[_pickKey(me)] = getTodayPicks(me).filter(x => x !== id);
+  persist(); renderAll();
+}
+
+// ── Dates that make no sense: start after due ──────────────────────────────────────
+const _badDateTasks = () => tasks.filter(t => t.assignee === state.currentUser && t.status !== 'done' && t.startDate && t.deadline && t.startDate > t.deadline);
+function _updateBadDatesBtn() {
+  const b = document.getElementById('badDatesBtn');
+  if (!b) return;
+  const n = _badDateTasks().length;
+  b.style.display = n ? '' : 'none';
+  const l = document.getElementById('badDatesLbl'); if (l) l.textContent = ` Dates to fix (${n})`;
+}
+function openBadDatesPanel() {
+  const list = _badDateTasks().sort((a, b) => a.deadline.localeCompare(b.deadline));
+  const titleEl = document.getElementById('overduePanelTitle'), body = document.getElementById('overduePanelBody');
+  titleEl.textContent = `⚠ Start date after due date (${list.length})`; titleEl.style.color = '#B45309';
+  body.innerHTML = list.length ? `
+    <div style="font-size:12px;color:var(--t3);line-height:1.5;margin-bottom:10px">A task can't start after it's due. These are usually left over from an old plan. Clearing the start date keeps the due date, and (if synced) removes the matching Todoist Date.</div>
+    <button class="btn-primary" style="width:100%;margin-bottom:10px" onclick="clearBadStarts()">Clear all ${list.length} start date${list.length !== 1 ? 's' : ''}</button>
+    ${list.map(t => `
+      <div class="panel-task-row" style="cursor:default">
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="openTaskModal('${t.id}');closeOverduePanel()">
+          <div style="font-size:13px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</div>
+          <div style="font-size:11px;color:var(--t3);margin-top:3px">Start <strong style="color:#B45309">${esc(fmtDate(t.startDate))}</strong> · due <strong style="color:var(--t1)">${esc(fmtDate(t.deadline))}</strong></div>
+        </div>
+        <button class="btn-ghost" style="font-size:11px;white-space:nowrap" onclick="clearBadStarts('${t.id}')">Clear start</button>
+      </div>`).join('')}`
+    : '<div style="text-align:center;padding:32px;color:var(--t3);font-size:13px">No start dates after their due dates. ✓</div>';
+  document.getElementById('overduePanel').style.display = 'flex';
+}
+function clearBadStarts(id) {
+  const todo = id ? _badDateTasks().filter(t => t.id === id) : _badDateTasks();
+  if (!todo.length) return;
+  _pushUndo();
+  todo.forEach(t => { _logActivity('startdate', t.id, t.name, { from: t.startDate, to: '' }); t.startDate = ''; });
+  persist(); renderAll();
+  toast(`Cleared ${todo.length} start date${todo.length !== 1 ? 's' : ''}`, { label: 'Undo', onClick: undo });
+  _tdSyncMany(todo);
+  if (document.getElementById('overduePanel').style.display !== 'none') openBadDatesPanel();
+}
+
+// ── Decide (the 4 options for a task pushed 3×) ────────────────────────────────────
+let _decide = null;
+function openDecide(taskId) {
+  const t = tasks.find(x => x.id === taskId);
+  if (!t) return;
+  _decide = { id: taskId, choice: null };
+  if (document.getElementById('taskOverlay').classList.contains('open')) closeTaskModal();
+  const n = _tdStrikes[taskId];
+  document.getElementById('decideTaskName').textContent = t.name;
+  document.getElementById('decideIntro').textContent = (n ? `Its date has been pushed ${n} times. ` : '') + 'Rather than push it again, decide what happens to it. Acting resets the push count.';
+  document.querySelectorAll('.decide-opt').forEach(b => b.classList.remove('on'));
+  document.getElementById('decidePane').innerHTML = '';
+  const c = document.getElementById('decideConfirm'); c.disabled = true; c.textContent = 'Choose an option';
+  document.getElementById('decideOverlay').classList.add('open');
+}
+function closeDecide() { document.getElementById('decideOverlay')?.classList.remove('open'); _decide = null; }
+function decideChoose(choice) {
+  if (!_decide) return;
+  _decide.choice = choice;
+  document.querySelectorAll('.decide-opt').forEach(b => b.classList.toggle('on', b.dataset.choice === choice));
+  const t = tasks.find(x => x.id === _decide.id);
+  const pane = document.getElementById('decidePane'), btn = document.getElementById('decideConfirm');
+  btn.disabled = false;
+  if (choice === 'break') {
+    pane.innerHTML = `<label style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">One smaller task per line</label>
+      <textarea class="fi" id="decideLines" rows="5" placeholder="e.g.&#10;Draft the outline&#10;Get numbers from Danial&#10;Review with legal" style="width:100%;margin-top:4px"></textarea>
+      <div class="decide-note">The pieces keep this task's category, fund, workstream, assignee and priority, with no dates. The original is removed (Undo is available).</div>`;
+    btn.textContent = 'Break it down';
+  } else if (choice === 'delegate') {
+    pane.innerHTML = `<label style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">Hand it to</label>
+      <select class="fi" id="decideWho" style="width:100%;margin-top:4px"><option value="">Choose…</option>${team.filter(m => m.name !== t.assignee).map(m => `<option value="${esc(m.name)}">${esc(m.name)} (${esc(m.role)})</option>`).join('')}</select>
+      <textarea class="fi" id="decideNote" rows="2" placeholder="Handoff note (optional) — what do they need to know?" style="width:100%;margin-top:8px"></textarea>
+      <div class="decide-note">It's reassigned with a handoff note, and leaves your Todoist.</div>`;
+    btn.textContent = 'Delegate';
+  } else if (choice === 'someday') {
+    pane.innerHTML = '<div class="decide-note" style="font-size:12px">Moves it to <strong>P4 · Someday</strong> and clears its start and due dates. It disappears from your boards and My Day until your weekly review.</div>';
+    btn.textContent = 'Move to Someday';
+  } else {
+    pane.innerHTML = '<div class="decide-note" style="font-size:12px">The task is deleted (Undo is available).</div>';
+    btn.textContent = 'Delete it';
+  }
+}
+async function decideApply() {
+  if (!_decide?.choice) return;
+  const { id, choice } = _decide;
+  const t = tasks.find(x => x.id === id);
+  if (!t) { closeDecide(); return; }
+  const by = state.currentUser || 'Unknown', now = new Date().toISOString();
+  let msg = '', created = [];
+  if (choice === 'break') {
+    const lines = (document.getElementById('decideLines').value || '').split('\n').map(l => l.replace(/^\s*(?:[-*•☐]|\d+[.)])\s*/, '').trim()).filter(Boolean).slice(0, 12);
+    if (!lines.length) { flash('decideLines'); return; }
+    _pushUndo();
+    created = lines.map(name => ({ id: uid(), name: name.slice(0, 200), desc: `Part of: ${t.name}`, cat: t.cat, fund: t.fund || '', assignee: t.assignee, priority: t.priority, status: 'todo', startDate: '', deadline: '', ws: t.ws || '', createdAt: now, brokenFrom: t.id }));
+    created.slice().reverse().forEach(n => { tasks.unshift(n); _logActivity('create', n.id, n.name, {}); });
+    _tdDelete(t.todoistId); _markDeleted(t.id);
+    tasks = tasks.filter(x => x.id !== t.id);
+    msg = `🔨 Broken into ${created.length} smaller task${created.length !== 1 ? 's' : ''}`;
+  } else if (choice === 'delegate') {
+    const who = document.getElementById('decideWho').value;
+    if (!who) { flash('decideWho'); return; }
+    const note = (document.getElementById('decideNote').value || '').trim();
+    _pushUndo();
+    if (!t.notes) t.notes = [];
+    t.notes.push({ id: uid(), author: '__system__', text: `Delegated from ${t.assignee} to ${who} by ${by} (pushed ${_tdStrikes[id] || 3}+ times)`, ts: now, type: 'handoff', readBy: [by] });
+    if (note) t.notes.push({ id: uid(), author: by, text: note, ts: now, type: 'handoff', readBy: [by] });
+    _logActivity('assign', t.id, t.name, { from: t.assignee, to: who });
+    t.assignee = who;
+    msg = `👤 Delegated to ${who}`;
+  } else if (choice === 'someday') {
+    _pushUndo();
+    _logActivity('priority', t.id, t.name, { from: t.priority, to: 'someday' });
+    t.priority = 'someday'; t.startDate = ''; t.deadline = '';
+    msg = '🌙 Parked as Someday';
+  } else {
+    _pushUndo();
+    _tdDelete(t.todoistId); _markDeleted(t.id);
+    tasks = tasks.filter(x => x.id !== t.id);
+    msg = '🗑 Deleted';
+  }
+  closeDecide();
+  persist(); renderAll();
+  toast(msg + ' — push count reset', { label: 'Undo', onClick: undo });
+  if (created.length) _tdSyncMany(created);
+  // Reset the push count and strike labels on the server (best effort — it's harmless if it can't).
+  if (_tdServerMode) { try { _tdApplyCounts((await _tdApi({ action: 'decided', taskId: id })).counts); } catch (e) { console.warn('Decide reset:', e.message); } }
+  if (document.getElementById('overduePanelTitle')?.textContent.includes('🔁')) openPushedReview();
+}
+
 // ── "Waiting on" (the task needs someone else, not me) ───────────────────────────────
 function toggleWaitingBox() {
   const box = document.getElementById('waitingBox');
@@ -6820,17 +7056,9 @@ function _tdBadge(taskId) {
     ? `<span class="push-badge" title="This task's date has been pushed ${n} times — decide: break it down, delegate, move to someday, or delete">Pushed ${n}×</span>`
     : '';
 }
-async function markDecided(taskId) {
-  const id = taskId || editTaskId;
-  if (!id) return;
-  try {
-    const r = await _tdApi({ action: 'decided', taskId: id });
-    _tdApplyCounts(r.counts);
-    toast('✓ Decided — push count reset');
-    const b = document.getElementById('btnDecided'); if (b) b.style.display = 'none';
-    if (document.getElementById('overduePanelTitle')?.textContent.includes('🔁')) openPushedReview();
-  } catch (e) { toast('Could not reset: ' + e.message); }
-}
+// "Decided" used to just zero the counter, which made it too easy to dismiss a task without dealing
+// with it. It now asks what you're actually doing about it (see openDecide).
+function markDecided(taskId) { const id = taskId || editTaskId; if (id) openDecide(id); }
 function _updateDecidedBtn(taskId) {
   const b = document.getElementById('btnDecided');
   if (!b) return;

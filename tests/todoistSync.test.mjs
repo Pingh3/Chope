@@ -324,6 +324,21 @@ test('two sync-state records pointing at the same Todoist task are untangled too
   assert.equal(todoist.active().length, 2);
 });
 
+test('clearing a start date in Chope clears the Todoist Date it created, but never one the owner re-planned', async () => {
+  const { todoist, sync, patch } = setup([T('a'), T('b')]);
+  await sync();
+  const [ida, idb] = todoist.active().map(t => t.id);
+  assert.equal(todoist._tasks.get(ida).due.date, '2026-10-15');
+  todoist.userSetDue(idb, '2026-10-22');                       // the owner re-plans task b in Todoist
+  patch('a', { startDate: '' }); patch('b', { startDate: '' });
+  await sync();
+  assert.equal(todoist._tasks.get(ida).due, null);             // a: still the date Chope sent -> cleared
+  assert.equal(todoist._tasks.get(idb).due.date, '2026-10-22'); // b: the owner's own plan -> untouched
+  todoist.resetCalls();
+  await sync();
+  assert.deepEqual(todoist.writeCalls(), []);                  // and it settles
+});
+
 test('"Waiting on" tasks are never created in Todoist (they don\'t need me)', async () => {
   const { todoist, sync } = setup([T('a', { status: 'waiting', waitingOn: 'Legal' }), T('b')]);
   const r = await sync();
